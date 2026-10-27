@@ -126,8 +126,7 @@
     g15: { k: 'g15', label: 'Got a grade 1–5 plan', num: true, title: 'Teachers who got a grade 1–5 lesson plan on WhatsApp or read one in the teacher app in the period', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
     usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who got a grade 1–5 plan ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
     plans: { k: 'plans', label: 'Plans received', num: true, title: 'Grade 1–5 lesson plans handed to teachers (lesson_plans rows; app reads before 13 Oct 19:09 are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
-    taught: { k: 'taught', label: 'Plans taught', num: true, title: "Feedback answers 'taught' (lp_feedback.used_in_class), grade 1–5 plans — the teacher's own word", val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
-    answered: { k: 'answered', label: "Answered 'taught?'", num: true, title: 'Feedback responses that answered whether the plan was used in class', val: (r) => r.answered, fmt: (r) => N(r.answered) },
+    taught: { k: 'taught', label: 'Plans taught', num: true, title: 'Provisional: DC observations in which the teacher attached one of her recent Rumi lesson plans (the plan she received was taught and recorded)', val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
     tTaught: { k: 'tTaught', label: 'Teachers who taught one', num: true, levels: ['sector', 'school'], val: (r) => r.teachersTaught, fmt: (r) => N(r.teachersTaught) },
     dc: { k: 'dc', label: 'Lessons recorded', src: 'dc', num: true, title: 'Digital Coach self-recordings whose scores came back', val: (r) => r.dc, fmt: (r) => cnt(r, r.dc) },
     dcT: { k: 'dcT', label: 'Teachers recorded', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => r.dcT, fmt: (r) => N(r.dcT) },
@@ -247,7 +246,7 @@
     const k = `<div class="kpis">
       ${kpi('Primary teachers', N(a.teachers), `${N(a.schools)} schools`)}
       ${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} got a grade 1–5 plan`)}
-      ${kpi('Plans taught', N(a.taught), `${N(a.teachersTaught)} teachers said so`)}
+      ${kpi('Plans taught', N(a.taught), `${N(a.teachersTaught)} teachers · seen in DC`)}
       ${kpi('DC observations', N(a.dc), `${N(a.dcT)} teachers recorded`, 'src-dc')}
       ${kpi('HITL observations', N(a.hitl), `${N(a.hitlT)} teachers observed`, 'src-hitl')}
       ${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers`)}
@@ -265,13 +264,13 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-lp', `Lesson plans · ${scopeName()} · ${periodText()}`,
-      'Got a plan = a grade 1–5 plan sent on WhatsApp or read in the teacher app. LP engagement % = primary teachers who got at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Taught</b> is the teacher\'s own answer in plan feedback, asked only after a thumbs-up with a voice note, so read it as "N of the M who answered".',
+      'Got a plan = a grade 1–5 plan sent on WhatsApp or read in the teacher app. LP engagement % = primary teachers who got at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she got the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher getting a Rumi plan.',
       `<div class="kpis">${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers`)}
-        ${kpi('Plans received', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `of ${N(a.answered)} answers`)}
+        ${kpi('Plans received', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `${P1(ratio(a.taught, a.dc))} of DC observations`)}
         ${kpi('Teachers who taught one', N(a.teachersTaught))}${kpi('Any plan incl. grade 6–12', N(a.lpAny), 'teachers')}</div>`)
       + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.teachersWithPlan, g.taught] })),
         [{ name: 'Teachers who got a plan', color: GREEN }, { name: 'Plans taught', color: NAVY }]), granSeg())
-      + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.usage, COL.plans, COL.taught, COL.answered, COL.tTaught], rows,
+      + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.usage, COL.plans, COL.taught, COL.tTaught], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
 
@@ -370,7 +369,7 @@
   }
 
   const MISSING = [
-    ['', 'Everyone'], ['plan', 'No grade 1–5 plan'], ['taught', 'No plan taught'], ['dc', 'No Digital Coach lesson'], ['hitl', 'No coach visit'],
+    ['', 'Everyone'], ['plan', 'No grade 1–5 plan'], ['taught', 'No plan taught'], ['dc', 'No DC observation'], ['hitl', 'No HITL observation'],
     ['quiz', 'No quiz made'], ['exam', 'No exam paper'], ['prog', 'Not on NIETE primary'], ['l1', 'No Level 0 certificate'],
   ];
   function viewTeachers(R) {
@@ -391,7 +390,7 @@
     const items = (f) => ser.map((g) => ({ label: bucketLabel(g), values: f(g) }));
     return `<div class="cards2">`
       + card('c-a1', 'Teachers who got a lesson plan', '', chart(items((g) => [g.teachersWithPlan]), [{ name: 'Teachers', color: GREEN }]), granSeg())
-      + card('c-a2', 'Plans taught', 'Teachers\' own answers in plan feedback.', chart(items((g) => [g.taught]), [{ name: 'Plans taught', color: NAVY }]), granSeg())
+      + card('c-a2', 'Plans taught', 'DC observations with one of the teacher&#39;s recent Rumi plans attached (provisional).', chart(items((g) => [g.taught]), [{ name: 'Plans taught', color: NAVY }]), granSeg())
       + card('c-a3', 'Classroom observations', 'DC and HITL observations side by side, never added.', chart(items((g) => [g.dc, g.hitl]), [{ name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }]), granSeg())
       + card('c-a4', 'Teaching practices score', 'FICO section C, score ÷ maximum.', chart(items((g) => [fpct(g.ficoD.hlp), fpct(g.ficoH.hlp)]), [{ name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }], 'line'), granSeg())
       + card('c-a5', 'Subject knowledge score', 'FICO v2 to 7 Sep and v3 from 8 Sep are different measures: two lines, never one.',
@@ -417,7 +416,7 @@
     $('#m-title').textContent = T.name;
     $('#m-sub').textContent = `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`;
     $('#m-body').innerHTML = `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
-      <div class="kpis">${kpi('Days with a lesson plan', N(t.lpDays))}${kpi('Plans received', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), `of ${N(t.answered)} answers`)}
+      <div class="kpis">${kpi('Days with a lesson plan', N(t.lpDays))}${kpi('Plans received', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
       ${kpi('DC observations', N(t.dc), 'lessons recorded', 'src-dc')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`, 'src-hitl')}
       ${kpi('Quizzes made', N(t.made))}${kpi('Exam generator', N(t.exOk), `papers · ${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
       ${kpi('NIETE training', t.onProg ? 'On programme' : 'Not assigned', `${N(g.mods)} of 171 modules · certificates: ${t.certs ? t.certs.split('').map((l) => LEVELS[+l - 1]).join(', ') : 'none'}`)}</div>

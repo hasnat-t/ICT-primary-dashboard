@@ -1,7 +1,7 @@
 // Roll-ups for the ICT Primary dashboard, shared by the page and the Node tests. Every figure is built from the
 // compact arrays in /api/data for a chosen date range (day indexes since data.window_start, Pakistan dates):
 //   lp   [teacher, day, g15, g612, plans, taught, answered]
-//   obs  [teacher, day, src D|H, stage -|C|P|A, tsk_s, tsk_m, hlp_s, hlp_m, se_s, se_m, lpf_s, lpf_m]
+//   obs  [teacher, day, src D|H, stage L|-|C|P|A (DC L = taught a recent Rumi plan), tsk_s, tsk_m, hlp_s, hlp_m, se_s, se_m, lpf_s, lpf_m]
 //   quiz.made [teacher, day, n]; quiz.sit [who, day, kind L|V, sittings, finished, children];
 //   quiz.buckets [who, w|o|a, bucket, kind, children]   (who < 0 = the whole school -1-who)
 //   quiz_sectors {sector|ALL: [[d|w|o|a, bucket, kind, children]]}
@@ -70,7 +70,7 @@
   const pct = (f) => (f[1] ? (100 * f[0]) / f[1] : null);
 
   function blankTeacher() {
-    return { g15: false, g612: false, lpDays: 0, plans: 0, taught: 0, answered: 0,
+    return { g15: false, g612: false, lpDays: 0, plans: 0, taught: 0, saidTaught: 0, answered: 0,
       dc: 0, hitl: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0 };
   }
@@ -107,11 +107,11 @@
       if (r[2]) t.g15 = true;
       if (r[3]) t.g612 = true;
       if (r[2] || r[3]) t.lpDays++;
-      t.plans += r[4]; t.taught += r[5]; t.answered += r[6];
+      t.plans += r[4]; t.saidTaught += r[5]; t.answered += r[6];
     }
     for (const r of P.obs[ti]) {
       if (r[1] < from || r[1] > to) continue;
-      if (r[2] === 'D') { t.dc++; t.odd += addFico(t.ficoD, r); }
+      if (r[2] === 'D') { t.dc++; if (r[3] === 'L') t.taught++; t.odd += addFico(t.ficoD, r); }
       else { t.hitl++; if (r[3] === 'C') t.hitlC++; else if (r[3] === 'P') t.hitlP++; else t.hitlA++; t.odd += addFico(t.ficoH, r); }
     }
     for (const r of P.made[ti]) if (r[1] >= from && r[1] <= to) t.made += r[2];
@@ -231,10 +231,10 @@
       return true;
     };
     const at = (d) => (d >= from && d <= to ? map.get(keyOf(d)) : null);
-    for (const r of data.lp || []) { const g = at(r[1]); if (!g || !inScope(r[0])) continue; g.plans += r[4]; g.taught += r[5]; if (r[2]) g.tPlan.add(r[0]); }
+    for (const r of data.lp || []) { const g = at(r[1]); if (!g || !inScope(r[0])) continue; g.plans += r[4]; if (r[2]) g.tPlan.add(r[0]); }
     for (const r of data.obs || []) {
       const g = at(r[1]); if (!g || !inScope(r[0])) continue;
-      if (r[2] === 'D') { g.dc++; g.tDc.add(r[0]); addFico(g.ficoD, r); } else { g.hitl++; g.tHitl.add(r[0]); addFico(g.ficoH, r); }
+      if (r[2] === 'D') { g.dc++; if (r[3] === 'L') g.taught++; g.tDc.add(r[0]); addFico(g.ficoD, r); } else { g.hitl++; g.tHitl.add(r[0]); addFico(g.ficoH, r); }
     }
     for (const r of data.exams || []) { const g = at(r[1]); if (!g || !inScope(r[0])) continue; g.exOk += r[3]; if (r[3]) g.tEx.add(r[0]); }
     const q = data.quiz || { made: [], sit: [] };

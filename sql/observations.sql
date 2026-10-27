@@ -4,13 +4,16 @@
 -- observer is the teacher, and test observers, out), fico-scores-rules.md §2/§2c (domain_score/domain_max from
 -- analysis_data.domains; lesson-plan fidelity only where a plan was attached; /observe2 fico17 visits excluded
 -- and counted). DC and HITL are never pooled; FICO v3 (from 2026-09-08) is split from earlier scores by the page.
--- Record: "tid:day:src:stage:tsk_s:tsk_m:hlp_s:hlp_m:se_s:se_m:lpf_s:lpf_m"; src D/H; HITL stage C complete
+-- Plans taught (Hasnat, 2026-10-27; no governed rule yet - provisional): a DC observation in which the teacher attached one
+-- of her recent Rumi plans (has_lesson_plan AND lesson_plan_link_method = 'selected_recent'); DC stage L. linked_lesson_plan_id
+-- is NULL on every row, so the exact plan cannot be named; 99.6% of these followed a Rumi plan within 14 days (2026-10-27).
+-- Record: "tid:day:src:stage:tsk_s:tsk_m:hlp_s:hlp_m:se_s:se_m:lpf_s:lpf_m"; src D/H; DC stage L or -; HITL stage C complete
 -- (debrief done), P debrief pending, A awaiting review; day = days since 2026-08-01 (PKT).
 WITH {{COMMON}},
 sess_all AS (
   SELECT cs.id AS session_id, t.teacher_id, t.school_id,
          IF(cs.observation_type = 'leader_observation', 'H', 'D') AS src,
-         CASE WHEN cs.observation_type IS NULL THEN '-'
+         CASE WHEN cs.observation_type IS NULL THEN IF(cs.has_lesson_plan AND cs.lesson_plan_link_method = 'selected_recent', 'L', '-')
               WHEN cs.debrief_status = 'done' THEN 'C'
               WHEN cs.status IN ('observer_review_complete', 'completed') THEN 'P'
               ELSE 'A' END AS stage,

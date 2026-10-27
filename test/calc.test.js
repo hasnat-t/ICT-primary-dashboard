@@ -12,7 +12,7 @@ function sample() {
     teachers: [{ s: 0, name: 'T0', lv: 'P' }, { s: 0, name: 'T1', lv: 'PM' }, { s: 1, name: 'T2', lv: 'P' }, { s: 2, name: 'T3', lv: 'P' }],
     lp: [[0, 2, 1, 0, 2, 1, 1], [0, 9, 1, 0, 1, 0, 1], [1, 9, 0, 1, 0, 0, 0], [3, 20, 1, 0, 1, 1, 1]],
     obs: [
-      [0, 2, 'D', '-', 18, 24, 30, 48, 20, 28, 30, 40],      // v3 subject scale
+      [0, 2, 'D', 'L', 18, 24, 30, 48, 20, 28, 30, 40],      // v3 subject scale; taught a recent Rumi plan
       [0, 3, 'D', '-', 20, 32, 24, 48, 14, 28, null, null],  // v2 subject scale, no plan attached
       [2, 3, 'H', 'C', 12, 24, 36, 48, 21, 28, 20, 40],
       [2, 4, 'H', 'P', 10, 20, 12, 16, 21, 28, 20, 40],      // HLP out of 16 = unknown scale: not pooled
@@ -54,7 +54,7 @@ test('roll-up: LP usage, observations kept apart, FICO versions separate', () =>
   assert.strictEqual(r.all.g15, 2);          // T0 and T3 got grade 1-5 plans; T1 only 6-12
   assert.strictEqual(r.all.lpAny, 3);
   assert.strictEqual(r.all.plans, 4);
-  assert.strictEqual(r.all.taught, 2);
+  assert.strictEqual(r.all.taught, 1);                     // DC observations with a recent Rumi plan attached
   assert.strictEqual(r.all.dc, 2);
   assert.strictEqual(r.all.hitl, 2);
   assert.strictEqual(r.all.hitlC, 1);
