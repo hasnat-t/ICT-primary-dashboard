@@ -1,4 +1,4 @@
-# ICT Primary Teachers Dashboard
+# ICT Primary Dashboard
 
 A live dashboard for NIETE covering **every ICT programme school and sector, primary teachers only**: lesson plans, Digital Coach and coach-visit observations, FICO section scores, children's quizzes and NIETE primary training, per sector, school and teacher.
 
@@ -8,12 +8,12 @@ A live dashboard for NIETE covering **every ICT programme school and sector, pri
 
 | Area | Figures | Source rule (Taleemabad governed rules) |
 |---|---|---|
-| Lesson plans | Teachers who got a grade 1–5 plan (WhatsApp or teacher app), **LP usage %** (÷ primary teachers), plans received, plans taught (teacher's own feedback answer) | `lp-query-rules.md` §0, §4, §6 |
+| Lesson plans | Teachers who got a grade 1–5 plan (WhatsApp or teacher app), **LP engagement %** (÷ primary teachers), plans received, plans taught (teacher's own feedback answer) | `lp-query-rules.md` §0, §4, §6 |
 | Digital Coach | Lessons recorded and scored, teachers who recorded | `coaching-query-rules.md` §1, `dc_complete` |
 | Coach visits (HITL) | Visits held, teachers visited, debriefed / debrief pending / awaiting review | `hitl_conducted`, `hitl_complete` |
 | FICO scores | Lesson-plan fidelity, Subject knowledge, Teaching practices, Student engagement — **Digital Coach and coach visits side by side, never pooled**. Subject knowledge is shown as two sections, FICO v2 (out of 32, to 7 Sep) and v3 (out of 20/24/28, from 8 Sep), because the change on 8 Sep makes them incomparable. LP fidelity only where a plan was attached. `/observe2` visits left out and counted. | `fico-scores-rules.md` §2c |
 | Quizzes | Quizzes made, children who sat a lesson quiz, sittings, finished; video quizzes apart. **Counts only.** Quiz *scores* are not shown: there is no governed rule yet (ticket TKT-20261027-c75041). | `quiz-query-rules.md` §0–§7 |
-| Training | On the `niete_primary` programme, finished a module, level 1–4 certificates (NIETE levels end with a grand quiz). All time. | `training-query-rules.md` §1–§7 |
+| Training | On the `niete_primary` programme, finished a module, Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader) (NIETE levels end with a grand quiz). All time. | `training-query-rules.md` §1–§7 |
 
 **Period:** data from 1 Aug 2026. The page offers Today, Yesterday, This/Last week, This/Last month, Last 30 days, Since 1 Aug and custom dates, and Daily / Weekly / Monthly trend charts. Distinct children are exact for a single day, a whole week (Monday–Sunday), a whole month or the full period; for other ranges the page shows sittings and says why.
 
