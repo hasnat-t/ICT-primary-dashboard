@@ -65,8 +65,17 @@
   function card(id, title, note, body, extra = '') {
     return `<section class="card" id="${id}"><div class="card-h"><h2>${esc(title)}</h2><button class="dl" data-dl="${id}" title="Save this section as a PNG">Download image</button></div>${note ? `<p class="note">${note}</p>` : ''}${extra}${body}</section>`;
   }
+  const kpiP = (k, p, s = '', cls = '') => kpi(k, P1(p), s, `${cls} kb ${band(p)}`);
   const kpi = (k, v, s = '', cls = '') => `<div class="kpi ${cls}"><span class="k">${esc(k)}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`;
-  const cov = (p) => (p === null ? '<span class="dim">—</span>' : `<span class="cov">${P1(p)}<span class="b"><span style="width:${Math.min(100, Math.max(0, p))}%"></span></span></span>`);
+  // Performance bands, the same as the STEPS dashboard's levels, for every percentage on the page.
+  const BANDS = [[80, 'b4', 'Exemplary', '80% and above'], [70, 'b3', 'Proficient', '70–79.9%'], [60, 'b2', 'Developing', '60–69.9%'], [-Infinity, 'b1', 'Needs support', 'below 60%']];
+  const band = (p) => (p === null || p === undefined || !isFinite(p) ? '' : BANDS.find((b) => p >= b[0])[1]);
+  const bandName = (p) => { const c = band(p); const b = BANDS.find((x) => x[1] === c); return b ? b[2] : ''; };
+  const sc = (p, extra = '') => (p === null || p === undefined || !isFinite(p) ? '<span class="dim">—</span>' : `<span class="sc ${band(p)}" title="${bandName(p)}">${P1(p)}</span>${extra}`);
+  const legend = () => `<div class="legend bands">${BANDS.map((b) => `<span><i class="${b[1]}"></i>${b[2]} <span class="dim">${b[3]}</span></span>`).join('')}<span><i class="zero"></i>None in this period</span></div>`;
+  const cov = (p) => (p === null ? '<span class="dim">—</span>' : `<span class="cov">${sc(p)}<span class="b"><span class="${band(p)}" style="width:${Math.min(100, Math.max(0, p))}%"></span></span></span>`);
+  // A teacher's own count: zero is highlighted, since it is the thing to follow up.
+  const cnt = (r, v) => (r.t && !v ? '<span class="zero">0</span>' : N(v));
   const kidsNote = () => (S.data && Calc.childBucket(S.data.window_start, S.data.today, S.from, S.to) ? ''
     : ' <b>Children</b> (distinct) are shown only for a single day, a whole week, a whole month or the full period, because a child who sits quizzes on several days must be counted once — pick one of those to see them. Sittings are shown for any period.');
 
@@ -88,7 +97,7 @@
     const body = sorted.map((r) => `<tr class="${opt.onRow ? 'click' : ''}" ${opt.onRow ? `tabindex="0" data-row="${id}:${opt.rowKey(r)}"` : ''}>${cols.map((c) => `<td class="${c.num ? 'n' : ''} ${c.k === 'name' ? 'name' : ''}">${c.fmt ? c.fmt(r) : esc(c.val(r))}</td>`).join('')}</tr>`).join('');
     const foot = opt.foot ? `<tfoot><tr>${cols.map((c, i) => `<td class="${c.num ? 'n' : ''}">${i === 0 ? esc(opt.footLabel || 'Total') : c.fmt ? c.fmt(opt.foot) : esc(c.val(opt.foot))}</td>`).join('')}</tr></tfoot>` : '';
     rowHandlers[id] = opt.onRow;
-    return `<div class="scroll"><table class="t" id="tbl-${id}"><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="empty">Nothing to show for this selection.</td></tr>`}</tbody>${foot}</table></div>`;
+    return `${opt.noLegend ? '' : legend()}<div class="scroll"><table class="t" id="tbl-${id}"><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="empty">Nothing to show for this selection.</td></tr>`}</tbody>${foot}</table></div>`;
   }
   const rowHandlers = {};
 
@@ -105,7 +114,7 @@
   }
   const nameCol = (level) => ({ k: 'name', label: level === 'sector' ? 'Sector' : level === 'school' ? 'School' : 'Teacher',
     val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.emis ? ` <span class="dim">EMIS ${esc(r.emis)}</span>` : ''}${r.t && r.t.lv.length > 1 ? ' <span class="dim">(also middle/high)</span>' : ''}` });
-  const yn = (b) => (b ? '<span class="yes">Yes</span>' : '<span class="no">No</span>');
+  const yn = (b) => (b ? '<span class="yes">Yes</span>' : '<span class="zero">No</span>');
   const fpct = (f) => Calc.pct(f);
 
   // ---------- column sets ----------
@@ -115,19 +124,19 @@
     g15: { k: 'g15', label: 'Got a grade 1–5 plan', num: true, title: 'Teachers who got a grade 1–5 lesson plan on WhatsApp or read one in the teacher app in the period', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
     usage: { k: 'usage', label: 'LP usage %', num: true, levels: ['sector', 'school'], title: 'Teachers who got a grade 1–5 plan ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
     plans: { k: 'plans', label: 'Plans received', num: true, title: 'Grade 1–5 lesson plans handed to teachers (lesson_plans rows; app reads before 13 Oct 19:09 are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
-    taught: { k: 'taught', label: 'Plans taught', num: true, title: "Feedback answers 'taught' (lp_feedback.used_in_class), grade 1–5 plans — the teacher's own word", val: (r) => r.taught, fmt: (r) => N(r.taught) },
+    taught: { k: 'taught', label: 'Plans taught', num: true, title: "Feedback answers 'taught' (lp_feedback.used_in_class), grade 1–5 plans — the teacher's own word", val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
     answered: { k: 'answered', label: "Answered 'taught?'", num: true, title: 'Feedback responses that answered whether the plan was used in class', val: (r) => r.answered, fmt: (r) => N(r.answered) },
     tTaught: { k: 'tTaught', label: 'Teachers who taught one', num: true, levels: ['sector', 'school'], val: (r) => r.teachersTaught, fmt: (r) => N(r.teachersTaught) },
-    dc: { k: 'dc', label: 'Lessons recorded', src: 'dc', num: true, title: 'Digital Coach self-recordings whose scores came back', val: (r) => r.dc, fmt: (r) => N(r.dc) },
+    dc: { k: 'dc', label: 'Lessons recorded', src: 'dc', num: true, title: 'Digital Coach self-recordings whose scores came back', val: (r) => r.dc, fmt: (r) => cnt(r, r.dc) },
     dcT: { k: 'dcT', label: 'Teachers recorded', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => r.dcT, fmt: (r) => N(r.dcT) },
     dcPct: { k: 'dcPct', label: '% of teachers', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.dcT, r.teachers), fmt: (r) => cov(ratio(r.dcT, r.teachers)) },
-    hitl: { k: 'hitl', label: 'Visits held', src: 'hitl', num: true, title: 'HITL coach visits conducted (scored; not cancelled, abandoned, failed or test)', val: (r) => r.hitl, fmt: (r) => N(r.hitl) },
+    hitl: { k: 'hitl', label: 'Visits held', src: 'hitl', num: true, title: 'HITL coach visits conducted (scored; not cancelled, abandoned, failed or test)', val: (r) => r.hitl, fmt: (r) => cnt(r, r.hitl) },
     hitlT: { k: 'hitlT', label: 'Teachers visited', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => r.hitlT, fmt: (r) => N(r.hitlT) },
     hitlPct: { k: 'hitlPct', label: '% visited', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.hitlT, r.teachers), fmt: (r) => cov(ratio(r.hitlT, r.teachers)) },
     hitlC: { k: 'hitlC', label: 'Debriefed', src: 'hitl', num: true, title: 'Complete: the teacher got the debrief', val: (r) => r.hitlC, fmt: (r) => N(r.hitlC) },
     hitlP: { k: 'hitlP', label: 'Debrief pending', src: 'hitl', num: true, title: 'Reviewed by the coach, debrief not yet sent', val: (r) => r.hitlP, fmt: (r) => N(r.hitlP) },
     hitlA: { k: 'hitlA', label: 'Awaiting review', src: 'hitl', num: true, val: (r) => r.hitlA, fmt: (r) => N(r.hitlA) },
-    made: { k: 'made', label: 'Quizzes made', num: true, title: "Lesson quizzes the bot wrote from the teacher's recorded lesson or lesson plan and sent when she said yes", val: (r) => r.made, fmt: (r) => N(r.made) },
+    made: { k: 'made', label: 'Quizzes made', num: true, title: "Lesson quizzes the bot wrote from the teacher's recorded lesson or lesson plan and sent when she said yes", val: (r) => r.made, fmt: (r) => cnt(r, r.made) },
     madeT: { k: 'madeT', label: 'Teachers who made one', num: true, levels: ['sector', 'school'], val: (r) => r.madeT, fmt: (r) => N(r.madeT) },
     kidsL: { k: 'kidsL', label: 'Children (lesson quizzes)', num: true, title: 'Distinct children who sat a lesson quiz through the teacher’s share link', val: (r) => r.kidsL, fmt: (r) => N(r.kidsL) },
     sitL: { k: 'sitL', label: 'Sittings', num: true, title: 'Lesson-quiz sittings by children', val: (r) => r.sitL, fmt: (r) => N(r.sitL) },
@@ -140,7 +149,7 @@
   };
   for (let l = 1; l <= 4; l++) {
     COL[`cert${l}`] = { k: `cert${l}`, label: `Level ${l} certificate`, num: true, title: `Holds the NIETE level ${l} certificate (passed the level's grand quiz)`,
-      val: (r) => r.cert[l - 1], fmt: (r) => (r.t ? yn(r.cert[l - 1]) : `${N(r.cert[l - 1])} <span class="dim">${P1(ratio(r.cert[l - 1], r.teachers))}</span>`) };
+      val: (r) => r.cert[l - 1], fmt: (r) => (r.t ? yn(r.cert[l - 1]) : `${N(r.cert[l - 1])} ${sc(ratio(r.cert[l - 1], r.teachers))}`) };
   }
   function ficoCols() {
     const out = [];
@@ -148,7 +157,7 @@
       for (const src of ['dc', 'hitl']) {
         const f = (r) => (src === 'dc' ? r.ficoD : r.ficoH)[s];
         out.push({ k: `${src}-${s}`, label: Calc.SECTION_LABEL[s], src, num: true, title: `${Calc.SECTION_LABEL[s]} — score ÷ maximum, pooled over sessions`,
-          val: (r) => fpct(f(r)), fmt: (r) => (f(r)[2] ? `${P1(fpct(f(r)))} <span class="dim">n=${N(f(r)[2])}</span>` : '<span class="dim">—</span>') });
+          val: (r) => fpct(f(r)), fmt: (r) => (f(r)[2] ? sc(fpct(f(r)), ` <span class="dim">n=${N(f(r)[2])}</span>`) : '<span class="dim">—</span>') });
       }
     }
     return out;
@@ -207,7 +216,7 @@
     const a = R.all, { level, rows } = levelRows(R);
     const k = `<div class="kpis">
       ${kpi('Primary teachers', N(a.teachers), `${N(a.schools)} schools`)}
-      ${kpi('LP usage', P1(ratio(a.g15, a.teachers)), `${N(a.g15)} got a grade 1–5 plan`)}
+      ${kpiP('LP usage', ratio(a.g15, a.teachers), `${N(a.g15)} got a grade 1–5 plan`)}
       ${kpi('Plans taught', N(a.taught), `${N(a.teachersTaught)} teachers said so`)}
       ${kpi('Lessons recorded', N(a.dc), `${N(a.dcT)} teachers · Digital Coach`, 'src-dc')}
       ${kpi('Coach visits', N(a.hitl), `${N(a.hitlT)} teachers visited`, 'src-hitl')}
@@ -226,7 +235,7 @@
     const ser = seriesNow();
     return card('c-lp', `Lesson plans · ${scopeName()} · ${periodText()}`,
       'Got a plan = a grade 1–5 plan sent on WhatsApp or read in the teacher app. LP usage % = primary teachers who got one ÷ primary teachers. <b>Taught</b> is the teacher\'s own answer in plan feedback, asked only after a thumbs-up with a voice note, so read it as "N of the M who answered".',
-      `<div class="kpis">${kpi('LP usage', P1(ratio(a.g15, a.teachers)), `${N(a.g15)} of ${N(a.teachers)} teachers`)}
+      `<div class="kpis">${kpiP('LP usage', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers`)}
         ${kpi('Plans received', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `of ${N(a.answered)} answers`)}
         ${kpi('Teachers who taught one', N(a.teachersTaught))}${kpi('Any plan incl. grade 6–12', N(a.lpAny), 'teachers')}</div>`)
       + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.teachersWithPlan, g.taught] })),
@@ -263,9 +272,9 @@
   function ficoBlock(a) {
     const rowsH = Calc.SECTIONS.map((s) => {
       const d = a.ficoD[s], h = a.ficoH[s];
-      return `<tr><td class="name">${esc(Calc.SECTION_LABEL[s])}</td><td class="n col-dc">${d[2] ? P1(fpct(d)) : '—'} <span class="dim">n=${N(d[2])}</span></td><td class="n col-hitl">${h[2] ? P1(fpct(h)) : '—'} <span class="dim">n=${N(h[2])}</span></td></tr>`;
+      return `<tr><td class="name">${esc(Calc.SECTION_LABEL[s])}</td><td class="n col-dc">${d[2] ? sc(fpct(d)) : '—'} <span class="dim">n=${N(d[2])}</span></td><td class="n col-hitl">${h[2] ? sc(fpct(h)) : '—'} <span class="dim">n=${N(h[2])}</span></td></tr>`;
     }).join('');
-    return `<div class="scroll"><table class="t"><thead><tr><th><button>Section</button></th><th class="n col-dc"><button>Digital Coach<span class="src">self-recorded</span></button></th><th class="n col-hitl"><button>Coach visits<span class="src">HITL</span></button></th></tr></thead><tbody>${rowsH}</tbody></table></div>`;
+    return `${legend()}<div class="scroll"><table class="t"><thead><tr><th><button>Section</button></th><th class="n col-dc"><button>Digital Coach<span class="src">self-recorded</span></button></th><th class="n col-hitl"><button>Coach visits<span class="src">HITL</span></button></th></tr></thead><tbody>${rowsH}</tbody></table></div>`;
   }
   function viewFico(R) {
     const a = R.all, { level, rows } = levelRows(R);
@@ -300,7 +309,7 @@
     return card('c-tr', `NIETE primary training · ${scopeName()} · all time`,
       'The <b>niete_primary</b> programme: NIETE levels 1–4, 171 modules. There is no training-status column — these steps are the status: on the programme → finished a module → holds a level certificate (each NIETE level ends with a grand quiz, pass mark 80%). All time; the period filter does not apply.',
       `<div class="kpis">${kpi('On NIETE primary', N(a.onProg), `of ${N(a.teachers)} primary teachers`)}${kpi('Finished a module', N(a.didModule), 'any NIETE level')}
-        ${[1, 2, 3, 4].map((l) => kpi(`Level ${l} certificate`, N(a.cert[l - 1]), P1(ratio(a.cert[l - 1], a.teachers)))).join('')}</div>`)
+        ${[1, 2, 3, 4].map((l) => kpi(`Level ${l} certificate`, N(a.cert[l - 1]), P1(ratio(a.cert[l - 1], a.teachers)), `kb ${band(ratio(a.cert[l - 1], a.teachers))}`)).join('')}</div>`)
       + card('c-tr-t', `By ${level}`, '', table('tr', [nameCol(level), COL.teachers, COL.onProg, COL.didMod, COL.mods, COL.cert1, COL.cert2, COL.cert3, COL.cert4], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
