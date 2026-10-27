@@ -47,3 +47,9 @@ test('training unpacks per teacher', () => {
   const ro = roster();
   assert.deepStrictEqual(U.buildTraining([{ school_id: 'sB', n: 1, t: 'bbbb2222:1:46:46:3:0:12' }], ro), [[2, 1, 46, 46, 3, 0, '12']]);
 });
+
+test('exams unpack per teacher-day', () => {
+  const ro = roster();
+  assert.deepStrictEqual(U.buildExams([{ school_id: 'sB', n: 1, t: 'aaaa1111:40:3:2:1:0:1' }], ro), [[1, 40, 3, 2, 1, 0, 1]]);
+  assert.throws(() => U.buildExams([{ school_id: 'sB', n: 1, t: 'aaaa1111:40:3:2' }], ro), /malformed/);
+});

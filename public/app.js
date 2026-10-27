@@ -13,7 +13,7 @@
 
   const TABS = [
     ['overview', 'Overview'], ['lp', 'Lesson plans'], ['dc', 'Digital Coach'], ['hitl', 'Coach visits'], ['fico', 'FICO scores'],
-    ['quiz', 'Quizzes'], ['training', 'Training'], ['schools', 'All schools'], ['teachers', 'Teachers'], ['trends', 'Analytics'],
+    ['quiz', 'Quizzes'], ['exams', 'Exam papers'], ['training', 'Training'], ['schools', 'All schools'], ['teachers', 'Teachers'], ['trends', 'Analytics'],
   ];
 
   // ---------- dates ----------
@@ -143,6 +143,13 @@
     finL: { k: 'finL', label: 'Finished', num: true, val: (r) => r.finL, fmt: (r) => N(r.finL) },
     kidsV: { k: 'kidsV', label: 'Children (video quizzes)', num: true, val: (r) => r.kidsV, fmt: (r) => N(r.kidsV) },
     sitV: { k: 'sitV', label: 'Video sittings', num: true, val: (r) => r.sitV, fmt: (r) => N(r.sitV) },
+    exOk: { k: 'exOk', label: 'Papers delivered', num: true, title: 'Exam papers the /assessment generator produced for the teacher (root paper ready)', val: (r) => r.exOk, fmt: (r) => cnt(r, r.exOk) },
+    exReq: { k: 'exReq', label: 'Papers requested', num: true, val: (r) => r.exReq, fmt: (r) => N(r.exReq) },
+    exT: { k: 'exT', label: 'Teachers with a paper', num: true, levels: ['sector', 'school'], val: (r) => r.exT, fmt: (r) => N(r.exT) },
+    exPct: { k: 'exPct', label: '% of teachers', num: true, levels: ['sector', 'school'], title: 'Teachers who got at least one exam paper ÷ primary teachers', val: (r) => ratio(r.exT, r.teachers), fmt: (r) => cov(ratio(r.exT, r.teachers)) },
+    exFail: { k: 'exFail', label: 'Failed', num: true, title: 'The generator failed; the teacher was told and can ask again', val: (r) => r.exFail, fmt: (r) => N(r.exFail) },
+    exStuck: { k: 'exStuck', label: 'Never finished', num: true, title: 'Still generating more than an hour after the request', val: (r) => r.exStuck, fmt: (r) => N(r.exStuck) },
+    exEdit: { k: 'exEdit', label: 'Edited by teacher', num: true, title: 'Papers the teacher edited afterwards (removed questions, changed marks or wording)', val: (r) => r.exEdit, fmt: (r) => N(r.exEdit) },
     onProg: { k: 'onProg', label: 'On NIETE primary', num: true, title: 'Active niete_primary training assignment', val: (r) => r.onProg, fmt: (r) => (r.t ? yn(r.onProg) : N(r.onProg)) },
     didMod: { k: 'didMod', label: 'Did a module', num: true, levels: ['sector', 'school'], val: (r) => r.didModule, fmt: (r) => N(r.didModule) },
     mods: { k: 'mods', label: 'Modules finished', num: true, title: 'NIETE modules finished, levels 1–4 (171 in all)', val: (r) => (r.t ? r.mods : r.teachers ? r.mods / r.teachers : null), fmt: (r) => (r.t ? `${N(r.mods)} <span class="dim">of 171</span>` : `${r.teachers ? (r.mods / r.teachers).toFixed(1) : '—'} <span class="dim">avg</span>`) },
@@ -222,9 +229,10 @@
       ${kpi('Coach visits', N(a.hitl), `${N(a.hitlT)} teachers visited`, 'src-hitl')}
       ${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers`)}
       ${kpi('Children quizzed', N(a.kidsL), `${N(a.sitL)} lesson-quiz sittings`)}
+      ${kpi('Exam papers', N(a.exOk), `${N(a.exT)} teachers got one`)}
       ${kpi('On NIETE primary training', N(a.onProg), `${N(a.cert[0])} hold level 1 · all time`)}
     </div>`;
-    const cols = [nameCol(level), COL.schools, COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.onProg, COL.cert1];
+    const cols = [nameCol(level), COL.schools, COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.exOk, COL.exPct, COL.onProg, COL.cert1];
     return card('c-over', `${scopeName()} · ${periodText()}`, `Everything below counts primary teachers only.${kidsNote()} Training is all-time.`, k)
       + card('c-over-t', `By ${level}`, `Click a row to drill down (sector → school → teacher).`,
         table('over', cols, rows, { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a, footLabel: 'Total' }));
@@ -304,6 +312,19 @@
           { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
 
+  function viewExams(R) {
+    const a = R.all, { level, rows } = levelRows(R);
+    const ser = seriesNow();
+    return card('c-ex', `Exam papers · ${scopeName()} · ${periodText()}`,
+      'A teacher asks Rumi (<code>/assessment</code> on WhatsApp, or the portal) for an exam paper on a grade 1–5 textbook chapter and gets a printable paper with its answer key. Live since 5 Sep 2026. <b>Delivered</b> = the paper came out (on WhatsApp: stored and sent; in the portal: ready to download). Requested = delivered + failed + never finished. Nothing records whether the class sat the paper or how pupils scored.',
+      `<div class="kpis">${kpi('Papers delivered', N(a.exOk), `of ${N(a.exReq)} requested`)}${kpiP('Teachers with a paper', ratio(a.exT, a.teachers), `${N(a.exT)} of ${N(a.teachers)} teachers`)}
+        ${kpi('Per teacher with a paper', a.exT ? (a.exOk / a.exT).toFixed(1) : '—', 'papers')}${kpi('Failed', N(a.exFail), `${N(a.exStuck)} never finished`)}${kpi('Edited by teacher', N(a.exEdit), P1(ratio(a.exEdit, a.exOk)) + ' of delivered')}</div>`)
+      + card('c-ex-trend', 'Exam papers over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.exOk, g.teachersEx] })),
+        [{ name: 'Papers delivered', color: NAVY }, { name: 'Teachers with a paper', color: GREEN }]), granSeg())
+      + card('c-ex-t', `By ${level}`, '', table('ex', [nameCol(level), COL.teachers, COL.exOk, COL.exT, COL.exPct, COL.exReq, COL.exFail, COL.exStuck, COL.exEdit], rows,
+        { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
+  }
+
   function viewTraining(R) {
     const a = R.all, { level, rows } = levelRows(R);
     return card('c-tr', `NIETE primary training · ${scopeName()} · all time`,
@@ -319,7 +340,7 @@
     const q = S.search.toLowerCase();
     const shown = rows.filter((r) => !q || r.name.toLowerCase().includes(q) || r.emis.includes(q));
     const cols = [nameCol('school'), { k: 'sector', label: 'Sector', val: (r) => r.sector }, COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct,
-      ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'hitl-hlp'), COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.onProg, COL.cert1];
+      ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'hitl-hlp'), COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.cert1];
     return card('c-sch', `All schools · ${S.sector || 'All ICT'} · ${periodText()}`, `${N(shown.length)} schools with primary teachers. One complete row per school; click for its teachers.`,
       table('sch', cols, shown, { level: 'school', onRow: (k) => { S.school = String(k); S.sector = S.data.schools[+k].sector; S.tab = 'teachers'; render(); }, rowKey: (r) => r.key }),
       `<div class="row"><input class="inp" type="search" id="search" placeholder="Search school or EMIS" value="${esc(S.search)}"></div>`);
@@ -327,15 +348,15 @@
 
   const MISSING = [
     ['', 'Everyone'], ['plan', 'No grade 1–5 plan'], ['taught', 'No plan taught'], ['dc', 'No Digital Coach lesson'], ['hitl', 'No coach visit'],
-    ['quiz', 'No quiz made'], ['prog', 'Not on NIETE primary'], ['l1', 'No level 1 certificate'],
+    ['quiz', 'No quiz made'], ['exam', 'No exam paper'], ['prog', 'Not on NIETE primary'], ['l1', 'No level 1 certificate'],
   ];
   function viewTeachers(R) {
     const q = S.search.toLowerCase();
-    const miss = { plan: (t) => !t.g15, taught: (t) => !t.taught, dc: (t) => !t.dc, hitl: (t) => !t.hitl, quiz: (t) => !t.made, prog: (t) => !t.onProg, l1: (t) => !t.certs.includes('1') }[S.missing];
+    const miss = { plan: (t) => !t.g15, taught: (t) => !t.taught, dc: (t) => !t.dc, hitl: (t) => !t.hitl, quiz: (t) => !t.made, exam: (t) => !t.exOk, prog: (t) => !t.onProg, l1: (t) => !t.certs.includes('1') }[S.missing];
     const rows = R.teachers.filter((t) => (!q || t.name.toLowerCase().includes(q) || S.data.schools[t.s].name.toLowerCase().includes(q)) && (!miss || miss(t)))
       .map((t) => Object.assign(Calc.asGroup(t), { t, name: t.name, key: t.i, school: S.data.schools[t.s].name, sector: S.data.schools[t.s].sector }));
     const cols = [nameCol('teacher'), { k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => `${esc(r.school)} <span class="dim">${esc(r.sector)}</span>` },
-      COL.g15, COL.plans, COL.taught, COL.dc, ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'dc-tsk3'), COL.hitl, COL.made, COL.kidsL, COL.onProg, COL.mods, COL.cert1, COL.cert2];
+      COL.g15, COL.plans, COL.taught, COL.dc, ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'dc-tsk3'), COL.hitl, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.mods, COL.cert1, COL.cert2];
     const tools = `<div class="row"><input class="inp" type="search" id="search" placeholder="Search teacher or school" value="${esc(S.search)}">
       <select class="sel" id="missing" aria-label="Show">${MISSING.map(([k, l]) => `<option value="${k}" ${S.missing === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
     return card('c-tch', `Teachers · ${scopeName()} · ${periodText()}`, `${N(rows.length)} of ${N(R.teachers.length)} primary teachers. Click a teacher for the scorecard. Contains teacher names — internal use only.`,
@@ -353,6 +374,7 @@
       + card('c-a5', 'Subject knowledge score', 'FICO v2 to 7 Sep and v3 from 8 Sep are different measures: two lines, never one.',
         chart(items((g) => [fpct(g.ficoD.tsk2), fpct(g.ficoD.tsk3), fpct(g.ficoH.tsk2), fpct(g.ficoH.tsk3)]),
           [{ name: 'Digital Coach v2', color: SOFT }, { name: 'Digital Coach v3', color: GREEN }, { name: 'Coach visits v2', color: GREY }, { name: 'Coach visits v3', color: NAVY }], 'line'), granSeg())
+      + card('c-a7', 'Exam papers', 'Papers delivered by the exam generator, and the teachers who got one.', chart(items((g) => [g.exOk, g.teachersEx]), [{ name: 'Papers delivered', color: NAVY }, { name: 'Teachers with a paper', color: GREEN }]), granSeg())
       + card('c-a6', 'Quizzes', 'Children are distinct within each day, week or month.', chart(items((g) => [g.made, g.kidsL]), [{ name: 'Quizzes made', color: NAVY }, { name: 'Children (lesson quizzes)', color: GREEN }]), granSeg())
       + `</div>`;
   }
@@ -374,7 +396,7 @@
     $('#m-body').innerHTML = `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
       <div class="kpis">${kpi('Days with a lesson plan', N(t.lpDays))}${kpi('Plans received', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), `of ${N(t.answered)} answers`)}
       ${kpi('Lessons recorded', N(t.dc), 'Digital Coach', 'src-dc')}${kpi('Coach visits', N(t.hitl), `${N(t.hitlC)} debriefed`, 'src-hitl')}
-      ${kpi('Quizzes made', N(t.made))}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
+      ${kpi('Quizzes made', N(t.made))}${kpi('Exam papers', N(t.exOk), `${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
       ${kpi('NIETE training', t.onProg ? 'On programme' : 'Not assigned', `${N(g.mods)} of 171 modules · certificates: ${t.certs ? t.certs.split('').map((l) => `L${l}`).join(', ') : 'none'}`)}</div>
       <h2>FICO section scores</h2>${ficoBlock(g)}
       <h2>Activity over time</h2>${chart([...by.values()].map((b) => ({ label: b.label, values: [b.plan, b.dc, b.hitl] })),
@@ -402,7 +424,7 @@
     const R = Calc.rollup(S.P, sel());
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
     const warn = missing.length ? `<p class="note warn">Some data could not be loaded in the last refresh (${missing.join(', ')}); those figures show as blank or zero.</p>` : '';
-    const views = { overview: viewOverview, lp: viewLp, dc: viewDc, hitl: viewHitl, fico: viewFico, quiz: viewQuiz, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: viewDc, hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     $('#main').innerHTML = `<div class="grid">${crumbs()}${warn}${views[S.tab](R)}</div>`;
     if (focus !== null && $('#search')) { $('#search').focus(); $('#search').setSelectionRange(focus, focus); }

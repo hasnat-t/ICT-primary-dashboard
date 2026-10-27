@@ -23,6 +23,7 @@ function sample() {
       buckets: [[0, 'w', '2', 'L', 6], [-1, 'w', '2', 'L', 6], [0, 'o', '202608', 'L', 6], [-1, 'o', '202608', 'L', 6], [0, 'a', '', 'L', 6], [-1, 'a', '', 'L', 6]],
     },
     quiz_sectors: { A: [['a', '', 'L', 6], ['o', '202608', 'L', 6], ['w', '2', 'L', 6]], B: [], ALL: [['a', '', 'L', 6], ['o', '202608', 'L', 6], ['w', '2', 'L', 6]] },
+    exams: [[0, 9, 3, 2, 1, 0, 1], [3, 20, 1, 1, 0, 0, 0]],
     training: [[0, 1, 46, 10, 0, 0, '1'], [3, 0, 5, 0, 0, 0, '']],
   };
 }
@@ -103,4 +104,16 @@ test('filters by sector and school, and series sums match the roll-up', () => {
   assert.strictEqual(weeks[0].kidsL, 0);                    // 1-2 Aug: no sittings, so no bucket row = no children
   assert.strictEqual(weeks[1].kidsL, 6);                    // week of Mon 3 Aug, from the ALL line
   assert.strictEqual(C.rollup(P, { from: 2, to: 8 }).all.kidsL, 6);
+});
+
+test('exam papers: delivered, failed and teachers, by period', () => {
+  const P = C.prepare(sample());
+  const r = C.rollup(P, { from: 0, to: 30 });
+  assert.strictEqual(r.all.exReq, 4);
+  assert.strictEqual(r.all.exOk, 3);
+  assert.strictEqual(r.all.exFail, 1);
+  assert.strictEqual(r.all.exT, 2);
+  assert.strictEqual(r.sectors.get('B').exOk, 1);
+  assert.strictEqual(C.rollup(P, { from: 0, to: 10 }).all.exOk, 2);
+  assert.strictEqual(C.series(P, { from: 0, to: 30 }, 'week').reduce((n, g) => n + g.exOk, 0), 3);
 });

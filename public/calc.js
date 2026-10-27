@@ -5,6 +5,7 @@
 //   quiz.made [teacher, day, n]; quiz.sit [who, day, kind L|V, sittings, finished, children];
 //   quiz.buckets [who, w|o|a, bucket, kind, children]   (who < 0 = the whole school -1-who)
 //   quiz_sectors {sector|ALL: [[d|w|o|a, bucket, kind, children]]}
+//   exams [teacher, day, requested, delivered, failed, never finished, edited]
 //   training [teacher, on programme, m1, m2, m3, m4, levels certified]
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -71,7 +72,7 @@
   function blankTeacher() {
     return { g15: false, g612: false, lpDays: 0, plans: 0, taught: 0, answered: 0,
       dc: 0, hitl: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
-      made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null };
+      made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0 };
   }
 
   // Index the rows by teacher once per data load.
@@ -86,8 +87,8 @@
     const training = new Array(nT).fill(null);
     for (const r of data.training || []) training[r[0]] = r;
     const modules = data.modules || MODULES;
-    return { data, lp: by(data.lp), obs: by(data.obs), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
-      parts: { lp: !!data.lp, obs: !!data.obs, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+    return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
+      parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -114,6 +115,10 @@
       else { t.hitl++; if (r[3] === 'C') t.hitlC++; else if (r[3] === 'P') t.hitlP++; else t.hitlA++; t.odd += addFico(t.ficoH, r); }
     }
     for (const r of P.made[ti]) if (r[1] >= from && r[1] <= to) t.made += r[2];
+    for (const r of P.ex[ti]) {
+      if (r[1] < from || r[1] > to) continue;
+      t.exReq += r[2]; t.exOk += r[3]; t.exFail += r[4]; t.exStuck += r[5]; t.exEdit += r[6];
+    }
     for (const r of P.sit[ti]) {
       if (r[1] < from || r[1] > to) continue;
       if (r[2] === 'L') { t.sitL += r[3]; t.finL += r[4]; } else { t.sitV += r[3]; t.finV += r[4]; }
@@ -131,6 +136,7 @@
     return { teachers: 0, g15: 0, lpAny: 0, plans: 0, taught: 0, answered: 0, teachersTaught: 0,
       dc: 0, dcT: 0, hitl: 0, hitlT: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, kidsL: null, kidsV: null,
+      exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0,
       onProg: 0, didModule: 0, cert: [0, 0, 0, 0], mods: 0, schools: 0 };
   }
   function addToGroup(g, t) {
@@ -143,6 +149,7 @@
     mergeFico(g.ficoD, t.ficoD); mergeFico(g.ficoH, t.ficoH); g.odd += t.odd;
     g.made += t.made; if (t.made) g.madeT++;
     g.sitL += t.sitL; g.finL += t.finL; g.sitV += t.sitV; g.finV += t.finV; if (t.sitL || t.sitV) g.quizT++;
+    g.exReq += t.exReq; g.exOk += t.exOk; g.exFail += t.exFail; g.exStuck += t.exStuck; g.exEdit += t.exEdit; if (t.exOk) g.exT++;
     if (t.onProg) g.onProg++;
     const m = t.mods[0] + t.mods[1] + t.mods[2] + t.mods[3];
     if (m) g.didModule++;
@@ -212,7 +219,7 @@
       if (!map.has(k)) {
         const lo = d;
         map.set(k, { key: k, from: lo, to: lo, plans: 0, taught: 0, tPlan: new Set(), dc: 0, tDc: new Set(), hitl: 0, tHitl: new Set(),
-          ficoD: blankFico(), ficoH: blankFico(), made: 0, sitL: 0, sitV: 0, kidsL: null, kidsV: null });
+          ficoD: blankFico(), ficoH: blankFico(), made: 0, sitL: 0, sitV: 0, kidsL: null, kidsV: null, exOk: 0, tEx: new Set() });
         order.push(k);
       }
       map.get(k).to = d;
@@ -229,6 +236,7 @@
       const g = at(r[1]); if (!g || !inScope(r[0])) continue;
       if (r[2] === 'D') { g.dc++; g.tDc.add(r[0]); addFico(g.ficoD, r); } else { g.hitl++; g.tHitl.add(r[0]); addFico(g.ficoH, r); }
     }
+    for (const r of data.exams || []) { const g = at(r[1]); if (!g || !inScope(r[0])) continue; g.exOk += r[3]; if (r[3]) g.tEx.add(r[0]); }
     const q = data.quiz || { made: [], sit: [] };
     for (const r of q.made) { const g = at(r[1]); if (g && inScope(r[0])) g.made += r[2]; }
     for (const r of q.sit) { if (r[0] < 0) continue; const g = at(r[1]); if (!g || !inScope(r[0])) continue; if (r[2] === 'L') g.sitL += r[3]; else g.sitV += r[3]; }
@@ -245,7 +253,7 @@
     return order.map((k) => {
       const g = map.get(k);
       return { key: k, from: g.from, to: g.to, plans: g.plans, taught: g.taught, teachersWithPlan: g.tPlan.size, dc: g.dc, teachersDc: g.tDc.size,
-        hitl: g.hitl, teachersHitl: g.tHitl.size, ficoD: g.ficoD, ficoH: g.ficoH, made: g.made, sitL: g.sitL, sitV: g.sitV, kidsL: g.kidsL, kidsV: g.kidsV };
+        hitl: g.hitl, teachersHitl: g.tHitl.size, ficoD: g.ficoD, ficoH: g.ficoH, made: g.made, sitL: g.sitL, sitV: g.sitV, kidsL: g.kidsL, kidsV: g.kidsV, exOk: g.exOk, teachersEx: g.tEx.size };
     });
   }
 

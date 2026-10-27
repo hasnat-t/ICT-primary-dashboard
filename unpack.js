@@ -112,6 +112,21 @@ function buildQuizSectors(rows) {
   return out;
 }
 
+function buildExams(rows, ro) {
+  const out = [];
+  const miss = { n: 0 };
+  for (const r of rows) {
+    for (const p of records('exams', r)) {
+      if (p.length !== 7) throw new Error('exams: malformed record');
+      const ti = teacherOf(ro, r.school_id, p[0], miss);
+      if (ti === undefined) continue;
+      out.push([ti, +p[1], +p[2], +p[3], +p[4], +p[5], +p[6]]);   // teacher, day, requested, delivered, failed, never finished, edited
+    }
+  }
+  if (miss.n) throw new Error(`exams: ${miss.n} records for teachers not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -134,4 +149,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildTraining, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, rosterSig, MIN_SCHOOLS };

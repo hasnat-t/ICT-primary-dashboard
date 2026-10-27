@@ -8,7 +8,7 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const pick = (a) => a[Math.floor(rnd() * a.length)];
 const today = Math.round((Date.parse(new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10)) - Date.parse('2026-08-01')) / 86400000);
 const sectors = ['B.K', 'Nilore', 'Sihala', 'Tarnol', 'Urban-I', 'Urban-II'];
-const schools = [], teachers = [], lp = [], obs = [], made = [], sit = [], buckets = [], training = [];
+const schools = [], teachers = [], exams = [], lp = [], obs = [], made = [], sit = [], buckets = [], training = [];
 for (let s = 0; s < 354; s++) {
   schools.push({ emis: String(100 + s), sector: sectors[s % 6], name: `Sample School ${s + 1}`, n: 0 });
 }
@@ -32,6 +32,7 @@ schools.forEach((sc, si) => {
         const v3 = d >= 38;
         obs.push([ti, d, 'H', pick(['C', 'C', 'C', 'P', 'A']), v3 ? 14 : 18, v3 ? 24 : 32, 28, 48, 18, 28, 22, 40]);
       }
+      if (d > 36 && rnd() < keen * 0.05) { const ok = rnd() < 0.95 ? 1 : 0; exams.push([ti, d, 1, ok, 1 - ok, 0, rnd() < 0.1 ? 1 : 0]); }
       if (d > 30 && rnd() < keen * 0.08) {
         made.push([ti, d, 1]);
         const kids = 5 + Math.floor(rnd() * 25);
@@ -47,7 +48,7 @@ for (const r of sit) kidsBy.set(r[0], Math.max(kidsBy.get(r[0]) || 0, r[5]));
 for (const [ti, k] of kidsBy) buckets.push([ti, 'a', '', 'L', k]);
 const quiz_sectors = { ALL: [['a', '', 'L', [...kidsBy.values()].reduce((a, b) => a + b, 0)]] };
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
-  lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, training };
+  lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);
