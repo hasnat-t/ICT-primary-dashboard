@@ -92,10 +92,11 @@ table.t tfoot td { font-weight: 600; background: var(--bg); position: sticky; bo
 .col-dc { box-shadow: inset 3px 0 0 var(--green); } .col-hitl { box-shadow: inset 3px 0 0 var(--hitl); }
 
 .chart { position: relative; }
-.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart { width: 100%; min-height: 180px; }
+.chart svg { display: block; overflow: visible; }
 .chart svg text { fill: var(--muted); font-size: 11px; font-family: var(--body); }
 .chart svg .gl { stroke: var(--grid); }
-.chart .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 4px 8px; font-size: .78rem; white-space: nowrap; z-index: 3; }
+#tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 4px 8px; font-size: .78rem; white-space: nowrap; z-index: 3; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 

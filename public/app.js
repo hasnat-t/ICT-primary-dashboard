@@ -39,7 +39,7 @@
     render();
   }
   const periodText = () => (S.from === S.to ? niceY(S.from) : `${nice(S.from)} – ${niceY(S.to)}`);
-  const bucketLabel = (g) => (S.gran === 'day' ? nice(g.from) : S.gran === 'week' ? `w/c ${nice(g.from)}` : `${MONTHS[+iso(g.from).slice(5, 7) - 1]} ${iso(g.from).slice(2, 4)}`);
+  const bucketLabel = (g) => (S.gran === 'day' ? nice(g.from) : S.gran === 'week' ? `w/c ${nice(g.from)}` : `${MONTHS[+iso(g.from).slice(5, 7) - 1]} ${iso(g.from).slice(0, 4)}`);
 
   // ---------- state in the URL ----------
   function readHash() {
@@ -172,36 +172,57 @@
 
   // ---------- trend charts ----------
   // items: [{label, values: [..]}], series: [{name, color}], kind 'bar' | 'line'
+  // Charts are placeholders in the HTML, drawn afterwards at their real pixel width so text stays 11px and bars
+  // keep a sensible size on any screen; they are redrawn when the window is resized.
+  const charts = [];
   function chart(items, series, kind = 'bar', fmt = N) {
     if (!items.length) return '<p class="empty">No data in this period.</p>';
-    const W = 760, H = 220, L = 44, B = 34, T = 10;
+    charts.push({ items, series, kind, fmt });
+    const legend = series.length > 1 ? `<div class="legend">${series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
+    return `${legend}<div class="chart" data-chart="${charts.length - 1}"></div>`;
+  }
+  // A round axis step (1, 2 or 5 x 10^n) giving about four gridlines.
+  function niceMax(v) {
+    if (v <= 0) return { max: 4, step: 1 };
+    const raw = v / 4, p = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * p).find((x) => x >= raw);
+    return { max: Math.ceil(v / step) * step, step };
+  }
+  function drawChart(el, c) {
+    const W = Math.max(280, Math.round(el.clientWidth)), H = W < 500 ? 180 : 220;
+    const B = 26, T = 8;
+    const { items, series, kind, fmt } = c;
     const vals = items.flatMap((i) => i.values).filter((v) => v !== null && v !== undefined);
-    let max = Math.max(1, ...vals);
-    if (kind === 'line') max = Math.min(100, Math.ceil(max / 10) * 10 || 100);
-    const step = (W - L) / items.length;
-    const y = (v) => T + (H - T - B) * (1 - v / max);
+    let { max, step } = niceMax(Math.max(0, ...vals));
+    if (kind === 'line') { max = 100; step = 25; }
+    const tick = (v) => (kind === 'line' ? `${v}%` : N(v));
+    const L = 10 + 7 * Math.max(...[0, step, max].map((v) => tick(v).length));
+    const plotW = W - L - 4, slot = plotW / items.length;
+    const y = (v) => T + (H - T - B) * (1 - Math.min(v, max) / max);
     let svg = '';
-    for (let i = 0; i <= 4; i++) { const v = (max * i) / 4; svg += `<line class="gl" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${kind === 'line' ? `${Math.round(v)}%` : N(v)}</text>`; }
-    const every = Math.ceil(items.length / 12);
-    items.forEach((it, i) => { if (i % every === 0) svg += `<text x="${L + step * i + step / 2}" y="${H - 12}" text-anchor="middle">${esc(it.label)}</text>`; });
+    for (let v = 0; v <= max + 1e-9; v += step) svg += `<line class="gl" x1="${L}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${tick(v)}</text>`;
+    const every = Math.max(1, Math.ceil(items.length / Math.max(2, Math.floor(plotW / 70))));
+    items.forEach((it, i) => { if (i % every === 0) svg += `<text x="${L + slot * i + slot / 2}" y="${H - 8}" text-anchor="middle">${esc(it.label)}</text>`; });
     if (kind === 'bar') {
-      const bw = Math.max(2, (step * 0.8) / series.length);
+      const group = Math.min(slot * 0.75, 28 * series.length + 4 * (series.length - 1));
+      const bw = (group - 4 * (series.length - 1)) / series.length;
       items.forEach((it, i) => it.values.forEach((v, j) => {
         if (!v) return;
-        svg += `<rect x="${L + step * i + step * 0.1 + bw * j}" y="${y(v)}" width="${bw - 1}" height="${H - B - y(v)}" rx="2" fill="${series[j].color}" data-tip="${esc(`${it.label} · ${series[j].name}: ${fmt(v)}`)}"/>`;
+        const x = L + slot * i + (slot - group) / 2 + j * (bw + 4);
+        svg += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${Math.max(1, bw).toFixed(1)}" height="${(H - B - y(v)).toFixed(1)}" rx="2" fill="${series[j].color}" data-tip="${esc(`${it.label} · ${series[j].name}: ${fmt(v)}`)}"/>`;
       }));
     } else {
       series.forEach((s, j) => {
-        const pts = items.map((it, i) => (it.values[j] === null || it.values[j] === undefined ? null : [L + step * i + step / 2, y(it.values[j]), it]));
+        const pts = items.map((it, i) => (it.values[j] === null || it.values[j] === undefined ? null : [L + slot * i + slot / 2, y(it.values[j]), it]));
         let d = '';
-        pts.forEach((p, i) => { if (p) d += `${d && pts[i - 1] ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`; });
+        pts.forEach((pt, i) => { if (pt) d += `${d && pts[i - 1] ? 'L' : 'M'}${pt[0].toFixed(1)},${pt[1].toFixed(1)}`; });
         svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2"/>`;
-        pts.forEach((p) => { if (p) svg += `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${s.color}" data-tip="${esc(`${p[2].label} · ${s.name}: ${P1(p[2].values[j])}`)}"/>`; });
+        pts.forEach((pt) => { if (pt) svg += `<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="${items.length > 40 ? 2 : 3.5}" fill="${s.color}" data-tip="${esc(`${pt[2].label} · ${s.name}: ${P1(pt[2].values[j])}`)}"/>`; });
       });
     }
-    const legend = series.length > 1 ? `<div class="legend">${series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
-    return `${legend}<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img">${svg}</svg></div>`;
+    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">${svg}</svg>`;
   }
+  function drawCharts(root = document) { root.querySelectorAll('.chart[data-chart]').forEach((el) => { const c = charts[+el.dataset.chart]; if (c) drawChart(el, c); }); }
   const GREEN = '#47BA7D', NAVY = '#333847', GREY = '#8A90A2', SOFT = '#8FD3AE';
   const granSeg = () => `<div class="seg" role="group" aria-label="Group by">${[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']].map(([k, l]) => `<button data-gran="${k}" aria-pressed="${S.gran === k}">${l}</button>`).join('')}</div>`;
   function seriesNow() { return Calc.series(S.P, sel(), S.gran); }
@@ -404,6 +425,7 @@
       <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>`;
     const m = $('#modal');
     if (!m.open) m.showModal();
+    drawCharts(m);
   }
 
   // ---------- render ----------
@@ -426,7 +448,9 @@
     const warn = missing.length ? `<p class="note warn">Some data could not be loaded in the last refresh (${missing.join(', ')}); those figures show as blank or zero.</p>` : '';
     const views = { overview: viewOverview, lp: viewLp, dc: viewDc, hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
+    charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${crumbs()}${warn}${views[S.tab](R)}</div>`;
+    drawCharts($('#main'));
     if (focus !== null && $('#search')) { $('#search').focus(); $('#search').setSelectionRange(focus, focus); }
   }
 
@@ -485,12 +509,15 @@
   });
   // chart tooltips
   document.addEventListener('mousemove', (e) => {
-    const tip = document.getElementById('tip') || Object.assign(document.body.appendChild(document.createElement('div')), { id: 'tip', className: 'chart tip' });
+    const tip = document.getElementById('tip') || Object.assign(document.body.appendChild(document.createElement('div')), { id: 'tip', className: 'tip' });
     const t = e.target.closest && e.target.closest('[data-tip]');
     if (!t) { tip.style.display = 'none'; return; }
     tip.textContent = t.getAttribute('data-tip');
     Object.assign(tip.style, { display: 'block', position: 'fixed', left: `${Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8)}px`, top: `${e.clientY + 12}px` });
   });
+
+  let rz;
+  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => drawCharts(), 150); });
 
   // ---------- load ----------
   async function load() {
