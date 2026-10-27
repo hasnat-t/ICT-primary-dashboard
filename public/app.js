@@ -67,7 +67,7 @@
   function card(id, title, note, body, extra = '') {
     return `<section class="card" id="${id}"><div class="card-h"><h2>${esc(title)}</h2><button class="dl" data-dl="${id}" title="Save this section as a PNG">Download image</button></div>${note ? `<p class="note">${note}</p>` : ''}${extra}${body}</section>`;
   }
-  const kpiP = (k, p, s = '', cls = '') => kpi(k, P1(p), s, `${cls} kb ${band(p)}`);
+  const kpiP = (k, p, s = '', cls = '') => kpi(k, P1(p), `${s} · <b>${bandName(p) || '—'}</b>`, `${cls} kb ${band(p)}`);
   const kpi = (k, v, s = '', cls = '') => `<div class="kpi ${cls}"><span class="k">${esc(k)}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`;
   // Performance bands, the same as the STEPS dashboard's levels, for every percentage on the page.
   const BANDS = [[80, 'b4', 'Exemplary', '80% and above'], [70, 'b3', 'Proficient', '70–79.9%'], [60, 'b2', 'Developing', '60–69.9%'], [-Infinity, 'b1', 'Needs support', 'below 60%']];
@@ -243,17 +243,20 @@
 
   function viewOverview(R) {
     const a = R.all, { level, rows } = levelRows(R);
+    // Every activity tile is coloured by the share of primary teachers it reached, so all tiles follow one rule.
+    const reach = (k, v, n, what) => kpi(k, v, `${what} · <b>${P1(ratio(n, a.teachers))}</b> of teachers`, `kb ${band(ratio(n, a.teachers))}`);
     const k = `<div class="kpis">
       ${kpi('Primary teachers', N(a.teachers), `${N(a.schools)} schools`)}
       ${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} got a grade 1–5 plan`)}
-      ${kpi('Plans taught', N(a.taught), `${N(a.teachersTaught)} teachers · seen in DC`)}
-      ${kpi('DC observations', N(a.dc), `${N(a.dcT)} teachers recorded`, 'src-dc')}
-      ${kpi('HITL observations', N(a.hitl), `${N(a.hitlT)} teachers observed`, 'src-hitl')}
-      ${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers`)}
-      ${kpi('Children quizzed', N(a.kidsL), `${N(a.sitL)} quiz attempts (a child can attempt several)`)}
-      ${kpi('Exam generator', N(a.exOk), `papers · ${N(a.exT)} teachers got one`)}
-      ${kpi('On NIETE primary training', N(a.onProg), `${N(a.cert[0])} hold Level 0 · all time`)}
-    </div>`;
+      ${reach('Plans taught', N(a.taught), a.teachersTaught, `${N(a.teachersTaught)} teachers · seen in DC`)}
+      ${reach('DC observations', N(a.dc), a.dcT, `${N(a.dcT)} teachers recorded`)}
+      ${reach('HITL observations', N(a.hitl), a.hitlT, `${N(a.hitlT)} teachers observed`)}
+      ${reach('Quizzes made', N(a.made), a.madeT, `${N(a.madeT)} teachers`)}
+      ${reach('Children quizzed', N(a.kidsL), a.quizT, `${N(a.sitL)} quiz attempts · ${N(a.quizT)} teachers`)}
+      ${reach('Exam generator', N(a.exOk), a.exT, `papers · ${N(a.exT)} teachers got one`)}
+      ${reach('On NIETE primary training', N(a.onProg), a.onProg, `${N(a.cert[0])} hold Level 0 · all time`)}
+    </div>
+    <p class="note">Tile colour = share of primary teachers reached in this period, using the same bands as the tables.</p>`;
     const cols = [nameCol(level), COL.schools, COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.exOk, COL.exPct, COL.onProg, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
     return card('c-over', `${scopeName()} · ${periodText()}`, `Everything below counts primary teachers only.${kidsNote()} Training is all-time.`, k)
       + card('c-over-t', `By ${level}`, `Click a row to drill down (sector → school → teacher).`,
@@ -278,8 +281,8 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-dc', `DC observations · ${scopeName()} · ${periodText()}`, 'A teacher records her own lesson and the Digital Coach scores it. Counted when the scores came back. Never added to coach visits.',
-      `<div class="kpis">${kpi('Lessons recorded', N(a.dc), '', 'src-dc')}${kpi('Teachers who recorded', N(a.dcT), `${P1(ratio(a.dcT, a.teachers))} of ${N(a.teachers)}`, 'src-dc')}
-        ${kpi('Per recording teacher', a.dcT ? (a.dc / a.dcT).toFixed(1) : '—', 'lessons', 'src-dc')}${kpi('Never recorded', N(a.teachers - a.dcT), 'teachers in this period')}</div>`)
+      `<div class="kpis">${kpi('Lessons recorded', N(a.dc), '')}${kpi('Teachers who recorded', N(a.dcT), `${P1(ratio(a.dcT, a.teachers))} of ${N(a.teachers)}`)}
+        ${kpi('Per recording teacher', a.dcT ? (a.dc / a.dcT).toFixed(1) : '—', 'lessons')}${kpi('Never recorded', N(a.teachers - a.dcT), 'teachers in this period')}</div>`)
       + card('c-dc-trend', 'DC observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.dc, g.teachersDc] })),
         [{ name: 'Lessons recorded', color: GREEN }, { name: 'Teachers who recorded', color: NAVY }]), granSeg())
       + card('c-dc-t', `By ${level}`, '', table('dc', [nameCol(level), COL.teachers, COL.dc, COL.dcT, COL.dcPct, ...ficoCols().filter((c) => c.src === 'dc')], rows,
@@ -290,8 +293,8 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-hitl', `HITL observations · ${scopeName()} · ${periodText()}`, 'A coach observes the lesson in person. Held = conducted (scored, not cancelled, abandoned, failed or a test). Held = debriefed + debrief pending + awaiting review. <code>/observe2</code> visits use another rubric and are left out.',
-      `<div class="kpis">${kpi('HITL observations', N(a.hitl), '', 'src-hitl')}${kpi('Teachers visited', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)}`, 'src-hitl')}
-        ${kpi('Debriefed', N(a.hitlC), P1(ratio(a.hitlC, a.hitl)), 'src-hitl')}${kpi('Debrief pending', N(a.hitlP), '', 'src-hitl')}${kpi('Awaiting review', N(a.hitlA), '', 'src-hitl')}</div>
+      `<div class="kpis">${kpi('HITL observations', N(a.hitl), '')}${kpi('Teachers visited', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)}`)}
+        ${kpi('Debriefed', N(a.hitlC), P1(ratio(a.hitlC, a.hitl)))}${kpi('Debrief pending', N(a.hitlP), '')}${kpi('Awaiting review', N(a.hitlA), '')}</div>
         <p class="note">${N(S.data.observe2_excluded || 0)} /observe2 visits (all time since 1 Aug, all schools shown) are not counted here.</p>`)
       + card('c-hitl-trend', 'HITL observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.hitl, g.teachersHitl] })),
         [{ name: 'HITL observations', color: NAVY }, { name: 'Teachers visited', color: GREY }]), granSeg())
@@ -417,7 +420,7 @@
     $('#m-sub').textContent = `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`;
     $('#m-body').innerHTML = `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
       <div class="kpis">${kpi('Days with a lesson plan', N(t.lpDays))}${kpi('Plans received', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
-      ${kpi('DC observations', N(t.dc), 'lessons recorded', 'src-dc')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`, 'src-hitl')}
+      ${kpi('DC observations', N(t.dc), 'lessons recorded')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`)}
       ${kpi('Quizzes made', N(t.made))}${kpi('Exam generator', N(t.exOk), `papers · ${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
       ${kpi('NIETE training', t.onProg ? 'On programme' : 'Not assigned', `${N(g.mods)} of 171 modules · certificates: ${t.certs ? t.certs.split('').map((l) => LEVELS[+l - 1]).join(', ') : 'none'}`)}</div>
       <h2>FICO section scores</h2>${ficoBlock(g)}

@@ -137,4 +137,4 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .legend.bands i.b4 { background: var(--b4); } .legend.bands i.b3 { background: var(--b3); } .legend.bands i.b2 { background: var(--b2); } .legend.bands i.b1 { background: var(--b1); }
 .legend.bands i.zero { background: transparent; border: 2px solid var(--b1); }
 .kpi.kb.b4 { border-left: 4px solid var(--b4); } .kpi.kb.b3 { border-left: 4px solid var(--b3); } .kpi.kb.b2 { border-left: 4px solid var(--b2); } .kpi.kb.b1 { border-left: 4px solid var(--b1); }
-.kpi.kb.b4 .v { color: var(--b4); } .kpi.kb.b2 .v { color: var(--b2); } .kpi.kb.b1 .v { color: var(--b1); }
+.kpi.kb.b4 .s b { color: var(--b4); } .kpi.kb.b3 .s b { color: var(--b3); } .kpi.kb.b2 .s b { color: var(--b2); } .kpi.kb.b1 .s b { color: var(--b1); }
