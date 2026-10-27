@@ -1,0 +1,17 @@
+{
+  "name": "ict-primary-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ICT Primary Teachers dashboard: lesson plans, Digital Coach and coach-visit observations, FICO scores, quizzes and NIETE training per sector, school and primary teacher, refreshed from the Taleemabad data service",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}
