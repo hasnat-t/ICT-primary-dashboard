@@ -288,6 +288,21 @@ function buildObserve2(rows, ro) {
   return out;
 }
 
+// FICO /observe2 pilot field forms (sql/pilot.sql). Teacher index is -1 when the teacher is not on this roster.
+function buildPilot(rows, ro) {
+  const out = [];
+  for (const r of rows) {
+    for (const p of records('pilot', r)) {
+      if (p.length !== 17 || p[7].length !== 17 || p[8].length !== 17 || p[9].length !== 17) throw new Error('pilot: malformed record');
+      const ti = ro.index.get(`${p[3]}:${p[2]}`);
+      const nums = (x) => x.split(',').map((v) => (v === '' ? null : +v));
+      out.push({ f: p[0], c: p[1], t: p[2], ti: ti === undefined ? -1 : ti, sector: p[4] || '(no sector)', d: p[5] === '' ? null : +p[5], st: p[6],
+        prov: p[7], dc: p[8], fin: p[9], pp: p[10], fp: p[11], ev: nums(p[12]), holes: +p[13], fid: nums(p[14]), linked: p[15] === '1', min: nums(p[16]) });
+    }
+  }
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -310,4 +325,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, unquote, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, unquote, rosterSig, MIN_SCHOOLS };

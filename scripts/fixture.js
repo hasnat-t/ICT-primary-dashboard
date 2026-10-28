@@ -61,13 +61,25 @@ const tgr = teachers.map((_, i) => [i, rnd() < 0.15 ? null : rnd() < 0.8 ? Strin
 const o2 = [];
 for (const r of obs) if (r[2] === 'H' && r[1] >= 70 && rnd() < 0.25) o2.push([r[0], r[1], r[14], r[3], Array.from({ length: 17 }, () => pick(['1', '2', '2', '3', '3', '3', '4', 'n'])).join(''),
   pick(['C7', 'C7', 'D5', 'plan', 'C1']), rnd() < 0.5 ? ['D1'] : [], rnd() < 0.4 ? [pick(['recall', 'recall', 'new', 'why'])] : [], 40 + Math.round(rnd() * 40), null, null]);
+const pilot = [];
+{ const L = () => pick(['1', '2', '2', '3', '3', '4']); const lv = (f) => Array.from({ length: 17 }, (_, i) => f(i)).join('');
+  for (let k = 0; k < 120; k++) {
+    const ti = Math.floor(rnd() * 400), sec = schools[teachers[ti].s].sector, d = 70 + Math.floor(rnd() * 18), fin = lv((i) => (i === 3 && rnd() < 0.5 ? 'n' : L()));
+    const prov = [...fin].map((v, i) => (i >= 13 ? '-' : rnd() < 0.1 ? L() : v)).join('');
+    const dc = [...fin].map((v, i) => (['C1', 'C2', 'C4', 'C6', 'D1', 'D4', 'D5'].includes(['C1','C2','C3','C4','C5','C6','C7','C8','D1','D2','D3','D4','D5','F1','F2','F3','F4'][i]) ? (rnd() < 0.7 ? v : L()) : '-')).join('');
+    const p = pick(['C7', 'D5', 'C1', 'plan']);
+    pilot.push({ f: 'f' + k, c: 'c' + String(k % 12).padStart(7, '0'), t: 't' + ti, ti, sector: sec, d, st: rnd() < 0.85 ? 'c' : 's', prov, dc, fin, pp: p, fp: rnd() < 0.95 ? p : 'C1',
+      ev: [3, 0, 2, 1, 1, 0, 1, 0], holes: rnd() < 0.5 ? 1 : 0, fid: [3, 2, 1, 1, 0], linked: rnd() < 0.8, min: [40, 15] });
+    if (k % 5 === 0) pilot.push({ ...pilot[pilot.length - 1], f: 'g' + k, c: 'c' + String((k + 1) % 12).padStart(7, '0') });
+    if (k % 3 === 0) pilot.push({ ...pilot[pilot.length - 1], f: 'h' + k, c: 'c' + String((k + 2) % 12).padStart(7, '0'), d: d + 7 });
+  } }
 const deb = {};
 for (const r of obs) if (r[2] === 'H') (deb[r[0]] = deb[r[0]] || []).push({ d: r[1], c: r[14], s: r[3], su: 'A well-paced lesson with clear explanations; questioning stayed mostly at recall level.',
   st: [{ t: 'Clear explanations', i: 'Students followed each step of the worked example.' }], gr: [{ a: 'Quality Questioning (C1)', o: 'Most questions were recall; answers were one word (e.g. “…”).', s: ['Ask two open why/how questions and wait 5 seconds.'] }],
   rec: ['Plan two open-ended questions before the lesson.', 'Use Think-Pair-Share once.'], fo: { t: 'Increase open-ended questioning', r: 'Moves student thinking beyond recall.', y: 'Write two why-questions on the board.' } });
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
   coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: i < 5 ? `Head ${i + 1}` : `Coach ${i + 1}`, role: i < 5 ? 'principal' : 'coach', hide: i < 5 })),
-  o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
+  pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);

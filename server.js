@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const db = require('./db');
-const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, rosterSig } = require('./unpack');
+const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, rosterSig } = require('./unpack');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -29,7 +29,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'training'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'training'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false };
 
@@ -91,6 +91,7 @@ const QUESTIONS = {
   lp_detail: 'scheduled refresh: ICT Primary Teachers dashboard, lesson plans generated per primary teacher by day, hour and curriculum lesson, and lessons taught in DC, since 1 Aug 2026',
   lp_lessons: 'scheduled refresh: ICT Primary Teachers dashboard, curriculum lesson catalogue (lesson, grade, subject, title)',
   quiz_scores: 'scheduled refresh: ICT Primary Teachers dashboard, children\'s finished lesson-quiz scores per primary teacher, day, grade and subject since 1 Aug 2026 (aggregates only, provisional)',
+  pilot: 'scheduled refresh: ICT Primary Teachers dashboard, FICO /observe2 pilot field forms - provisional, DC and final levels, evidence check marks, priorities (study design of 7 Oct 2026)',
   observe2: 'scheduled refresh: ICT Primary Teachers dashboard, /observe2 (fico17) coach visits of primary teachers since 1 Aug 2026 - levels, priorities, children\'s thinking',
   debriefs: 'scheduled refresh: ICT Primary Teachers dashboard, HITL debrief reports per primary teacher since 1 Aug 2026 (summary, strengths, growth areas, action plan, focus area; no verbatim classroom quotes)',
   coaches: 'scheduled refresh: ICT Primary Teachers dashboard, coaches who held HITL observations of primary teachers since 1 Aug 2026, with names (internal use only)',
@@ -145,6 +146,7 @@ async function refresh(reason) {
       ['exam_detail', async () => ({ exd: buildExamDetail(await runPaged('exam_detail'), ro) })],
       ['teacher_grades', async () => ({ tgr: buildTeacherGrades(await runPaged('teacher_grades'), ro) })],
       ['coaches', async () => ({ coaches: buildCoaches(await executeQuery(SQL.coaches, QUESTIONS.coaches)) })],
+      ['pilot', async () => ({ pilot: buildPilot(await executeQuery(SQL.pilot, QUESTIONS.pilot), ro) })],
       ['observe2', async () => ({ o2: buildObserve2(await runPaged('observe2'), ro) })],
       ['debriefs', async () => ({ deb: buildDebriefs(await runPaged('debriefs', 10), ro) })],
       ['lp_detail', async () => {
@@ -153,7 +155,7 @@ async function refresh(reason) {
       }],
       ['training', async () => ({ training: buildTraining(await runPaged('training'), ro) })],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], training: ['training'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], training: ['training'] };
     for (const [name, run] of parts) {
       try {
         Object.assign(next, await run());

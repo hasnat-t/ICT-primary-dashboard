@@ -215,3 +215,17 @@ test('/observe2: indicator levels, priorities, repeat visits, kept apart from HI
   assert.strictEqual(O.overallChange.d, 10);
   assert.strictEqual(C.rollup(C.prepare(data), { from: 0, to: 30 }).all.hitl, 2);   // /observe2 does not touch HITL
 });
+
+test('pilot: DC vs provisional, evidence check, joint and cross-coach agreement', () => {
+  const data = sample();
+  const f = (o) => ({ f: 'x', c: 'c1', t: 't1', ti: 0, sector: 'A', d: 10, st: 'c', prov: '22222222222220000'.replace(/0/g, '-'), dc: '2-------3--------'.replace(/(?<=^.{1})-/, '-'),
+    fin: '22222222322223333', pp: 'C7', fp: 'C7', ev: [2, 1, 1, 0, 0, 0, 0, 0], holes: 1, fid: [1, 0, 0, 0, 0], linked: true, min: [30, 10], ...o });
+  data.pilot = [f({}), f({ f: 'y', c: 'c2', fp: 'D5', fin: '22222222222223333' }), f({ f: 'z', c: 'c2', d: 17, fin: '32222222222223333' }), f({ f: 'w', st: 's' })];
+  const Q = C.pilotStats(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([Q.forms, Q.done, Q.coaches, Q.joint, Q.cross], [4, 3, 2, 1, 1]);
+  assert.strictEqual(Q.ind[0].dcVsProv.exact, 1);          // C1: DC 2 = coach 2
+  assert.strictEqual(Q.ind[8].dcVsFinal.n, 3);             // D1 rated by the DC
+  assert.deepStrictEqual([Q.prioJoint.n, Q.prioJoint.same], [1, 0]);
+  assert.strictEqual(Q.ev[0].yes, 6);
+  assert.strictEqual(Q.anyChange, 2);                      // D1 2 -> 3 on one visit, C1 2 -> 3 on another
+});

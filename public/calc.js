@@ -89,7 +89,7 @@
     const modules = data.modules || MODULES;
     return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
       grades: (() => { const g = new Array(nT).fill(null); for (const r of data.tgr || []) g[r[0]] = r[1]; return g; })(),
-      parts: { observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+      parts: { pilot: !!data.pilot, observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -544,5 +544,68 @@
     };
   }
 
-  return { O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // FICO /observe2 pilot, read against the study design of 7 Oct 2026 (6 regions x 2 coaches, 2 schools, ~96 teachers,
+  // each seen by both coaches a week apart, 3 joint lessons per school in week 1).
+  const PILOT_DC = ['C1', 'C2', 'C4', 'C6', 'D1', 'D4', 'D5'];   // the indicators the DC rates from the recording
+  const isLvl = (v) => v >= '1' && v <= '4';
+  function agree(pairs) {   // pairs of level characters -> exact / within one / mean difference (a - b)
+    const ok = pairs.filter(([a, b]) => isLvl(a) && isLvl(b));
+    if (!ok.length) return { n: 0, exact: null, within1: null, diff: null };
+    return { n: ok.length, exact: ok.filter(([a, b]) => a === b).length / ok.length, within1: ok.filter(([a, b]) => Math.abs(a - b) <= 1).length / ok.length,
+      diff: ok.reduce((s, [a, b]) => s + (+a - +b), 0) / ok.length };
+  }
+  function pilotStats(P, opts) {
+    const { data } = P;
+    if (!data.pilot) return null;
+    const to = Math.min(opts.to, data.today);
+    const all = data.pilot.filter((x) => (x.d === null || (x.d >= opts.from && x.d <= to)) && (!opts.sector || x.sector === opts.sector));
+    const fin = all.filter((x) => x.st === 'c');
+    const coaches = new Set(all.map((x) => x.c)), teachers = new Set(all.map((x) => x.t)), sectors = new Set(all.map((x) => x.sector));
+    // teachers seen by more than one coach; joint lessons = same teacher, same day, two coaches
+    const byT = new Map();
+    for (const x of fin) { if (!byT.has(x.t)) byT.set(x.t, []); byT.get(x.t).push(x); }
+    const joint = [], cross = [], repeat = [];
+    for (const list of byT.values()) {
+      const byDay = new Map();
+      list.forEach((x) => { const k = x.d; if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(x); });
+      for (const same of byDay.values()) {
+        const cs = [...new Map(same.map((x) => [x.c, x])).values()];
+        if (cs.length >= 2) joint.push([cs[0], cs[1]]);
+      }
+      const firstBy = [...new Map(list.slice().sort((a, b) => a.d - b.d).map((x) => [x.c, x])).values()];
+      const days = new Set(firstBy.map((x) => x.d));
+      if (firstBy.length >= 2 && days.size >= 2) cross.push([firstBy[0], firstBy[1]]);
+      if (list.length >= 2) { const s = list.slice().sort((a, b) => a.d - b.d); repeat.push([s[0], s[s.length - 1]]); }
+    }
+    const lvlPairs = (pairs, i, a = 'fin', b = 'fin') => pairs.map(([x, y]) => [x[a][i], y[b][i]]);
+    const ind = O2.map(([id, name], i) => ({
+      id, name, dcRates: PILOT_DC.includes(id),
+      dcVsProv: agree(fin.map((x) => [x.dc[i], x.prov[i]])),
+      dcVsFinal: agree(fin.map((x) => [x.dc[i], x.fin[i]])),
+      changed: (() => { const ok = fin.filter((x) => isLvl(x.prov[i]) && isLvl(x.fin[i])); return { n: ok.length, k: ok.filter((x) => x.prov[i] !== x.fin[i]).length,
+        up: ok.filter((x) => x.fin[i] > x.prov[i]).length }; })(),
+      joint: agree(lvlPairs(joint, i)), cross: agree(lvlPairs(cross, i)), repeat: agree(lvlPairs(repeat, i)),
+    }));
+    const sum = (k) => fin.reduce((s, x) => s + (x.ev[k] || 0), 0);
+    const ev = ['ask', 'explain', 'wrong', 'work'].map((kind, j) => ({ kind, yes: sum(2 * j), no: sum(2 * j + 1) }));
+    const fid = [0, 1, 2, 3, 4].map((j) => fin.reduce((s, x) => s + (x.fid[j] || 0), 0));
+    const med = (arr) => { const v = arr.filter((x) => x !== null && x >= 0).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+    const anyChange = fin.filter((x) => [...x.prov].some((v, i) => isLvl(v) && isLvl(x.fin[i]) && v !== x.fin[i])).length;
+    const prioPairs = (pairs) => { const ok = pairs.filter(([a, b]) => a.fp && b.fp); return { n: ok.length, same: ok.filter(([a, b]) => a.fp === b.fp).length }; };
+    const bySector = [...sectors].map((s) => {
+      const xs = all.filter((x) => x.sector === s), fx = xs.filter((x) => x.st === 'c');
+      return { key: s, forms: xs.length, done: fx.length, coaches: new Set(xs.map((x) => x.c)).size, teachers: new Set(xs.map((x) => x.t)).size,
+        both: cross.filter(([a]) => a.sector === s).length, joint: joint.filter(([a]) => a.sector === s).length };
+    });
+    return {
+      forms: all.length, done: fin.length, sealedOnly: all.filter((x) => x.st === 's').length, open: all.filter((x) => x.st === 'o').length,
+      coaches: coaches.size, teachers: teachers.size, sectors: sectors.size, bySector,
+      joint: joint.length, cross: cross.length, repeat: repeat.length, ind, ev, fid, holes: fin.filter((x) => x.holes > 0).length,
+      anyChange, prio: { changed: fin.filter((x) => x.pp && x.fp && x.pp !== x.fp).length, n: fin.filter((x) => x.pp && x.fp).length },
+      prioJoint: prioPairs(joint), prioCross: prioPairs(cross),
+      linked: all.filter((x) => x.linked).length, minSeal: med(all.map((x) => x.min[0])), minCheck: med(fin.map((x) => x.min[1])),
+    };
+  }
+
+  return { PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

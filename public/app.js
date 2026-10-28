@@ -779,7 +779,93 @@
       + `<div class="cards2">${card('c-o2t', 'Progress by week', 'Visits and teachers visited each week since the pilot began.', trend)}${card('c-o2s', 'By sector', '', table('o2s', scols, O.sectors, { sort: { k: 'n', dir: -1 }, noLegend: true }))}</div>`
       + card('c-o2i', 'The 17 indicators', `How coaches rated each indicator across ${N(O.n)} visits. Bars show the share at each level; the number is the average level (out of 4, leaving out "not applicable" and "couldn't tell"). Arrows show the average change from a teacher's first to latest visit, where they had more than one.`, `${lvlLegend}<div class="o2">${groups}</div>`)
       + `<div class="cards2">${card('c-o2p', 'What to work on first', 'The one thing the coach asked the teacher to work on first, by how often it was chosen.', prio)}${card('c-o2c', "Children's thinking the coach saw", `Share of the ${N(O.withSeen)} visits where the coach noted it. A visit can show more than one.`, seen)}</div>`
-      + card('c-o2co', 'By coach', 'Contains coach names — internal use only. Visits are activity, not quality; scores also reflect which teachers each coach visits.', table('o2co', ccols, O.coaches, { sort: { k: 'n', dir: -1 } }));
+      + card('c-o2co', 'By coach', 'Contains coach names — internal use only. Visits are activity, not quality; scores also reflect which teachers each coach visits.', table('o2co', ccols, O.coaches, { sort: { k: 'n', dir: -1 } }))
+      + pilotStudy();
+  }
+
+  // The pilot read against its study design (7 Oct 2026): progress, then the four questions it asks.
+  function pilotStudy() {
+    const Q = Calc.pilotStats(S.P, sel());
+    const head = `<div class="sec-h"><h2>Pilot study: does a FICO score mean the same whoever produces it?</h2><p class="note">Read against the field team's study design of 7 Oct 2026: 6 regions, 2 coaches each (12), 2 schools per region, about 96 teachers, every teacher observed by both coaches a week apart, and 3 joint lessons per school in week 1 where both coaches watch the same lesson. Built from the pilot's field forms, which record the coach's provisional ratings (sealed before the DC check), the DC's own ratings (never shown to the coach), the coach's marks on the DC's evidence, and the final ratings. <b>Provisional</b>: these forms are not yet covered by the data rules. This tests the tool, not coaches or teachers.</p></div>`;
+    if (!Q) return head + card('c-ps0', 'Pilot study', 'Not available yet: the dashboard may still be refreshing after an update.', '');
+    if (!Q.forms) return head + card('c-ps0', 'Pilot study', `No pilot field forms in ${periodText()}.`, '');
+    const pctOr = (v) => (v === null ? '<span class="dim">—</span>' : P1(100 * v));   // v is a 0-1 share
+    const agreeCell = (a) => (a.n ? `${sc(100 * a.exact)} <span class="dim">n=${N(a.n)}</span>` : '<span class="dim">—</span>');
+
+    const progress = card('c-ps1', 'Progress against the design', `Field forms ${periodText()}. Targets are the design's; "both coaches" = a teacher with final ratings from two different coaches on different days; "joint lessons" = two coaches' final ratings for the same teacher on the same day.`,
+      `<div class="kpis">${kpi('Coaches', `${N(Q.coaches)} <span class="dim">/ 12</span>`)}${kpi('Regions', `${N(Q.sectors)} <span class="dim">/ 6</span>`)}${kpi('Teachers', `${N(Q.teachers)} <span class="dim">/ ~96</span>`)}
+        ${kpi('Visits with final ratings', N(Q.done), `${N(Q.sealedOnly)} sealed, waiting for the DC check · ${N(Q.open)} still open`)}
+        ${kpi('Teachers seen by both coaches', `${N(Q.cross)} <span class="dim">/ ~96</span>`)}${kpi('Joint lessons', `${N(Q.joint)} <span class="dim">/ 36</span>`)}</div>`
+      + table('ps1', [
+        { k: 'name', label: 'Region', val: (r) => r.key, fmt: (r) => esc(r.key) },
+        { k: 'coaches', label: 'Coaches', num: true, val: (r) => r.coaches, fmt: (r) => `${N(r.coaches)} <span class="dim">/ 2</span>` },
+        { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => `${N(r.teachers)} <span class="dim">/ ~16</span>` },
+        { k: 'forms', label: 'Field forms', num: true, val: (r) => r.forms, fmt: (r) => N(r.forms) },
+        { k: 'done', label: 'With final ratings', num: true, val: (r) => r.done, fmt: (r) => N(r.done) },
+        { k: 'both', label: 'Seen by both coaches', num: true, val: (r) => r.both, fmt: (r) => N(r.both) },
+        { k: 'joint', label: 'Joint lessons', num: true, val: (r) => r.joint, fmt: (r) => `${N(r.joint)} <span class="dim">/ 6</span>` },
+      ], Q.bySector, { sort: { k: 'forms', dir: -1 }, noLegend: true }));
+
+    const dcInd = Q.ind.filter((x) => x.dcRates), roomInd = Q.ind.filter((x) => !x.dcRates);
+    const q1 = card('c-ps2', '1 · Which indicators can the DC score well?',
+      `The DC rates only what it can hear. For those indicators, its rating is compared with the coach's <b>provisional</b> rating, given in the room before the coach saw anything from the DC, and with the coach's final rating. "Same level" = exact match; "within one" = at most one level apart. A positive lean means the DC rates higher than the coach.`,
+      table('ps2', [
+        { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
+        { k: 'ex', label: 'Same level as coach (provisional)', num: true, val: (r) => r.dcVsProv.exact, fmt: (r) => agreeCell(r.dcVsProv) },
+        { k: 'w1', label: 'Within one level', num: true, val: (r) => r.dcVsProv.within1, fmt: (r) => pctOr(r.dcVsProv.within1) },
+        { k: 'lean', label: 'DC lean', num: true, title: 'Average DC level minus coach level', val: (r) => r.dcVsProv.diff, fmt: (r) => (r.dcVsProv.diff === null ? '—' : `${r.dcVsProv.diff >= 0 ? '+' : ''}${r.dcVsProv.diff.toFixed(2)}`) },
+        { k: 'fx', label: 'Same level as coach (final)', num: true, val: (r) => r.dcVsFinal.exact, fmt: (r) => agreeCell(r.dcVsFinal) },
+      ], dcInd, { sort: { k: 'ex', dir: -1 }, noLegend: true })
+      + `<p class="note"><b>Needs a coach in the room</b> — the DC does not rate these from the recording: ${roomInd.map((x) => `${x.id} ${esc(x.name)}`).join(' · ')}.</p>`);
+
+    const evAll = Q.ev.reduce((s, e) => s + e.yes + e.no, 0), evNo = Q.ev.reduce((s, e) => s + e.no, 0);
+    const KIND = { ask: 'Questions asked', explain: 'Children explaining', wrong: 'Wrong answers handled', work: 'Children working' };
+    const q2 = card('c-ps3', '2 · Does the DC evidence check help, and is its evidence right?',
+      `After sealing, the coach sees the evidence the DC found (never its ratings) and marks each item. "Rejected" = the coach said the item was wrong. Whether accepted items were truly right is checked later by the expert panels from the recordings, which are not in this data yet.`,
+      `<div class="kpis">${kpi('Evidence items per visit', Q.done ? (evAll / Q.done).toFixed(1) : '—', `${N(evAll)} items on ${N(Q.done)} visits`)}${kpi('Rejected by coaches', P1(ratio(evNo, evAll)), `${N(evNo)} items`)}
+        ${kpi('Visits where a rating changed', P1(ratio(Q.anyChange, Q.done)), 'provisional → final')}${kpi('Visits where the DC filled a gap', P1(ratio(Q.holes, Q.done)), 'evidence the coach had not recorded')}
+        ${kpi('Priority changed after the check', P1(ratio(Q.prio.changed, Q.prio.n)), `${N(Q.prio.changed)} of ${N(Q.prio.n)}`)}</div>
+      <div class="grid"><div><span class="lbl">Coaches' marks by kind of evidence</span>${table('ps3a', [
+        { k: 'name', label: 'Evidence', val: (r) => r.kind, fmt: (r) => esc(KIND[r.kind]) },
+        { k: 'n', label: 'Items', num: true, val: (r) => r.yes + r.no, fmt: (r) => N(r.yes + r.no) },
+        { k: 'no', label: 'Rejected', num: true, val: (r) => r.no / ((r.yes + r.no) || 1), fmt: (r) => P1(ratio(r.no, r.yes + r.no)) },
+      ], Q.ev, { noLegend: true })}</div>
+      <div><span class="lbl">Ratings changed after the check</span>${table('ps3b', [
+        { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
+        { k: 'k', label: 'Changed', num: true, val: (r) => (r.changed.n ? r.changed.k / r.changed.n : null), fmt: (r) => (r.changed.n ? `${P1(ratio(r.changed.k, r.changed.n))} <span class="dim">n=${N(r.changed.n)}</span>` : '—') },
+        { k: 'up', label: 'Of those, raised', num: true, val: (r) => (r.changed.k ? r.changed.up / r.changed.k : null), fmt: (r) => (r.changed.k ? P1(ratio(r.changed.up, r.changed.k)) : '—') },
+      ], Q.ind.filter((x) => x.changed.n), { sort: { k: 'k', dir: -1 }, noLegend: true })}</div></div>`);
+
+    const pj = Q.prioJoint, pc = Q.prioCross;
+    const q3 = card('c-ps4', '3 · Does a teacher get the same priority whoever observes them?',
+      `<b>Joint lessons</b>: two coaches in the same lesson, rating alone. Any disagreement there is between coaches, not lessons. <b>Both coaches</b>: the same teacher seen by each coach in different weeks, so lessons differ too. The gap between the two columns is roughly how much comes from the lesson rather than the coach.`,
+      `<div class="kpis">${kpi('Same priority — joint lessons', pj.n ? P1(ratio(pj.same, pj.n)) : '—', `${N(pj.n)} lessons`)}${kpi('Same priority — different weeks', pc.n ? P1(ratio(pc.same, pc.n)) : '—', `${N(pc.n)} teachers`)}</div>`
+      + table('ps4', [
+        { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
+        { k: 'j', label: 'Same level — joint lessons', num: true, val: (r) => r.joint.exact, fmt: (r) => agreeCell(r.joint) },
+        { k: 'c', label: 'Same level — different weeks', num: true, val: (r) => r.cross.exact, fmt: (r) => agreeCell(r.cross) },
+      ], Q.ind, { noLegend: true }));
+
+    const rp = Q.ind.filter((x) => x.repeat.n);
+    const avgRep = rp.length ? rp.reduce((s, x) => s + x.repeat.exact, 0) / rp.length : null;
+    const q4 = card('c-ps5', '4 · How many observations does a fair picture take?',
+      `First and latest final ratings for teachers observed more than once (${N(Q.repeat)} teachers), whoever observed. The less a teacher's level repeats from one visit to the next, the more visits a fair picture needs. The full answer needs the week-3 remote scoring and re-scoring, which are not in this data yet.`,
+      `<div class="kpis">${kpi('Same level on both visits', pctOr(avgRep), 'average across indicators')}</div>`
+      + table('ps5', [
+        { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
+        { k: 'ex', label: 'Same level on both visits', num: true, val: (r) => r.repeat.exact, fmt: (r) => agreeCell(r.repeat) },
+        { k: 'w1', label: 'Within one level', num: true, val: (r) => r.repeat.within1, fmt: (r) => pctOr(r.repeat.within1) },
+      ], Q.ind, { sort: { k: 'ex', dir: 1 }, noLegend: true }));
+
+    const fidAll = Q.fid.reduce((s, v) => s + v, 0);
+    const flow = card('c-ps6', 'How the visit steps are going',
+      'Timings are medians. Lesson-plan steps are the DC\'s verdicts on each planned step, as reviewed by the coach.',
+      `<div class="kpis">${kpi('Open → sealed', Q.minSeal === null ? '—' : `${N(Q.minSeal)} min`, 'lesson and provisional ratings')}${kpi('Sealed → final', Q.minCheck === null ? '—' : `${N(Q.minCheck)} min`, 'DC evidence check')}
+        ${kpi('Linked to a recording', P1(ratio(Q.linked, Q.forms)), `${N(Q.linked)} of ${N(Q.forms)} forms`)}</div>
+      ${fidAll ? `<span class="lbl">Lesson-plan steps</span>${splitBar([['Done', Q.fid[0], 'var(--t4)'], ['Partly', Q.fid[1], 'var(--t2)'], ['Not done', Q.fid[2], 'var(--t1)'], ['Done differently', Q.fid[3], '#8FB8DE'], ['Could not judge', Q.fid[4], '#BBB']].filter((x) => x[1]), fidAll)}` : ''}
+      <p class="note">Not in this data yet: remote scoring by coaches from other regions, re-scoring from recordings, the expert panels and the coordinator's list of core teachers.</p>`);
+
+    return head + progress + q1 + q2 + q3 + q4 + flow;
   }
 
   function viewHitl(R) {
