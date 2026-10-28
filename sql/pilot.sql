@@ -1,7 +1,7 @@
 -- FICO /observe2 pilot (study design of 7 Oct 2026): one record per field form in observation_field_forms, for the pilot
 -- analysis tab. Ungoverned - the table is not yet in the data rules - so every figure built on it is provisional.
--- Read from the form itself (verified 2026-10-29): evidence_review.added = the coach's provisional levels, sealed before
--- the DC evidence check (F1-F4 are only rated at the final step); rumi_levels = the DC's own levels, never shown to the
+-- Read from the form itself (verified 2026-10-29): evidence_review.added is written during the DC evidence check (absent
+-- on forms sealed but not yet checked), so it is NOT the sealed provisional rating - kept in the record, unused for now; rumi_levels = the DC's own levels, never shown to the
 -- coach (it rates only what it can hear); final_levels = the coach's final levels; answers.priority / evidence_review.
 -- priority_final = provisional / final coaching priority; evidence_review.heard_<kind>_N = the coach's yes/no on each DC
 -- evidence item; added_hole = evidence the DC found for a gap in the coach's record; fid_r_N = lesson-plan step verdicts.

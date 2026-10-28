@@ -580,17 +580,13 @@
     const lvlPairs = (pairs, i, a = 'fin', b = 'fin') => pairs.map(([x, y]) => [x[a][i], y[b][i]]);
     const ind = O2.map(([id, name], i) => ({
       id, name, dcRates: PILOT_DC.includes(id),
-      dcVsProv: agree(fin.map((x) => [x.dc[i], x.prov[i]])),
       dcVsFinal: agree(fin.map((x) => [x.dc[i], x.fin[i]])),
-      changed: (() => { const ok = fin.filter((x) => isLvl(x.prov[i]) && isLvl(x.fin[i])); return { n: ok.length, k: ok.filter((x) => x.prov[i] !== x.fin[i]).length,
-        up: ok.filter((x) => x.fin[i] > x.prov[i]).length }; })(),
       joint: agree(lvlPairs(joint, i)), cross: agree(lvlPairs(cross, i)), repeat: agree(lvlPairs(repeat, i)),
     }));
     const sum = (k) => fin.reduce((s, x) => s + (x.ev[k] || 0), 0);
     const ev = ['ask', 'explain', 'wrong', 'work'].map((kind, j) => ({ kind, yes: sum(2 * j), no: sum(2 * j + 1) }));
     const fid = [0, 1, 2, 3, 4].map((j) => fin.reduce((s, x) => s + (x.fid[j] || 0), 0));
     const med = (arr) => { const v = arr.filter((x) => x !== null && x >= 0).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
-    const anyChange = fin.filter((x) => [...x.prov].some((v, i) => isLvl(v) && isLvl(x.fin[i]) && v !== x.fin[i])).length;
     const prioPairs = (pairs) => { const ok = pairs.filter(([a, b]) => a.fp && b.fp); return { n: ok.length, same: ok.filter(([a, b]) => a.fp === b.fp).length }; };
     const bySector = [...sectors].map((s) => {
       const xs = all.filter((x) => x.sector === s), fx = xs.filter((x) => x.st === 'c');
@@ -601,7 +597,7 @@
       forms: all.length, done: fin.length, sealedOnly: all.filter((x) => x.st === 's').length, open: all.filter((x) => x.st === 'o').length,
       coaches: coaches.size, teachers: teachers.size, sectors: sectors.size, bySector,
       joint: joint.length, cross: cross.length, repeat: repeat.length, ind, ev, fid, holes: fin.filter((x) => x.holes > 0).length,
-      anyChange, prio: { changed: fin.filter((x) => x.pp && x.fp && x.pp !== x.fp).length, n: fin.filter((x) => x.pp && x.fp).length },
+      prio: { changed: fin.filter((x) => x.pp && x.fp && x.pp !== x.fp).length, n: fin.filter((x) => x.pp && x.fp).length },
       prioJoint: prioPairs(joint), prioCross: prioPairs(cross),
       linked: all.filter((x) => x.linked).length, minSeal: med(all.map((x) => x.min[0])), minCheck: med(fin.map((x) => x.min[1])),
     };

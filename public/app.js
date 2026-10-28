@@ -797,7 +797,7 @@
         ${kpi('Visits with final ratings', N(Q.done), `${N(Q.sealedOnly)} sealed, waiting for the DC check · ${N(Q.open)} still open`)}
         ${kpi('Teachers seen by both coaches', `${N(Q.cross)} <span class="dim">/ ~96</span>`)}${kpi('Joint lessons', `${N(Q.joint)} <span class="dim">/ 36</span>`)}</div>`
       + table('ps1', [
-        { k: 'name', label: 'Region', val: (r) => r.key, fmt: (r) => esc(r.key) },
+        { k: 'name', label: 'Region', val: (r) => r.key, fmt: (r) => esc(r.key === '(no sector)' ? 'No school recorded (practice or test forms?)' : r.key) },
         { k: 'coaches', label: 'Coaches', num: true, val: (r) => r.coaches, fmt: (r) => `${N(r.coaches)} <span class="dim">/ 2</span>` },
         { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => `${N(r.teachers)} <span class="dim">/ ~16</span>` },
         { k: 'forms', label: 'Field forms', num: true, val: (r) => r.forms, fmt: (r) => N(r.forms) },
@@ -808,13 +808,12 @@
 
     const dcInd = Q.ind.filter((x) => x.dcRates), roomInd = Q.ind.filter((x) => !x.dcRates);
     const q1 = card('c-ps2', '1 · Which indicators can the DC score well?',
-      `The DC rates only what it can hear. For those indicators, its rating is compared with the coach's <b>provisional</b> rating, given in the room before the coach saw anything from the DC, and with the coach's final rating. "Same level" = exact match; "within one" = at most one level apart. A positive lean means the DC rates higher than the coach.`,
+      `The DC rates only what it can hear. Its rating (never shown to the coach) is compared with the coach's <b>final</b> rating. "Same level" = exact match; "within one" = at most one level apart; a positive lean means the DC rates higher than the coach. The coach's final rating comes after seeing the DC's evidence, so this may flatter the DC a little. The cleaner test, against the coach's rating before the check, is not possible yet: the form keeps the coach's provisional answers and priority but not provisional levels.`,
       table('ps2', [
         { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
-        { k: 'ex', label: 'Same level as coach (provisional)', num: true, val: (r) => r.dcVsProv.exact, fmt: (r) => agreeCell(r.dcVsProv) },
-        { k: 'w1', label: 'Within one level', num: true, val: (r) => r.dcVsProv.within1, fmt: (r) => pctOr(r.dcVsProv.within1) },
-        { k: 'lean', label: 'DC lean', num: true, title: 'Average DC level minus coach level', val: (r) => r.dcVsProv.diff, fmt: (r) => (r.dcVsProv.diff === null ? '—' : `${r.dcVsProv.diff >= 0 ? '+' : ''}${r.dcVsProv.diff.toFixed(2)}`) },
-        { k: 'fx', label: 'Same level as coach (final)', num: true, val: (r) => r.dcVsFinal.exact, fmt: (r) => agreeCell(r.dcVsFinal) },
+        { k: 'ex', label: 'Same level as the coach', num: true, val: (r) => r.dcVsFinal.exact, fmt: (r) => agreeCell(r.dcVsFinal) },
+        { k: 'w1', label: 'Within one level', num: true, val: (r) => r.dcVsFinal.within1, fmt: (r) => pctOr(r.dcVsFinal.within1) },
+        { k: 'lean', label: 'DC lean', num: true, title: 'Average DC level minus coach level', val: (r) => r.dcVsFinal.diff, fmt: (r) => (r.dcVsFinal.diff === null ? '—' : `${r.dcVsFinal.diff >= 0 ? '+' : ''}${r.dcVsFinal.diff.toFixed(2)}`) },
       ], dcInd, { sort: { k: 'ex', dir: -1 }, noLegend: true })
       + `<p class="note"><b>Needs a coach in the room</b> — the DC does not rate these from the recording: ${roomInd.map((x) => `${x.id} ${esc(x.name)}`).join(' · ')}.</p>`);
 
@@ -823,18 +822,14 @@
     const q2 = card('c-ps3', '2 · Does the DC evidence check help, and is its evidence right?',
       `After sealing, the coach sees the evidence the DC found (never its ratings) and marks each item. "Rejected" = the coach said the item was wrong. Whether accepted items were truly right is checked later by the expert panels from the recordings, which are not in this data yet.`,
       `<div class="kpis">${kpi('Evidence items per visit', Q.done ? (evAll / Q.done).toFixed(1) : '—', `${N(evAll)} items on ${N(Q.done)} visits`)}${kpi('Rejected by coaches', P1(ratio(evNo, evAll)), `${N(evNo)} items`)}
-        ${kpi('Visits where a rating changed', P1(ratio(Q.anyChange, Q.done)), 'provisional → final')}${kpi('Visits where the DC filled a gap', P1(ratio(Q.holes, Q.done)), 'evidence the coach had not recorded')}
-        ${kpi('Priority changed after the check', P1(ratio(Q.prio.changed, Q.prio.n)), `${N(Q.prio.changed)} of ${N(Q.prio.n)}`)}</div>
-      <div class="grid"><div><span class="lbl">Coaches' marks by kind of evidence</span>${table('ps3a', [
+        ${kpi('Visits where the DC filled a gap', P1(ratio(Q.holes, Q.done)), 'evidence the coach had not recorded')}
+        ${kpi('Priority changed after the check', P1(ratio(Q.prio.changed, Q.prio.n)), `${N(Q.prio.changed)} of ${N(Q.prio.n)} · sealed → final`)}</div>
+      <span class="lbl">Coaches' marks by kind of evidence</span>${table('ps3a', [
         { k: 'name', label: 'Evidence', val: (r) => r.kind, fmt: (r) => esc(KIND[r.kind]) },
         { k: 'n', label: 'Items', num: true, val: (r) => r.yes + r.no, fmt: (r) => N(r.yes + r.no) },
         { k: 'no', label: 'Rejected', num: true, val: (r) => r.no / ((r.yes + r.no) || 1), fmt: (r) => P1(ratio(r.no, r.yes + r.no)) },
-      ], Q.ev, { noLegend: true })}</div>
-      <div><span class="lbl">Ratings changed after the check</span>${table('ps3b', [
-        { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
-        { k: 'k', label: 'Changed', num: true, val: (r) => (r.changed.n ? r.changed.k / r.changed.n : null), fmt: (r) => (r.changed.n ? `${P1(ratio(r.changed.k, r.changed.n))} <span class="dim">n=${N(r.changed.n)}</span>` : '—') },
-        { k: 'up', label: 'Of those, raised', num: true, val: (r) => (r.changed.k ? r.changed.up / r.changed.k : null), fmt: (r) => (r.changed.k ? P1(ratio(r.changed.up, r.changed.k)) : '—') },
-      ], Q.ind.filter((x) => x.changed.n), { sort: { k: 'k', dir: -1 }, noLegend: true })}</div></div>`);
+      ], Q.ev, { noLegend: true })}
+      <p class="note">How much ratings move because of the check cannot be measured yet: the form does not keep the coach's provisional levels, only the provisional answers and priority.</p>`);
 
     const pj = Q.prioJoint, pc = Q.prioCross;
     const q3 = card('c-ps4', '3 · Does a teacher get the same priority whoever observes them?',

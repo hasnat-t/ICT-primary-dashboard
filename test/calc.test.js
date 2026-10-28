@@ -223,9 +223,8 @@ test('pilot: DC vs provisional, evidence check, joint and cross-coach agreement'
   data.pilot = [f({}), f({ f: 'y', c: 'c2', fp: 'D5', fin: '22222222222223333' }), f({ f: 'z', c: 'c2', d: 17, fin: '32222222222223333' }), f({ f: 'w', st: 's' })];
   const Q = C.pilotStats(C.prepare(data), { from: 0, to: 30 });
   assert.deepStrictEqual([Q.forms, Q.done, Q.coaches, Q.joint, Q.cross], [4, 3, 2, 1, 1]);
-  assert.strictEqual(Q.ind[0].dcVsProv.exact, 1);          // C1: DC 2 = coach 2
+  assert.strictEqual(Math.round(Q.ind[0].dcVsFinal.exact * 3), 2);   // C1: DC 2 matches the coach's final 2, 2, 3
   assert.strictEqual(Q.ind[8].dcVsFinal.n, 3);             // D1 rated by the DC
   assert.deepStrictEqual([Q.prioJoint.n, Q.prioJoint.same], [1, 0]);
   assert.strictEqual(Q.ev[0].yes, 6);
-  assert.strictEqual(Q.anyChange, 2);                      // D1 2 -> 3 on one visit, C1 2 -> 3 on another
 });
