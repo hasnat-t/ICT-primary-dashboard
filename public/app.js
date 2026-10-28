@@ -154,6 +154,8 @@
     kidsV: { k: 'kidsV', label: 'Children (video quizzes)', num: true, val: (r) => r.kidsV, fmt: (r) => N(r.kidsV) },
     sitV: { k: 'sitV', label: 'Video quiz attempts', num: true, val: (r) => r.sitV, fmt: (r) => N(r.sitV) },
     exOk: { k: 'exOk', label: 'Exams generated', num: true, title: 'Exam papers the /assessment generator produced for the teacher (root paper ready)', val: (r) => r.exOk, fmt: (r) => cnt(r, r.exOk) },
+    fde: { k: 'fde', label: 'FDE board papers', num: true, title: 'Grade 5 exams generated in the FDE board format (provisional: read from the paper layout, no governed rule)', val: (r) => r.fde, fmt: (r) => N(r.fde) },
+    fdeT: { k: 'fdeT', label: 'Teachers with an FDE paper', num: true, levels: ['sector', 'school'], val: (r) => r.fdeT, fmt: (r) => N(r.fdeT) },
     exReq: { k: 'exReq', label: 'Papers requested', num: true, val: (r) => r.exReq, fmt: (r) => N(r.exReq) },
     exT: { k: 'exT', label: 'Teachers with a paper', num: true, levels: ['sector', 'school'], val: (r) => r.exT, fmt: (r) => N(r.exT) },
     exPct: { k: 'exPct', label: '% of teachers', num: true, levels: ['sector', 'school'], title: 'Teachers who generated at least one exam paper ÷ primary teachers', val: (r) => ratio(r.exT, r.teachers), fmt: (r) => cov(ratio(r.exT, r.teachers)) },
@@ -742,7 +744,7 @@
         ${kpi('Per teacher with a paper', a.exT ? (a.exOk / a.exT).toFixed(1) : '—', 'papers')}${kpi('Failed', N(a.exFail), `${N(a.exStuck)} never finished`)}${kpi('Edited by teacher', N(a.exEdit), P1(ratio(a.exEdit, a.exOk)) + ' of generated')}</div>`)
       + card('c-ex-trend', 'Exam generator over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.exOk, g.teachersEx] })),
         [{ name: 'Exams generated', color: NAVY }, { name: 'Teachers with a paper', color: GREEN }]), granSeg())
-      + card('c-ex-t', `By ${level}`, '', table('ex', [nameCol(level), COL.teachers, COL.exOk, COL.exT, COL.exPct, COL.exReq, COL.exFail, COL.exStuck, COL.exEdit], rows,
+      + card('c-ex-t', `By ${level}`, '', table('ex', [nameCol(level), COL.teachers, COL.exOk, COL.exT, COL.exPct, COL.fde, COL.fdeT, COL.exReq, COL.exFail, COL.exStuck, COL.exEdit], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
 

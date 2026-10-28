@@ -72,7 +72,7 @@
   function blankTeacher() {
     return { g15: false, g612: false, lpDays: 0, plans: 0, taught: 0, saidTaught: 0, answered: 0,
       dc: 0, hitl: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
-      made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0 };
+      made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, fde: 0, fdeReq: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0 };
   }
 
   // Index the rows by teacher once per data load.
@@ -87,7 +87,7 @@
     const training = new Array(nT).fill(null);
     for (const r of data.training || []) training[r[0]] = r;
     const modules = data.modules || MODULES;
-    return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
+    return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
       parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
@@ -123,6 +123,7 @@
       if (r[1] < from || r[1] > to) continue;
       t.exReq += r[2]; t.exOk += r[3]; t.exFail += r[4]; t.exStuck += r[5]; t.exEdit += r[6];
     }
+    for (const r of P.fde[ti]) if (r[1] >= from && r[1] <= to) { t.fdeReq += r[8]; t.fde += r[9]; }
     for (const r of P.sit[ti]) {
       if (r[1] < from || r[1] > to) continue;
       if (r[2] === 'L') { t.sitL += r[3]; t.finL += r[4]; } else { t.sitV += r[3]; t.finV += r[4]; }
@@ -140,7 +141,7 @@
     return { teachers: 0, g15: 0, lpAny: 0, plans: 0, taught: 0, answered: 0, teachersTaught: 0,
       dc: 0, dcT: 0, hitl: 0, hitlT: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, quizLT: 0, kidsL: null, kidsV: null,
-      exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0, qT: 0,
+      exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0, fde: 0, fdeReq: 0, fdeT: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0, qT: 0,
       onProg: 0, didModule: 0, cert: [0, 0, 0, 0], mods: 0, schools: 0 };
   }
   function addToGroup(g, t) {
@@ -155,6 +156,7 @@
     g.sitL += t.sitL; g.finL += t.finL; g.sitV += t.sitV; g.finV += t.finV; if (t.sitL || t.sitV) g.quizT++; if (t.sitL) g.quizLT++;
     g.qF += t.qF; g.qC += t.qC; g.qA += t.qA; g.qM += t.qM; g.qD += t.qD; g.qN += t.qN; if (t.qF) g.qT++;
     g.exReq += t.exReq; g.exOk += t.exOk; g.exFail += t.exFail; g.exStuck += t.exStuck; g.exEdit += t.exEdit; if (t.exOk) g.exT++;
+    g.fde += t.fde; g.fdeReq += t.fdeReq; if (t.fde) g.fdeT++;
     if (t.onProg) g.onProg++;
     const m = t.mods[0] + t.mods[1] + t.mods[2] + t.mods[3];
     if (m) g.didModule++;

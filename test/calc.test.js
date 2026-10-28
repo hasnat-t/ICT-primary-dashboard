@@ -163,6 +163,8 @@ test('exam analytics: subjects, sources, surfaces, weekdays, chapters', () => {
   assert.deepStrictEqual([E.board.req, E.board.gen, E.board.teachers], [4, 4, 2]);
   assert.strictEqual(E.board.scopes.find((x) => x.key === 'f').gen, 3);
   assert.strictEqual(E.board.days.get(21), 3);
+  const R = C.rollup(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([R.all.fde, R.all.fdeReq, R.all.fdeT], [4, 4, 2]);
   assert.strictEqual(E.subjects.find((x) => x.key === 'Mathematics').gen, 2);
   assert.strictEqual(E.sources.find((x) => x.key === 'u').req, 5);
   assert.strictEqual(E.wd[0], 2);                         // generated on Monday 3 Aug
