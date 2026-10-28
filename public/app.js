@@ -482,7 +482,7 @@
   const hourName = (h) => `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
   function lpAnalytics() {
     const L = Calc.lessonStats(S.P, sel());
-    if (!L) return card('c-lpa', 'Lesson-plan analytics', 'This part of the data could not be loaded in the last refresh.', '');
+    if (!L) return card('c-lpa', 'Lesson-plan analytics', 'Not available yet: the dashboard may still be refreshing after an update (this takes about four minutes), or the last refresh could not load it. Reload the page shortly.', '');
     if (!L.genTotal && !L.taughtTotal) return card('c-lpa', 'Lesson-plan analytics', `No lesson plans in ${periodText()}.`, '');
     const per100 = (t, g) => (g ? (100 * t) / g : null);
 
