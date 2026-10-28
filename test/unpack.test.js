@@ -69,3 +69,17 @@ test('lesson detail: catalogue, typed plans and unknown lessons', () => {
   assert.deepStrictEqual(d.lessons[101], { id: 'grade_4_math_ch2_seg1', grade: '4', subject: 'math', title: '' });
   assert.throws(() => U.buildLessons([{ subject: 'urdu', n: 1, t: 'a|1|x' }]), /only 1 lessons/);
 });
+
+test('debriefs: classroom quotes are blanked, advice kept, teachers mapped', () => {
+  assert.strictEqual(U.unquote('answers were one word (e.g., "ہم راکٹ کو کیا کرتے ہیں؟" → "لانچ").'), 'answers were one word (e.g., “…” → “…”).');
+  assert.strictEqual(U.unquote("Ask an open 'why' or 'how' prompt"), "Ask an open 'why' or 'how' prompt");
+  assert.strictEqual(U.unquote("The child said 'میں نے کیا' loudly"), 'The child said ‘…’ loudly');
+  assert.strictEqual(U.unquote('Ali said “I know the answer”.'), 'Ali said “…”.');
+  const ro = roster();
+  const t = JSON.stringify([{ tid: 'aaaa1111', d: 40, c: 'cccc0001', s: 'C', su: 'Good lesson "quote"', st: [{ t: 'Pace', i: 'x' }], gr: [{ a: 'C1', o: 'y', s: ['z'] }], rec: ['r1'], fo: { t: 'F', r: 'R', y: 'Y' } }]);
+  const d = U.buildDebriefs([{ school_id: 'sB', n: 1, t }], ro);
+  assert.deepStrictEqual(Object.keys(d), ['1']);
+  assert.strictEqual(d[1][0].su, 'Good lesson “…”');
+  assert.deepStrictEqual(d[1][0].fo, { t: 'F', r: 'R', y: 'Y' });
+  assert.throws(() => U.buildDebriefs([{ school_id: 'sB', n: 2, t }], ro), /count mismatch/);
+});

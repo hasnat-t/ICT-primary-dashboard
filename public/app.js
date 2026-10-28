@@ -676,8 +676,8 @@
       ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, title: 'Average score this coach gave', val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
     ];
     const coaches = card('c-hc', 'By coach',
-      `Each coach's HITL observations of primary teachers · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality.${H.principals.length ? ' Principals have their own table below.' : ''}${H.hidden ? ` ${N(H.hidden)} other accounts with only a handful of visits are not listed; their observations still count in every total.` : ''} Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
-      table('hc', ccols, H.coaches, { sort: { k: 'n', dir: -1 } }));
+      `Each coach's HITL observations of primary teachers. Click a coach to see their schools, teachers and debrief reports · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality.${H.principals.length ? ' Principals have their own table below.' : ''}${H.hidden ? ` ${N(H.hidden)} other accounts with only a handful of visits are not listed; their observations still count in every total.` : ''} Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
+      table('hc', ccols, H.coaches, { sort: { k: 'n', dir: -1 }, onRow: (k) => modalOpen({ kind: 'coach', key: k }), rowKey: (r) => r.key }));
 
     const P0 = H.principals, pn = P0.reduce((a, c) => a + c.n, 0);
     const pcols = [
@@ -687,7 +687,7 @@
     ];
     const principals = P0.length ? card('c-hpr', 'Principals doing HITL',
       `School principals who held HITL observations of their primary teachers · ${esc(scopeName())} · ${periodText()}. ${N(P0.length)} principals held ${N(pn)} observations (${P1(ratio(pn, H.n))} of all HITL). They are counted in every HITL total above, but not in the coach table. Contains names — internal use only.`,
-      table('hpr', pcols, P0, { sort: { k: 'n', dir: -1 } }))
+      table('hpr', pcols, P0, { sort: { k: 'n', dir: -1 }, onRow: (k) => modalOpen({ kind: 'coach', key: k }), rowKey: (r) => r.key }))
       : card('c-hpr', 'Principals doing HITL', `No principal held a HITL observation in ${periodText()}.`, '');
 
     const D = Calc.dcStats(S.P, sel(), 'H');
@@ -961,6 +961,104 @@
         [{ name: S.gran === 'day' ? 'Generated a plan' : 'Days with a plan generated', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
       <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>` };
   }
+  // ---------- coach card and a teacher's HITL reports ----------
+  const addFico = (f, r) => Calc.addFico(f, r);
+  const coachInfo = (id) => (S.data.coaches || []).find((c) => c.id === id);
+  const coachLabel = (id) => { const c = coachInfo(id); return c ? c.name || '(no name)' : id ? 'Unknown observer' : 'No observer recorded'; };
+  const secPct = (r, i) => (r[i] !== null && r[i + 1] ? (100 * r[i]) / r[i + 1] : null);   // HLP 6, SE 8, LPF 10
+  const STAGE = { C: 'Debriefed', P: 'Debrief pending', A: 'Awaiting review' };
+  const dayName = (d) => niceY(d);
+
+  function coachView(id) {
+    const per = new Map(), schools = new Map();
+    let n = 0, C = 0, r = 0, u = 0;
+    for (let ti = 0; ti < S.data.teachers.length; ti++) {
+      for (const o of S.P.obs[ti]) {
+        if (o[2] !== 'H' || o[14] !== id || o[1] < S.from || o[1] > S.to) continue;
+        n++; if (o[3] === 'C') C++; if (o[15] === 'r') r++; if (o[15] === 'u') u++;
+        if (!per.has(ti)) per.set(ti, []);
+        per.get(ti).push(o);
+      }
+    }
+    const rows = [...per.entries()].map(([ti, list]) => {
+      const T = S.data.teachers[ti];
+      const all = S.P.obs[ti].filter((o) => o[2] === 'H').sort((a, b) => a[1] - b[1]);
+      const last = list[list.length - 1], first = all[0], latest = all[all.length - 1];
+      const f = Calc.blankFico(); list.forEach((o) => addFico(f, o));
+      if (!schools.has(T.s)) schools.set(T.s, { key: T.s, name: S.data.schools[T.s].name, sector: S.data.schools[T.s].sector, teachers: 0, n: 0, fico: Calc.blankFico() });
+      const sc = schools.get(T.s); sc.teachers++; sc.n += list.length; list.forEach((o) => addFico(sc.fico, o));
+      return { key: ti, name: T.name, school: S.data.schools[T.s].name, n: list.length, all: all.length, last: last[1], fico: f,
+        change: all.length > 1 ? (secPct(latest, 6) !== null && secPct(first, 6) !== null ? secPct(latest, 6) - secPct(first, 6) : null) : null };
+    });
+    const sp = (o, k) => (o.fico[k][2] ? fpct(o.fico[k]) : null);
+    const secCols = DC_SECS.map(([k, l]) => ({ k, label: l, num: true, val: (x) => sp(x, k), fmt: (x) => sc(sp(x, k)) }));
+    const info = coachInfo(id);
+    const tcols = [
+      { k: 'name', label: 'Teacher', val: (x) => x.name, fmt: (x) => esc(x.name) },
+      { k: 'school', label: 'School', val: (x) => x.school, fmt: (x) => esc(x.school) },
+      { k: 'n', label: 'Observed by this coach', num: true, val: (x) => x.n, fmt: (x) => N(x.n) },
+      { k: 'all', label: 'All HITL observations', num: true, title: 'By any coach since 1 Aug', val: (x) => x.all, fmt: (x) => N(x.all) },
+      { k: 'last', label: 'Last observed', num: true, val: (x) => x.last, fmt: (x) => dayName(x.last) },
+      { k: 'change', label: 'Teaching practices change', num: true, title: 'Latest minus first HITL score on teaching practices, for teachers observed more than once', val: (x) => x.change,
+        fmt: (x) => (x.change === null ? '<span class="dim">—</span>' : `<span class="${x.change >= 0 ? 'up' : 'down'}">${x.change >= 0 ? '▲' : '▼'} ${Math.abs(x.change).toFixed(1)} pts</span>`) },
+      ...secCols,
+    ];
+    const scols = [
+      { k: 'name', label: 'School', val: (x) => x.name, fmt: (x) => esc(x.name) },
+      { k: 'sector', label: 'Sector', val: (x) => x.sector, fmt: (x) => esc(x.sector) },
+      { k: 'teachers', label: 'Teachers observed', num: true, val: (x) => x.teachers, fmt: (x) => N(x.teachers) },
+      { k: 'n', label: 'Observations', num: true, val: (x) => x.n, fmt: (x) => N(x.n) },
+      ...secCols,
+    ];
+    return { title: coachLabel(id), sub: `${info && info.role && info.role !== 'coach' ? `${info.role} · ` : 'Coach · '}${N(n)} HITL observations of ${N(per.size)} teachers in ${N(schools.size)} schools · ${periodText()}`,
+      html: `<section class="card" id="m-co"><div class="card-h"><h2>Summary</h2><button class="dl" data-dl="m-co">Download image</button></div>
+        <div class="kpis">${kpi('HITL observations', N(n))}${kpi('Teachers observed', N(per.size), `${N(schools.size)} schools`)}${kpi('Debriefed', P1(ratio(C, n)), `${N(C)} of ${N(n)}`)}
+        ${kpi('Changed the AI’s scores', P1(ratio(r, n)))}${kpi('Submitted unchanged', P1(ratio(u, n)))}</div>
+        <p class="note">Scores are the ones this coach gave. Contains names — internal use only.</p></section>
+        <section class="card" id="m-cs"><div class="card-h"><h2>Schools</h2></div>${table('m-csch', scols, [...schools.values()], { sort: { k: 'n', dir: -1 }, noLegend: true })}</section>
+        <section class="card" id="m-ct"><div class="card-h"><h2>Teachers</h2></div><p class="note">Click a teacher for every HITL observation they have had, the score trend and each debrief report.</p>
+        ${table('m-ctch', tcols, rows, { sort: { k: 'last', dir: -1 }, onRow: (k) => modalOpen({ kind: 'hteacher', key: +k, coach: id }), rowKey: (x) => x.key })}</section>` };
+  }
+
+  function hitlTeacherView(ti) {
+    const T = S.data.teachers[ti], scl = S.data.schools[T.s];
+    const all = S.P.obs[ti].filter((o) => o[2] === 'H').sort((a, b) => a[1] - b[1]);
+    const trend = all.length > 1 ? chart(all.map((o) => ({ label: nice(o[1]), values: [secPct(o, 6), secPct(o, 8), secPct(o, 10)] })),
+      [{ name: 'Teaching practices', color: NAVY }, { name: 'Student engagement', color: GREEN }, { name: 'Lesson-plan fidelity', color: GREY }], 'line')
+      : '<p class="note">One HITL observation so far, so there is no trend yet.</p>';
+    return { title: T.name, sub: `${scl.name} · ${scl.sector} · ${N(all.length)} HITL observation${all.length === 1 ? '' : 's'} since 1 Aug 2026`,
+      html: `<section class="card" id="m-ht"><div class="card-h"><h2>Score trend</h2><button class="dl" data-dl="m-ht">Download image</button></div>
+        <p class="note">Each HITL observation's section scores, oldest to newest, whichever coach observed. Subject knowledge is left out because its scale changed on 8 Sep.</p>${trend}</section>
+        <section class="card" id="m-hd"><div class="card-h"><h2>Debrief reports</h2></div>
+        <p class="note">Newest first: what the coach and the AI told the teacher. Read this before observing the teacher again. Words quoted from the classroom are left out (shown as “…”) so no child's words are published. Contains teacher and coach names — internal use only.</p>
+        <div id="deb-list" data-t="${ti}"><p class="note">Loading the reports…</p></div></section>` };
+  }
+
+  async function loadDebriefs(ti) {
+    const box = $('#deb-list');
+    if (!box) return;
+    let j;
+    try { const r = await fetch(`/api/debrief?t=${ti}`); j = await r.json(); } catch (e) { j = null; }
+    if (!box.isConnected || box.dataset.t !== String(ti)) return;
+    if (!j || !j.ready) { box.innerHTML = '<p class="note">The reports are not loaded yet: the dashboard may still be refreshing after an update. Try again shortly.</p>'; return; }
+    const scoreOf = new Map();
+    for (const o of S.P.obs[ti]) if (o[2] === 'H') { const k = `${o[1]}|${o[14]}`; if (!scoreOf.has(k)) scoreOf.set(k, []); scoreOf.get(k).push(o); }
+    const items = j.items.slice().sort((a, b) => b.d - a.d);
+    if (!items.length) { box.innerHTML = '<p class="note">No debrief report found for this teacher.</p>'; return; }
+    const li = (arr) => (arr.length ? `<ul class="facts">${arr.join('')}</ul>` : '<p class="dim">—</p>');
+    box.innerHTML = items.map((x) => {
+      const o = (scoreOf.get(`${x.d}|${x.c}`) || []).shift();
+      const chips = o ? DC_SECS.map(([k, l]) => { const v = k === 'hlp' ? secPct(o, 6) : k === 'se' ? secPct(o, 8) : k === 'lpf' ? secPct(o, 10) : (o[5] && [20, 24, 28].includes(o[5]) ? (100 * o[4]) / o[5] : null); return v === null ? '' : `<span class="dchip">${esc(l)} ${sc(v)}</span>`; }).join('') : '';
+      return `<article class="deb"><header><b>${dayName(x.d)}</b> · ${esc(coachLabel(x.c))} · <span class="dim">${STAGE[x.s] || ''}</span></header>
+        ${chips ? `<div class="dchips">${chips}</div>` : ''}
+        ${x.su ? `<p>${esc(x.su)}</p>` : ''}
+        ${x.fo ? `<div class="dfocus"><span class="lbl">Focus for next time</span><b>${esc(x.fo.t)}</b>${x.fo.r ? `<p>${esc(x.fo.r)}</p>` : ''}${x.fo.y ? `<p><b>Try this tomorrow:</b> ${esc(x.fo.y)}</p>` : ''}</div>` : ''}
+        <div class="dgrid"><div><span class="lbl">Strengths</span>${li(x.st.map((s) => `<li><b>${esc(s.t)}</b>${s.i ? ` — ${esc(s.i)}` : ''}</li>`))}</div>
+        <div><span class="lbl">Areas of growth</span>${li(x.gr.map((g) => `<li><b>${esc(g.a)}</b>${g.o ? ` — ${esc(g.o)}` : ''}${g.s.length ? `<ul>${g.s.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</li>`))}</div></div>
+        <div><span class="lbl">Action plan</span>${li(x.rec.map((t) => `<li>${esc(t)}</li>`))}</div></article>`;
+    }).join('');
+  }
+
   // ---------- drill-down card ----------
   // A stack of views shown in the centred card: a sector's schools, a school's teachers, a teacher's scorecard.
   const MS = [];
@@ -983,7 +1081,7 @@
     const v = MS[MS.length - 1];
     if (!v) return;
     let title, sub, html;
-    const trail = MS.map((x) => (x.kind === 'sector' ? x.key : x.kind === 'school' ? S.data.schools[x.key].name : S.data.teachers[x.key].name));
+    const trail = MS.map((x) => (x.kind === 'sector' ? x.key : x.kind === 'school' ? S.data.schools[x.key].name : x.kind === 'coach' ? coachLabel(x.key) : S.data.teachers[x.key].name));
     if (v.kind === 'sector') {
       const R = Calc.rollup(S.P, { from: S.from, to: S.to, sector: v.key });
       const rows = [...R.schools.values()].map((g) => Object.assign(g, { name: S.data.schools[g.s].name, emis: S.data.schools[g.s].emis, key: g.s }));
@@ -1001,6 +1099,10 @@
       html = `<section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
         <p class="note">Click a teacher for the scorecard. Contains teacher names — internal use only.</p>
         ${table('m-tch', modalCols(v.cols, 'teacher'), rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`;
+    } else if (v.kind === 'coach') {
+      ({ title, sub, html } = coachView(v.key));
+    } else if (v.kind === 'hteacher') {
+      ({ title, sub, html } = hitlTeacherView(v.key, v.coach));
     } else {
       ({ title, sub, html } = teacherView(v.key));
     }
@@ -1012,6 +1114,7 @@
     if (!m.open) m.showModal();
     $('#m-body').scrollTop = 0;
     drawCharts(m);
+    if (v.kind === 'hteacher') loadDebriefs(v.key);
   }
 
 

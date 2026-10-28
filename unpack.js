@@ -237,6 +237,40 @@ function buildCoaches(rows, ov = require('./config/coach-overrides.json')) {
   return out;
 }
 
+// Quoted classroom speech is blanked before anything is published: double and curly quotes always, single quotes
+// when they hold Urdu script or a long passage (short 'why' / 'how' prompts in the advice are kept).
+function unquote(s) {
+  if (typeof s !== 'string') return '';
+  return s
+    .replace(/“[^”]{1,400}”|"[^"\n]{1,400}"|«[^»]{1,400}»/g, '“…”')
+    .replace(/(^|[\s(:،—–-])'([^'\n]{1,400}?)'(?=$|[\s.,;:!?)،۔—–-])/g, (m, pre, body) => (/[؀-ۿ]/.test(body) || body.length > 30 ? `${pre}‘…’` : m));
+}
+
+// HITL debrief reports per teacher: { teacherIndex: [{ d, c, s, su, st[{t,i}], gr[{a,o,s[]}], rec[], fo{t,r,y} }] }.
+function buildDebriefs(rows, ro) {
+  const out = {};
+  const miss = { n: 0 };
+  for (const r of rows) {
+    let arr;
+    try { arr = JSON.parse(r.t || '[]'); } catch (e) { throw new Error(`debriefs: unreadable block at school ${r.school_id}`); }
+    if (String(r.t || '').includes('redacted')) throw new Error('debriefs: data withheld by the data service');
+    if (arr.length !== Number(r.n)) throw new Error(`debriefs: record count mismatch at school ${r.school_id}`);
+    for (const x of arr) {
+      const ti = teacherOf(ro, r.school_id, x.tid, miss);
+      if (ti === undefined) continue;
+      (out[ti] = out[ti] || []).push({
+        d: +x.d, c: x.c || '', s: x.s || '', su: unquote(x.su),
+        st: (x.st || []).map((o) => ({ t: unquote(o.t), i: unquote(o.i) })).filter((o) => o.t || o.i),
+        gr: (x.gr || []).map((o) => ({ a: unquote(o.a), o: unquote(o.o), s: (o.s || []).map(unquote).filter(Boolean) })).filter((o) => o.a || o.o),
+        rec: (x.rec || []).map(unquote).filter(Boolean),
+        fo: x.fo && (x.fo.t || x.fo.y) ? { t: unquote(x.fo.t), r: unquote(x.fo.r), y: unquote(x.fo.y) } : null,
+      });
+    }
+  }
+  if (miss.n) throw new Error(`debriefs: ${miss.n} records for teachers not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -259,4 +293,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, unquote, rosterSig, MIN_SCHOOLS };

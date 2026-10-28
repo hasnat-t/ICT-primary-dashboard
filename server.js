@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const db = require('./db');
-const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, rosterSig } = require('./unpack');
+const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, rosterSig } = require('./unpack');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -29,7 +29,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'training'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'training'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false };
 
@@ -91,6 +91,7 @@ const QUESTIONS = {
   lp_detail: 'scheduled refresh: ICT Primary Teachers dashboard, lesson plans generated per primary teacher by day, hour and curriculum lesson, and lessons taught in DC, since 1 Aug 2026',
   lp_lessons: 'scheduled refresh: ICT Primary Teachers dashboard, curriculum lesson catalogue (lesson, grade, subject, title)',
   quiz_scores: 'scheduled refresh: ICT Primary Teachers dashboard, children\'s finished lesson-quiz scores per primary teacher, day, grade and subject since 1 Aug 2026 (aggregates only, provisional)',
+  debriefs: 'scheduled refresh: ICT Primary Teachers dashboard, HITL debrief reports per primary teacher since 1 Aug 2026 (summary, strengths, growth areas, action plan, focus area; no verbatim classroom quotes)',
   coaches: 'scheduled refresh: ICT Primary Teachers dashboard, coaches who held HITL observations of primary teachers since 1 Aug 2026, with names (internal use only)',
   teacher_grades: 'scheduled refresh: ICT Primary Teachers dashboard, the grades each primary teacher teaches on the class roster, for DC observations by grade',
   exam_detail: 'scheduled refresh: ICT Primary Teachers dashboard, exam papers per primary teacher by day, hour, grade, subject, seen/unseen, surface and chapter since 1 Aug 2026',
@@ -143,13 +144,14 @@ async function refresh(reason) {
       ['exam_detail', async () => ({ exd: buildExamDetail(await runPaged('exam_detail'), ro) })],
       ['teacher_grades', async () => ({ tgr: buildTeacherGrades(await runPaged('teacher_grades'), ro) })],
       ['coaches', async () => ({ coaches: buildCoaches(await executeQuery(SQL.coaches, QUESTIONS.coaches)) })],
+      ['debriefs', async () => ({ deb: buildDebriefs(await runPaged('debriefs', 10), ro) })],
       ['lp_detail', async () => {
         const lessons = buildLessons(await executeQuery(SQL.lp_lessons, QUESTIONS.lp_lessons));
         return { lpd: buildLpDetail(await runPaged('lp_detail', Math.min(PAGE_SIZE, 25)), ro, lessons) };
       }],
       ['training', async () => ({ training: buildTraining(await runPaged('training'), ro) })],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], training: ['training'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], training: ['training'] };
     for (const [name, run] of parts) {
       try {
         Object.assign(next, await run());
@@ -180,10 +182,13 @@ async function refresh(reason) {
   }
 }
 
+// The debrief text (~9 MB) stays on the server and is served one teacher at a time by /api/debrief.
 function setData(data) {
+  const { deb, ...pub } = data;
   state.data = data;
+  state.deb = deb || null;
   state.as_of = data.as_of;
-  state.gz = zlib.gzipSync(JSON.stringify(data));
+  state.gz = zlib.gzipSync(JSON.stringify(pub));
 }
 
 function msUntilNextRun() {
@@ -231,6 +236,12 @@ const server = http.createServer((req, res) => {
     if (req.headers['if-none-match'] === head.ETag) return send(res, 304, '', 'application/json', head);
     if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return send(res, 200, state.gz, 'application/json', { ...head, 'Content-Encoding': 'gzip' });
     return send(res, 200, zlib.gunzipSync(state.gz), 'application/json', head);
+  }
+  if (req.method === 'GET' && url.pathname === '/api/debrief') {
+    const t = url.searchParams.get('t');
+    if (!/^\d{1,6}$/.test(t || '')) return send(res, 400, '{"error":"bad teacher"}', TYPES['.json']);
+    const body = JSON.stringify({ as_of: state.as_of, ready: !!state.deb, items: (state.deb && state.deb[t]) || [] });
+    return send(res, 200, body, TYPES['.json'], { 'Cache-Control': 'no-cache' });
   }
   if (req.method === 'GET' && url.pathname === '/healthz') {
     return send(res, 200, JSON.stringify({ ok: true, teachers: state.data ? state.data.teachers.length : 0, as_of: state.as_of, last_error: state.last_error }), 'application/json');

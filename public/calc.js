@@ -473,5 +473,5 @@
       hidden: all.filter((c) => c.hide && c.role !== 'principal').length, hasCoach, hasCoachList: !!data.coaches };
   }
 
-  return { hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  return { addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

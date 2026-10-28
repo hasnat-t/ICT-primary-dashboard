@@ -321,3 +321,17 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 /* DC analytics */
 .facts { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
 .hm-c.thin { opacity: .45; }
+
+/* HITL debrief reports */
+.deb { border-top: 1px solid var(--line); padding: 14px 0; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
+.deb:first-child { border-top: 0; }
+.deb header { font-size: 15px; }
+.dchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.dchip { font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.dfocus { background: var(--line-2); border-radius: 10px; padding: 10px 12px; }
+.dfocus p { margin: 4px 0 0; }
+.dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.deb ul ul { margin-top: 4px; }
+.up { color: #1F7A4C; font-weight: 600; } .down { color: #B4432E; font-weight: 600; }
+@media (max-width: 720px) { .dgrid { grid-template-columns: 1fr; } }
+.dfocus .lbl, .deb .lbl { display: block; margin-bottom: 4px; }
