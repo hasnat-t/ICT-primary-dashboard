@@ -359,6 +359,9 @@
     const heat = Array.from({ length: 7 }, () => new Array(24).fill(0));
     for (let day = from; day <= to; day++) wdDays[weekday(day)]++;
     const tot = { req: 0, gen: 0, q: 0, obj: 0, subjq: 0, t: new Set() };
+    // FDE board-format papers (r[13] set; absent on data cached before the field existed)
+    const bd = { req: 0, gen: 0, q: 0, t: new Set(), s: new Set(), first: null, days: new Map() };
+    const bSubj = new Map(), bScope = new Map(), bGrade = new Map(), bSurf = new Map();
     const put = (m, k, r) => { if (!m.has(k)) m.set(k, mk()); const o = m.get(k); o.req += r[8]; o.gen += r[9]; o.q += r[10]; o.t.add(r[0]); };
     for (const r of data.exd) {
       const [ti, day, hr] = r;
@@ -372,10 +375,17 @@
       const sb = examSubject(r[4]), gr = r[3] ? `Grade ${r[3]}` : 'No grade';
       put(subj, sb, r); put(grade, gr, r); put(src, r[5], r); put(surf, r[6], r);
       if (r[7]) put(chap, `${gr}|${sb}|${r[7]}`, r);
+      if (r[13]) {
+        bd.req += r[8]; bd.gen += r[9]; bd.q += r[10]; bd.t.add(ti); bd.s.add(T.s);
+        bd.days.set(day, (bd.days.get(day) || 0) + r[9]);
+        put(bSubj, sb, r); put(bScope, r[13], r); put(bGrade, gr, r); put(bSurf, r[6], r);
+      }
     }
     const flat = (m) => [...m.entries()].map(([k, o]) => ({ key: k, req: o.req, gen: o.gen, q: o.q, teachers: o.t.size }));
     return { req: tot.req, gen: tot.gen, q: tot.q, obj: tot.obj, subjq: tot.subjq, teachers: tot.t.size,
-      subjects: flat(subj), grades: flat(grade), sources: flat(src), surfaces: flat(surf), chapters: flat(chap), wd, wdDays, hrs, heat };
+      subjects: flat(subj), grades: flat(grade), sources: flat(src), surfaces: flat(surf), chapters: flat(chap), wd, wdDays, hrs, heat,
+      board: { req: bd.req, gen: bd.gen, q: bd.q, teachers: bd.t.size, schools: bd.s.size, days: bd.days,
+        subjects: flat(bSubj), scopes: flat(bScope), grades: flat(bGrade), surfaces: flat(bSurf) } };
   }
 
   return { examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };

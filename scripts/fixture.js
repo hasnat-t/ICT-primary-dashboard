@@ -56,7 +56,7 @@ const qscore = [];
 const qg = ['1', '2', '3', '4', '5', '1-2', '3-5'], qsub = ['urdu', 'maths', 'english', 'science', 'sst'];
 for (const r of sit) { const f = r[4]; if (!f) continue; const ans = f * 8, cor = Math.round(ans * (0.6 + rnd() * 0.35)); const m = Math.round(f * cor / ans * 0.8); const n = Math.round((f - m) * 0.4); qscore.push([r[0], r[1], pick(qg), pick(qsub), f, cor, ans, m, f - m - n, n]); }
 const exd = [];
-for (const r of exams) exd.push([r[0], r[1], 8 + Math.floor(rnd() * 12), String(1 + Math.floor(rnd() * 5)), pick(['english', 'maths', 'urdu', 'science', 'islamiat']), pick(['s', 's', 'b', 'u']), pick(['w', 'p']), rnd() < 0.3 ? String(1 + Math.floor(rnd() * 8)) : '', r[2], r[3], 15, 12, 3]);
+for (const r of exams) exd.push([r[0], r[1], 8 + Math.floor(rnd() * 12), String(1 + Math.floor(rnd() * 5)), pick(['english', 'maths', 'urdu', 'science', 'islamiat']), pick(['s', 's', 'b', 'u']), pick(['w', 'p']), rnd() < 0.3 ? String(1 + Math.floor(rnd() * 8)) : '', r[2], r[3], 15, 12, 3, r[1] > 75 && rnd() < 0.3 ? pick(['f', 'f', 'f', 'c', 'p']) : '']);
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
   lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });

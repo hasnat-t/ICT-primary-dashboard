@@ -187,16 +187,16 @@ function buildQuizScores(rows, ro) {
 }
 
 // Exam-generator detail: [teacher, day, hour, grade, subject, source s|u|b, surface w|p, chapter, requested, generated,
-// questions asked, objective questions, subjective questions].
+// questions asked, objective questions, subjective questions, board kind ('' regular | f | c | p | o board format)].
 function buildExamDetail(rows, ro) {
   const out = [];
   const miss = { n: 0 };
   for (const r of rows) {
     for (const p of records('exam_detail', r)) {
-      if (p.length !== 13) throw new Error('exam_detail: malformed record');
+      if (p.length !== 14) throw new Error('exam_detail: malformed record');
       const ti = teacherOf(ro, r.school_id, p[0], miss);
       if (ti === undefined) continue;
-      out.push([ti, +p[1], +p[2], p[3], p[4], p[5], p[6], p[7], +p[8], +p[9], +p[10], +p[11], +p[12]]);
+      out.push([ti, +p[1], +p[2], p[3], p[4], p[5], p[6], p[7], +p[8], +p[9], +p[10], +p[11], +p[12], p[13]]);
     }
   }
   if (miss.n) throw new Error(`exam_detail: ${miss.n} records for teachers not in the roster`);

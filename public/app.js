@@ -707,7 +707,29 @@
       table('exc', ccols, chs.sort((a, b) => b.gen - a.gen).slice(0, 25), { sort: { k: 'gen', dir: -1 }, noLegend: true }));
 
     return `<div class="sec-h"><h2>Exam generator analytics</h2><p class="note">${N(E.gen)} exams generated from ${N(E.req)} requests by ${N(E.teachers)} teachers · ${esc(scopeName())} · ${periodText()}</p></div>
-      <div class="cards2">${subjects}${grades}</div>${how}<div class="cards2">${days}${heat}</div>${chapters}`;
+      <div class="cards2">${subjects}${grades}</div>${how}${boardPapers(E.board, E.gen)}<div class="cards2">${days}${heat}</div>${chapters}`;
+  }
+
+  // FDE board-format papers (grade 5 feature, live from 16 Oct 2026). Provisional: read from the paper's own layout, no governed rule.
+  function boardPapers(B, allGen) {
+    const title = 'FDE board papers (grade 5)';
+    if (!B) return '';
+    if (!B.req) return card('c-exb', title, `No FDE board-format papers requested in ${periodText()}. The feature went live on 16 Oct 2026.`, '');
+    const by = (arr, k) => (arr.find((x) => x.key === k) || { req: 0 }).req;
+    const subs = B.subjects.slice().sort((a, b) => b.gen - a.gen);
+    const maxS = Math.max(1, ...subs.map((x) => x.gen));
+    const ladder = `<div class="ladder">${subs.map((x) => `<div class="lrow"><div class="ll"><span>${esc(x.key)}</span><span>${N(x.teachers)} teachers</span></div>
+        <div class="lbar"><div style="width:${(100 * x.gen) / maxS}%;background:${C1}"></div></div><span class="lpct">${N(x.gen)}</span></div>`).join('')}</div>`;
+    const other = B.grades.filter((g) => g.key !== 'Grade 5').reduce((n, g) => n + g.req, 0);
+    const first = Math.max(S.from, Math.min(...B.days.keys())), last = Math.min(S.to, S.P.data.today);
+    const trend = chart(Array.from({ length: last - first + 1 }, (_, i) => ({ label: nice(first + i), values: [B.days.get(first + i) || 0] })),
+      [{ name: 'Board papers generated', color: C1 }]);
+    return card('c-exb', title,
+      `Exams made in the FDE board format, the paper layout of the grade 5 Federal Directorate of Education board exam · ${esc(scopeName())} · ${periodText()}. <b>Provisional</b>: read from the paper's own layout, there is no governed rule for it yet.${other ? ` ${N(other)} of these requests are for other grades.` : ''}`,
+      `<div class="kpis">${kpi('Board papers generated', N(B.gen), `of ${N(B.req)} requested`)}${kpi('Teachers', N(B.teachers), `in ${N(B.schools)} schools`)}${kpi('Papers per teacher', B.teachers ? (B.gen / B.teachers).toFixed(1) : '—')}${kpi('Share of all exams', P1(ratio(B.gen, allGen)), 'generated in this period')}</div>
+      <div class="grid"><div><span class="lbl">What the paper covers</span>${splitBar([['Whole FDE syllabus', by(B.scopes, 'f'), C1], ['Chapters picked by teacher', by(B.scopes, 'c'), '#8FD3AE'], ['Pages picked by teacher', by(B.scopes, 'p'), C2], ['Other', by(B.scopes, 'o'), '#BBB']].filter((x) => x[1]), B.req)}</div>
+        <div><span class="lbl">Where requested</span>${splitBar([['WhatsApp', by(B.surfaces, 'w'), C1], ['Teacher portal', by(B.surfaces, 'p'), C2]].filter((x) => x[1]), B.req)}</div></div>
+      <div class="cards2"><div><span class="lbl">By subject</span>${ladder}</div><div><span class="lbl">By day</span>${trend}</div></div>`);
   }
 
   function viewExams(R) { return viewExamsBase(R) + examAnalytics(); }

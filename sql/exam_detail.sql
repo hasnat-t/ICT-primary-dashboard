@@ -2,11 +2,19 @@
 -- exam-paper-rules.md §2-§3e - a request is one ask; generated = its root paper is ready; grade_code, subject_code,
 -- content_source (seen / unseen / both) and surface (whatsapp / portal) group requests. question_count is what the
 -- teacher asked for; question_types gives the mix (objective / subjective categories). Merged accounts to the survivor.
--- Record: "tid:day:hour:grade:subject:source:surface:chapter:requested:generated:questions:objective:subjective".
+-- Board format (ungoverned, provisional): the FDE board-paper feature (grade 5, from 16 Oct 2026) writes a `_layout` block
+-- into the root paper's exam_json; _layout.scope.kind says what it covers - fde = the FDE board syllabus, chapters / pages =
+-- the teacher's own pick. kind: '' = regular paper, f = board/FDE syllabus, c = board/chapters, p = board/pages, o = board/other.
+-- Record: "tid:day:hour:grade:subject:source:surface:chapter:requested:generated:questions:objective:subjective:kind".
 WITH {{COMMON}},
-root AS (SELECT request_id, status FROM `Niete_Rumi_db.assessment_papers` WHERE edited_from IS NULL),
+root AS (
+  SELECT request_id, status,
+         IF(JSON_QUERY(exam_json, '$._layout') IS NULL, '',
+            CASE JSON_VALUE(exam_json, '$._layout.scope.kind') WHEN 'fde' THEN 'f' WHEN 'chapters' THEN 'c' WHEN 'pages' THEN 'p' ELSE 'o' END) AS kind
+  FROM `Niete_Rumi_db.assessment_papers` WHERE edited_from IS NULL
+),
 req AS (
-  SELECT t.school_id, t.teacher_id, r.id, root.status,
+  SELECT t.school_id, t.teacher_id, r.id, root.status, root.kind,
          DATE_DIFF(DATE(SAFE_CAST(r.created_at AS TIMESTAMP), 'Asia/Karachi'), DATE '2026-08-01', DAY) AS day,
          EXTRACT(HOUR FROM DATETIME(SAFE_CAST(r.created_at AS TIMESTAMP), 'Asia/Karachi')) AS hr,
          REGEXP_REPLACE(COALESCE(r.grade_code, ''), r'^grade_', '') AS grade,
@@ -29,8 +37,8 @@ recs AS (
   SELECT school_id, teacher_id,
          CONCAT(SUBSTR(teacher_id, 1, 8), ':', CAST(day AS STRING), ':', CAST(hr AS STRING), ':', grade, ':', subject, ':', src, ':', surf, ':', chapter, ':',
                 CAST(COUNT(DISTINCT id) AS STRING), ':', CAST(COUNT(DISTINCT IF(status = 'ready', id, NULL)) AS STRING), ':',
-                CAST(SUM(q) AS STRING), ':', CAST(SUM(obj) AS STRING), ':', CAST(SUM(subj) AS STRING)) AS r
-  FROM req GROUP BY school_id, teacher_id, day, hr, grade, subject, src, surf, chapter
+                CAST(SUM(q) AS STRING), ':', CAST(SUM(obj) AS STRING), ':', CAST(SUM(subj) AS STRING), ':', kind) AS r
+  FROM req GROUP BY school_id, teacher_id, day, hr, grade, subject, src, surf, chapter, kind
 )
 SELECT school_id, COUNT(*) AS n, STRING_AGG(r, '~' ORDER BY r) AS t
 FROM recs
