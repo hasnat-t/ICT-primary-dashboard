@@ -730,7 +730,7 @@
       ${p0 ? `<li>Coaches most often ask teachers to <b>work on ${esc(o2Name(p0[0]).toLowerCase())}</b> first (${P1(ratio(p0[1], O.n))} of visits)${O.prio[1] ? `, then ${esc(o2Name(O.prio[1][0]).toLowerCase())} (${P1(ratio(O.prio[1][1], O.n))})` : ''}.</li>` : ''}
       ${O.withSeen ? `<li>Where the coach noted the children's thinking (${N(O.withSeen)} visits), children mostly <b>repeated or copied</b> (${P1(ratio(recall, O.withSeen))}); explaining why, applying it or asking their own questions were seen far less.</li>` : ''}
       <li>${P1(ratio(naAll, O.n * 17))} of indicator ratings were "not applicable" or "couldn't tell".</li>
-      ${O.overallChange && O.overallChange.k >= 3 ? `<li><b>${N(O.repeat)} teachers</b> have had more than one /observe2 visit; their overall score moved ${O.overallChange.d >= 0 ? 'up' : 'down'} ${Math.abs(O.overallChange.d).toFixed(1)} points from first to latest visit on average (early days: few repeat visits).</li>` : `<li>${O.repeat ? `Only ${N(O.repeat)} teacher${O.repeat === 1 ? ' has' : 's have'} had a second /observe2 visit so far, too few to measure change.` : 'No teacher has had a second /observe2 visit yet, so there is no change to measure.'}</li>`}
+      ${O.overallChange && O.overallChange.k >= 3 ? `<li><b>${N(O.repeat)} teachers</b> have had more than one /observe2 visit; their overall score moved ${O.overallChange.d >= 0 ? 'up' : 'down'} ${Math.abs(O.overallChange.d).toFixed(1)} points from first to latest visit on average${O.overallChange.k < 20 ? ' (few repeat visits so far)' : ''}.</li>` : `<li>${O.repeat ? `Only ${N(O.repeat)} teacher${O.repeat === 1 ? ' has' : 's have'} had a second /observe2 visit so far, too few to measure change.` : 'No teacher has had a second /observe2 visit yet, so there is no change to measure.'}</li>`}
     </ul>`;
 
     const kpis = `<div class="kpis">${kpi('Visits', N(O.n))}${kpi('Teachers visited', N(O.teachers), `${N(O.schools)} schools`)}${kpi('Coaches using it', N(O.coachCount))}
@@ -752,7 +752,7 @@
     const lvlLegend = `<div class="legend">${LVL.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
 
     const maxP = Math.max(1, ...O.prio.map((x) => x[1]));
-    const prio = `<div class="ladder">${O.prio.map(([id, k]) => `<div class="lrow"><div class="ll"><span>${esc(o2Name(id))}</span><span>${id === 'plan' ? '' : id} · also picked ${N((O.also.find((x) => x[0] === id) || [0, 0])[1])} times</span></div>
+    const prio = `<div class="ladder">${O.prio.map(([id, k]) => `<div class="lrow"><div class="ll"><span>${esc(o2Name(id))}</span><span>${id === 'plan' ? '' : `${id} · `}also picked ${N((O.also.find((x) => x[0] === id) || [0, 0])[1])} times</span></div>
       <div class="lbar"><div style="width:${(100 * k) / maxP}%;background:${NAVY}"></div></div><span class="lpct">${N(k)}</span></div>`).join('')}</div>`;
     const seen = O.withSeen ? `<div class="ladder">${O.seen.map(([k, v]) => `<div class="lrow"><div class="ll"><span>${esc(SEEN[k] || k)}</span><span>${P1(ratio(v, O.withSeen))} of visits</span></div>
       <div class="lbar"><div style="width:${(100 * v) / O.withSeen}%;background:${C1}"></div></div><span class="lpct">${N(v)}</span></div>`).join('')}</div>` : '<p class="note">Not recorded yet.</p>';
