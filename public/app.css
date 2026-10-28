@@ -320,3 +320,4 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 
 /* DC analytics */
 .facts { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
+.hm-c.thin { opacity: .45; }

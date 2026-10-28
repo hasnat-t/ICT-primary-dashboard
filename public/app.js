@@ -579,10 +579,10 @@
     if (!D.n) return '';
     if (!D.hasSubj) return card('c-dcx', 'DC analytics by subject and grade', 'Updating now: the dashboard is refreshing after an update. This part appears by itself when it finishes.', '');
     const sp = (o, k) => (o.fico[k][2] ? fpct(o.fico[k]) : null);
-    const cols = (what) => [
+    const cols = (what, share = true) => [
       { k: 'name', label: what, val: (r) => r.key, fmt: (r) => esc(r.key) },
       { k: 'n', label: 'Lessons recorded', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
-      { k: 'share', label: 'Share of lessons', num: true, val: (r) => r.n / D.n, fmt: (r) => P1(ratio(r.n, D.n)) },
+      ...(share ? [{ k: 'share', label: 'Share of lessons', num: true, val: (r) => r.n / D.n, fmt: (r) => P1(ratio(r.n, D.n)) }] : []),
       { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
       ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
     ];
@@ -615,7 +615,7 @@
       const v = sp(o, view);
       if (v === null) return '<span class="hm-c na">—</span>';
       const b = band(v);
-      return `<span class="hm-c ${b}" title="${P1(v)} · ${N(o.fico[view][2])} scored lessons"><span><i>${GLYPH[b]}</i>${P1(v)}<small>${N(o.fico[view][2])} lessons</small></span></span>`;
+      return `<span class="hm-c ${b}${o.fico[view][2] < DC_MIN ? ' thin' : ''}" title="${P1(v)} · ${N(o.fico[view][2])} scored lessons"><span><i>${GLYPH[b]}</i>${P1(v)}<small>${N(o.fico[view][2])} lessons</small></span></span>`;
     };
     const tpl = `grid-template-columns: minmax(130px, 1.1fr) repeat(${subs.length}, minmax(78px, 1fr))`;
     const head = `<div class="qg-r qg-h" style="${tpl}"><span>Grade</span>${subs.map((c) => `<span>${esc(c)}</span>`).join('')}</div>`;
@@ -626,8 +626,8 @@
     return `<div class="sec-h"><h2>DC analytics by subject and grade</h2><p class="note">${N(D.n)} DC lessons by ${N(D.teachers)} teachers · ${esc(scopeName())} · ${periodText()}. Subject is the one the Digital Coach heard in the recording.</p></div>`
       + card('c-dcx', 'What stands out', '', facts)
       + card('c-dcs', 'By subject', note, table('dcs', cols('Subject'), D.subjects, { sort: { k: 'n', dir: -1 }, noLegend: true }))
-      + card('c-dcg', 'By grade', `${gradeNote} ${note}`, table('dcg', cols('Grade'), D.grades, { noLegend: true }))
-      + card('c-dch', 'Grade × subject', `Pick what to show. Scores are coloured by the performance bands. ${D.hasGrades ? '' : gradeNote}`,
+      + card('c-dcg', 'By grade', `${gradeNote} ${note}`, table('dcg', cols('Grade', false), D.grades, { noLegend: true }))
+      + card('c-dch', 'Grade × subject', `Pick what to show. Scores are coloured by the performance bands; faded cells have fewer than ${DC_MIN} scored lessons, too few to read much into. ${D.hasGrades ? '' : gradeNote}`,
         `<div class="row">${seg}</div>${view === 'n' ? '' : legend().replace('<span><i class="zero"></i>None in this period</span>', '')}<div class="xscroll"><div class="qg">${head}${body}</div></div>`);
   }
 
