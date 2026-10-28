@@ -815,7 +815,11 @@
     $('#present').textContent = document.body.classList.contains('present') ? 'Exit presentation' : 'Present';
     const R = Calc.rollup(S.P, sel());
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
-    const warn = missing.length ? `<p class="note warn">Some data could not be loaded in the last refresh (${missing.join(', ')}); those figures show as blank or zero.</p>` : '';
+    const NAMES = { lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training' };
+    const what = missing.map((k) => NAMES[k] || k).join(', ');
+    const warn = !missing.length ? '' : S.refreshing
+      ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
+      : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
     const views = { overview: viewOverview, lp: viewLp, dc: viewDc, hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
@@ -926,10 +930,14 @@
   async function status() {
     try {
       const s = await (await fetch('/api/status', { cache: 'no-store' })).json();
+      // New data on the server (a scheduled or post-update refresh finished): reload it in place.
+      if (S.data && s.as_of && s.as_of !== S.data.as_of && !s.refreshing) { S.refreshing = false; load(); return; }
+      if (S.refreshing !== !!s.refreshing) { S.refreshing = !!s.refreshing; render(); }
       const el = $('#status');
       el.className = s.last_error ? 'warn' : '';
       el.textContent = s.last_error ? `Last refresh had a problem (${s.last_error.slice(0, 160)}); showing data from ${s.as_of}.` : `Refreshes automatically every day at ${(s.schedule_pkt || []).join(' and ')} PKT.`;
     } catch { /* ignore */ }
   }
+  setInterval(status, 60000);
   load();
 })();
