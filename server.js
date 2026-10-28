@@ -102,14 +102,23 @@ const QUESTIONS = {
 };
 
 // Run a per-school packed query page by page (stable ORDER BY school_id) until a short page comes back.
+// Pages by school id (keyset), not OFFSET: the data can change between page queries during a refresh, and an
+// OFFSET then shifts, repeating or skipping a school. Each page asks for the schools after the last one seen.
 async function runPaged(name, size = PAGE_SIZE) {
+  const base = SQL[name].replace(/\s*LIMIT \{\{LIMIT\}\} OFFSET \{\{OFFSET\}\}\s*$/, '');
+  if (base === SQL[name]) throw new Error(`${name}: query has no LIMIT/OFFSET placeholder`);
   const rows = [];
-  for (let offset = 0; ; offset += size) {
-    const sql = SQL[name].replace('{{LIMIT}}', String(size)).replace('{{OFFSET}}', String(offset));
-    const page = await executeQuery(sql, `${QUESTIONS[name]} (page ${offset / size + 1})`);
-    rows.push(...page);
-    if (page.length < size) break;
-    if (offset > 2000) throw new Error(`${name}: too many pages`);
+  let after = '';
+  for (let page = 1; ; page++) {
+    if (!/^[0-9a-f-]*$/i.test(after)) throw new Error(`${name}: unexpected school id`);
+    const sql = `SELECT * FROM (
+${base}
+) WHERE school_id > '${after}' ORDER BY school_id LIMIT ${size}`;
+    const got = await executeQuery(sql, `${QUESTIONS[name]} (page ${page})`);
+    rows.push(...got);
+    if (got.length < size) break;
+    after = String(got[got.length - 1].school_id);
+    if (page > 400) throw new Error(`${name}: too many pages`);
   }
   if (new Set(rows.map((r) => r.school_id)).size !== rows.length) throw new Error(`${name}: a school came back twice across pages`);
   return rows;
