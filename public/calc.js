@@ -466,7 +466,7 @@
     const list = [...coaches.entries()].filter(([id]) => !(coachName.get(id) || {}).hide).map(([id, c]) => {
       const m = coachName.get(id);
       return { key: id, name: m ? m.name || '(no name)' : id ? '(not in coach list)' : '(no coach recorded)', role: m ? m.role : '',
-        n: c.n, teachers: c.t.size, schools: c.s.size, sector: [...c.sec.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0],   // where most of the coach's observations are C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
+        n: c.n, teachers: c.t.size, schools: c.s.size, sector: [...c.sec.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0], C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
     }).sort((a, b) => b.n - a.n);
     return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: list, hidden: [...coaches.keys()].filter((id) => (coachName.get(id) || {}).hide).length, hasCoach, hasCoachList: !!data.coaches };
   }
