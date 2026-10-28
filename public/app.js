@@ -160,6 +160,8 @@
     exFail: { k: 'exFail', label: 'Failed', num: true, title: 'The generator failed; the teacher was told and can ask again', val: (r) => r.exFail, fmt: (r) => N(r.exFail) },
     exStuck: { k: 'exStuck', label: 'Never finished', num: true, title: 'Still generating more than an hour after the request', val: (r) => r.exStuck, fmt: (r) => N(r.exStuck) },
     exEdit: { k: 'exEdit', label: 'Edited by teacher', num: true, title: 'Papers the teacher edited afterwards (removed questions, changed marks or wording)', val: (r) => r.exEdit, fmt: (r) => N(r.exEdit) },
+    qscore: { k: 'qscore', label: 'Average quiz score', num: true, title: "Children's finished lesson quizzes: correct answers ÷ questions answered (provisional)", val: (r) => (r.qA ? (100 * r.qC) / r.qA : null), fmt: (r) => sc(r.qA ? (100 * r.qC) / r.qA : null) },
+    qfin: { k: 'qfin', label: 'Quizzes scored', num: true, val: (r) => r.qF, fmt: (r) => N(r.qF) },
     onProg: { k: 'onProg', label: 'On NIETE primary training', num: true, title: 'Has an active assignment to the niete_primary programme (NIETE levels 0–3)', val: (r) => r.onProg, fmt: (r) => (r.t ? yn(r.onProg) : N(r.onProg)) },
     didMod: { k: 'didMod', label: 'Did a module', num: true, levels: ['sector', 'school'], val: (r) => r.didModule, fmt: (r) => N(r.didModule) },
     mods: { k: 'mods', label: 'Modules finished', num: true, title: 'NIETE modules finished, levels 0–3 (171 in all)', val: (r) => (r.t ? r.mods : r.teachers ? r.mods / r.teachers : null), fmt: (r) => (r.t ? `${N(r.mods)} <span class="dim">of 171</span>` : `${r.teachers ? (r.mods / r.teachers).toFixed(1) : '—'} <span class="dim">avg</span>`) },
@@ -605,14 +607,49 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-quiz', `Quizzes · ${scopeName()} · ${periodText()}`,
-      `Quizzes made = lesson quizzes written from the teacher's recorded lesson or plan and sent when she said yes. Children = distinct children who sat one through her share link (her own test runs are not children). Lesson and video quizzes are kept apart. Counts only — no child is ever listed.${kidsNote()} <b>Quiz scores</b> are not shown yet: there is no governed rule for them (request TKT-20261027-c75041).`,
+      `Quizzes made = lesson quizzes written from the teacher's recorded lesson or plan and sent when she said yes. Children = distinct children who sat one through her share link (her own test runs are not children). Lesson and video quizzes are kept apart. Counts only — no child is ever listed.${kidsNote()}`,
       `<div class="kpis">${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers`)}${kpi('Children (lesson quizzes)', N(a.kidsL), `${N(a.sitL)} attempts, ${N(a.finL)} finished`)}
         ${kpi('Children (video quizzes)', N(a.kidsV), `${N(a.sitV)} attempts`)}${kpi('Teachers whose children took a lesson quiz', N(a.quizLT))}</div>`)
       + card('c-quiz-trend', 'Quizzes over time', S.gran === 'day' || S.gran === 'week' || S.gran === 'month' ? 'Children per bucket are distinct within that day, week or month.' : '',
         chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.made, g.kidsL] })), [{ name: 'Quizzes made', color: NAVY }, { name: 'Children (lesson quizzes)', color: GREEN }]), granSeg())
       + card('c-quiz-t', `By ${level}`, level === 'sector' ? 'A child quizzed by teachers in two sectors is counted in each sector but once in the total.' : '',
-        table('quiz', [nameCol(level), COL.teachers, COL.made, COL.madeT, COL.kidsL, COL.sitL, COL.finL, COL.kidsV, COL.sitV], rows,
-          { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
+        table('quiz', [nameCol(level), COL.teachers, COL.made, COL.madeT, COL.kidsL, COL.sitL, COL.finL, COL.qscore, COL.qfin, COL.kidsV, COL.sitV], rows,
+          { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }))
+      + quizScores(a, ser);
+  }
+
+  // Children's quiz scores (provisional: no governed rule yet).
+  function quizScores(a, ser) {
+    const G = Calc.quizGrid(S.P, sel());
+    if (!G) return card('c-qs', "Children's quiz scores", 'Not available yet: the dashboard may still be refreshing after an update, or the last refresh could not load it. Reload the page shortly.', '');
+    if (!G.all.f) return card('c-qs', "Children's quiz scores", `No finished lesson quizzes in ${periodText()}.`, '');
+    const sc = (o) => (o && o.a ? (100 * o.c) / o.a : null);
+    const view = S.qview || 'score';
+    const mx = Math.max(1, ...[...G.cells.values()].map((c) => c.f));
+    const cell = (o, total) => {
+      if (!o || !o.f) return '<span class="hm-c na">—</span>';
+      if (view === 'count') return `<span class="hm-c" style="background:rgba(31,122,76,${(0.15 + 0.85 * (o.f / (total ? G.all.f : mx))).toFixed(2)});color:${o.f / (total ? G.all.f : mx) > 0.45 ? '#FFF' : 'var(--fg)'}" title="${N(o.f)} quizzes finished">${N(o.f)}</span>`;
+      const v = sc(o), b = band(v);
+      return `<span class="hm-c ${b}" title="${P1(v)} average · ${N(o.f)} quizzes finished · ${P1(ratio(o.m, o.f))} mastered"><span><i>${GLYPH[b]}</i>${Math.round(v)}%<small>${N(o.f)} quizzes</small></span></span>`;
+    };
+    const cols = G.subjects;
+    const tpl = `grid-template-columns: minmax(110px, 1.1fr) repeat(${cols.length + 1}, minmax(78px, 1fr))`;
+    const head = `<div class="qg-r qg-h" style="${tpl}"><span>Grade</span>${cols.map((c) => `<span>${esc(c)}</span>`).join('')}<span>All subjects</span></div>`;
+    const body = G.grades.map((g) => `<div class="qg-r" style="${tpl}"><span class="qg-n">${esc(g)}</span>${cols.map((c) => cell(G.cells.get(`${g}|${c}`))).join('')}${cell(G.rows.get(g), true)}</div>`).join('');
+    const foot = `<div class="qg-r qg-t" style="${tpl}"><span class="qg-n">All grades</span>${cols.map((c) => cell(G.cols.get(c), true)).join('')}${cell(G.all, true)}</div>`;
+    const seg = `<div class="seg" role="group" aria-label="Show">${[['score', 'Average score'], ['count', 'Quizzes finished']].map(([k, l]) => `<button type="button" data-qview="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>`;
+    const all = G.all, avg = sc(all);
+    const stack = [['Mastered', all.m, 'var(--t4)'], ['Developing', all.d, 'var(--t2)'], ['Needs practice', all.n, 'var(--t1)']];
+    const masteryBar = `<div class="mbar">${stack.map(([l, v, c]) => (v ? `<span style="width:${(100 * v) / all.f}%;background:${c}" title="${l}: ${N(v)} (${P1(ratio(v, all.f))})"></span>` : '')).join('')}</div>
+      <div class="legend">${stack.map(([l, v, c]) => `<span><i style="background:${c}"></i>${l} <b>${P1(ratio(v, all.f))}</b> <span class="dim">${N(v)}</span></span>`).join('')}</div>`;
+    const trend = chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.qScore] })), [{ name: 'Average score', color: C1 }], 'line');
+    return `<div class="sec-h"><h2>Children's quiz scores</h2><p class="note">Average score on finished lesson quizzes = correct answers ÷ questions answered · ${esc(scopeName())} · ${periodText()}. Counts and averages only — no child is named. <b>Provisional</b>: there is no governed rule for quiz scores yet (request TKT-20261027-c75041).</p></div>`
+      + card('c-qs', 'Scores at a glance', '', `<div class="kpis">${kpiP('Average score', avg, `${N(all.f)} quizzes finished`)}
+          ${kpi('Mastered', P1(ratio(all.m, all.f)), `${N(all.m)} quizzes`)}${kpi('Developing', P1(ratio(all.d, all.f)), `${N(all.d)} quizzes`)}${kpi('Needs practice', P1(ratio(all.n, all.f)), `${N(all.n)} quizzes`)}
+          ${kpi('Teachers with scored quizzes', N(a.qT), `of ${N(a.teachers)} primary teachers`)}</div>${masteryBar}`)
+      + card('c-qg', 'Scores by grade and subject', "Grade and subject are the quiz's own. Each cell: average score and quizzes finished. Hover a cell for the mastered share.",
+        `<div class="row">${seg}</div>${view === 'score' ? legend().replace('<span><i class="zero"></i>None in this period</span>', '') : ''}<div class="xscroll"><div class="qg">${head}${body}${foot}</div></div>`)
+      + card('c-qst', 'Average score over time', `By ${S.gran === 'day' ? 'day' : S.gran === 'week' ? 'week' : 'month'}, finished lesson quizzes.`, trend, granSeg());
   }
 
   function viewExams(R) {
@@ -809,6 +846,7 @@
     else if (b.dataset.gran) { S.gran = b.dataset.gran; render(); }
     else if (b.dataset.dl) download(b.dataset.dl);
     else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }
+    else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
     else if (b.dataset.focus) {
       const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);
       if (kind === 'clear') { S.sector = ''; S.school = ''; }

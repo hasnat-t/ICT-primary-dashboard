@@ -52,8 +52,11 @@ const lessons = [{ id: '', grade: '', subject: '', title: 'Typed topic (no curri
 for (let i = 0; i < 80; i++) { const g = 1 + (i % 5), sb = subs[i % 5]; lessons.push({ id: `grade_${g}_${sb}_ch${1 + (i % 7)}_seg${i}`, grade: String(g), subject: sb, title: `Sample lesson ${i + 1}` }); }
 const gen = [], taughtL = [];
 for (const r of lp) { if (!r[2]) continue; const li = rnd() < 0.06 ? 0 : 1 + Math.floor(rnd() * rnd() * 80); gen.push([r[0], r[1], 7 + Math.floor(rnd() * rnd() * 16), li, r[4]]); if (li && rnd() < 0.06) taughtL.push([r[0], r[1] + 1, li, 1]); }
+const qscore = [];
+const qg = ['1', '2', '3', '4', '5', '1-2', '3-5'], qsub = ['urdu', 'maths', 'english', 'science', 'sst'];
+for (const r of sit) { const f = r[4]; if (!f) continue; const ans = f * 8, cor = Math.round(ans * (0.6 + rnd() * 0.35)); const m = Math.round(f * cor / ans * 0.8); const n = Math.round((f - m) * 0.4); qscore.push([r[0], r[1], pick(qg), pick(qsub), f, cor, ans, m, f - m - n, n]); }
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
-  lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, lpd: { lessons, gen, taught: taughtL } };
+  lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);

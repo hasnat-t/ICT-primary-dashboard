@@ -169,6 +169,23 @@ function buildLpDetail(rows, ro, catalogue) {
   return { lessons, gen, taught };
 }
 
+// Children's finished lesson-quiz results: [teacher, day, grade, subject, finished, correct, answered, mastered,
+// developing, needs practice]. Aggregates only.
+function buildQuizScores(rows, ro) {
+  const out = [];
+  const miss = { n: 0 };
+  for (const r of rows) {
+    for (const p of records('quiz_scores', r)) {
+      if (p.length !== 10) throw new Error('quiz_scores: malformed record');
+      const ti = teacherOf(ro, r.school_id, p[0], miss);
+      if (ti === undefined) continue;
+      out.push([ti, +p[1], p[2], p[3], ...p.slice(4).map(Number)]);
+    }
+  }
+  if (miss.n) throw new Error(`quiz_scores: ${miss.n} records for teachers not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -191,4 +208,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, rosterSig, MIN_SCHOOLS };

@@ -305,3 +305,15 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .hh-x { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: visible; }
 .hh-y { font-size: 12px; color: var(--muted); font-weight: 600; }
 .hh-c { height: 22px; border-radius: 4px; }
+
+/* quiz scores */
+.qg { min-width: 720px; display: flex; flex-direction: column; gap: 4px; }
+.qg-r { display: grid; gap: 4px; align-items: stretch; }
+.qg-h span { background: #1C2230; color: #FFF; font-size: 12px; font-weight: 600; padding: 10px 8px; text-align: center; }
+.qg-h span:first-child { text-align: left; border-radius: 8px 0 0 0; } .qg-h span:last-child { border-radius: 0 8px 0 0; }
+.qg-n { display: flex; align-items: center; padding: 0 8px; font-weight: 600; font-size: 14px; }
+.qg .hm-c { height: 52px; line-height: 1.15; text-align: center; }
+.qg .hm-c small { display: block; font-size: 11px; font-weight: 500; opacity: .9; }
+.qg-t { border-top: 2px solid var(--ctl); padding-top: 4px; }
+.mbar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line-2); }
+.mbar span { height: 100%; }

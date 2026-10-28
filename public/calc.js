@@ -72,7 +72,7 @@
   function blankTeacher() {
     return { g15: false, g612: false, lpDays: 0, plans: 0, taught: 0, saidTaught: 0, answered: 0,
       dc: 0, hitl: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
-      made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0 };
+      made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0 };
   }
 
   // Index the rows by teacher once per data load.
@@ -87,8 +87,8 @@
     const training = new Array(nT).fill(null);
     for (const r of data.training || []) training[r[0]] = r;
     const modules = data.modules || MODULES;
-    return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
-      parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+    return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
+      parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -115,6 +115,10 @@
       else { t.hitl++; if (r[3] === 'C') t.hitlC++; else if (r[3] === 'P') t.hitlP++; else t.hitlA++; t.odd += addFico(t.ficoH, r); }
     }
     for (const r of P.made[ti]) if (r[1] >= from && r[1] <= to) t.made += r[2];
+    for (const r of P.qs[ti]) {
+      if (r[1] < from || r[1] > to) continue;
+      t.qF += r[4]; t.qC += r[5]; t.qA += r[6]; t.qM += r[7]; t.qD += r[8]; t.qN += r[9];
+    }
     for (const r of P.ex[ti]) {
       if (r[1] < from || r[1] > to) continue;
       t.exReq += r[2]; t.exOk += r[3]; t.exFail += r[4]; t.exStuck += r[5]; t.exEdit += r[6];
@@ -136,7 +140,7 @@
     return { teachers: 0, g15: 0, lpAny: 0, plans: 0, taught: 0, answered: 0, teachersTaught: 0,
       dc: 0, dcT: 0, hitl: 0, hitlT: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, quizLT: 0, kidsL: null, kidsV: null,
-      exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0,
+      exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0, qT: 0,
       onProg: 0, didModule: 0, cert: [0, 0, 0, 0], mods: 0, schools: 0 };
   }
   function addToGroup(g, t) {
@@ -149,6 +153,7 @@
     mergeFico(g.ficoD, t.ficoD); mergeFico(g.ficoH, t.ficoH); g.odd += t.odd;
     g.made += t.made; if (t.made) g.madeT++;
     g.sitL += t.sitL; g.finL += t.finL; g.sitV += t.sitV; g.finV += t.finV; if (t.sitL || t.sitV) g.quizT++; if (t.sitL) g.quizLT++;
+    g.qF += t.qF; g.qC += t.qC; g.qA += t.qA; g.qM += t.qM; g.qD += t.qD; g.qN += t.qN; if (t.qF) g.qT++;
     g.exReq += t.exReq; g.exOk += t.exOk; g.exFail += t.exFail; g.exStuck += t.exStuck; g.exEdit += t.exEdit; if (t.exOk) g.exT++;
     if (t.onProg) g.onProg++;
     const m = t.mods[0] + t.mods[1] + t.mods[2] + t.mods[3];
@@ -219,7 +224,7 @@
       if (!map.has(k)) {
         const lo = d;
         map.set(k, { key: k, from: lo, to: lo, plans: 0, taught: 0, tPlan: new Set(), dc: 0, tDc: new Set(), hitl: 0, tHitl: new Set(),
-          ficoD: blankFico(), ficoH: blankFico(), made: 0, sitL: 0, sitV: 0, kidsL: null, kidsV: null, exOk: 0, tEx: new Set() });
+          ficoD: blankFico(), ficoH: blankFico(), made: 0, sitL: 0, sitV: 0, kidsL: null, kidsV: null, exOk: 0, tEx: new Set(), qC: 0, qA: 0, qF: 0 });
         order.push(k);
       }
       map.get(k).to = d;
@@ -236,6 +241,7 @@
       const g = at(r[1]); if (!g || !inScope(r[0])) continue;
       if (r[2] === 'D') { g.dc++; if (r[3] === 'L') g.taught++; g.tDc.add(r[0]); addFico(g.ficoD, r); } else { g.hitl++; g.tHitl.add(r[0]); addFico(g.ficoH, r); }
     }
+    for (const r of data.qscore || []) { const g = at(r[1]); if (!g || !inScope(r[0])) continue; g.qF += r[4]; g.qC += r[5]; g.qA += r[6]; }
     for (const r of data.exams || []) { const g = at(r[1]); if (!g || !inScope(r[0])) continue; g.exOk += r[3]; if (r[3]) g.tEx.add(r[0]); }
     const q = data.quiz || { made: [], sit: [] };
     for (const r of q.made) { const g = at(r[1]); if (g && inScope(r[0])) g.made += r[2]; }
@@ -253,7 +259,7 @@
     return order.map((k) => {
       const g = map.get(k);
       return { key: k, from: g.from, to: g.to, plans: g.plans, taught: g.taught, teachersWithPlan: g.tPlan.size, dc: g.dc, teachersDc: g.tDc.size,
-        hitl: g.hitl, teachersHitl: g.tHitl.size, ficoD: g.ficoD, ficoH: g.ficoH, made: g.made, sitL: g.sitL, sitV: g.sitV, kidsL: g.kidsL, kidsV: g.kidsV, exOk: g.exOk, teachersEx: g.tEx.size };
+        hitl: g.hitl, teachersHitl: g.tHitl.size, ficoD: g.ficoD, ficoH: g.ficoH, made: g.made, sitL: g.sitL, sitV: g.sitV, kidsL: g.kidsL, kidsV: g.kidsV, exOk: g.exOk, teachersEx: g.tEx.size, qF: g.qF, qScore: g.qA ? (100 * g.qC) / g.qA : null };
     });
   }
 
@@ -312,5 +318,30 @@
     return { genTotal, taughtTotal, teachers: genTeachers.size, subjects: flat(subj), grades: flat(grade), lessons, wd, wdDays, hrs, heat };
   }
 
-  return { lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // Children's quiz scores by quiz grade x subject for a period and filter. Score = correct / answered, pooled.
+  const QSUBJECT = { maths: 'Mathematics', math: 'Mathematics', english: 'English', urdu: 'Urdu', science: 'Science', sst: 'Social studies',
+    genk: 'General knowledge', islamiat: 'Islamiat', islamiyat: 'Islamiat' };
+  const quizSubject = (s) => QSUBJECT[s] || 'Other';
+  const quizGrade = (g) => { if (!g) return 'No grade'; const m = g.match(/^(\d+)\s*-\s*(\d+)$/); return m ? `Grades ${m[1]}–${m[2]}` : /^\d+$/.test(g) ? `Grade ${g}` : g; };
+  function quizGrid(P, opts) {
+    const { data } = P;
+    if (!data.qscore) return null;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const cells = new Map(), rows = new Map(), cols = new Map();
+    const all = { f: 0, c: 0, a: 0, m: 0, d: 0, n: 0 };
+    const add = (o, r) => { o.f += r[4]; o.c += r[5]; o.a += r[6]; o.m += r[7]; o.d += r[8]; o.n += r[9]; };
+    const get = (m, k) => { if (!m.has(k)) m.set(k, { f: 0, c: 0, a: 0, m: 0, d: 0, n: 0 }); return m.get(k); };
+    for (const r of data.qscore) {
+      if (r[1] < from || r[1] > to) continue;
+      const T = data.teachers[r[0]], S = data.schools[T.s];
+      if (opts.sector && S.sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      const g = quizGrade(r[2]), s = quizSubject(r[3]);
+      add(get(cells, `${g}|${s}`), r); add(get(rows, g), r); add(get(cols, s), r); add(all, r);
+    }
+    const order = (g) => { const m = g.match(/(\d+)/); return m ? +m[1] * 10 + (g.startsWith('Grades') ? 5 : 0) : 999; };
+    return { cells, rows, cols, all, grades: [...rows.keys()].sort((a, b) => order(a) - order(b)), subjects: [...cols.keys()].sort((a, b) => cols.get(b).f - cols.get(a).f) };
+  }
+
+  return { quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

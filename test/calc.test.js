@@ -138,3 +138,18 @@ test('lesson-plan analytics: subject, weekday, hour and lessons taught', () => {
   assert.strictEqual(L.lessons.find((x) => x.lesson.title === 'Fractions').taught, 1);
   assert.strictEqual(C.lessonStats(C.prepare(data), { from: 0, to: 30, sector: 'B' }).genTotal, 1);
 });
+
+test('quiz scores: pooled score, grade x subject grid, filters', () => {
+  const data = sample();
+  data.qscore = [[0, 2, '3-5', 'maths', 2, 14, 16, 1, 1, 0], [3, 20, '1', 'urdu', 1, 8, 8, 1, 0, 0]];
+  const P = C.prepare(data);
+  const r = C.rollup(P, { from: 0, to: 30 });
+  assert.deepStrictEqual([r.all.qF, r.all.qC, r.all.qA, r.all.qT], [3, 22, 24, 2]);
+  const g = C.quizGrid(P, { from: 0, to: 30 });
+  assert.deepStrictEqual(g.grades, ['Grade 1', 'Grades 3–5']);
+  assert.strictEqual(g.cells.get('Grades 3–5|Mathematics').c, 14);
+  assert.strictEqual(g.all.m, 2);
+  assert.strictEqual(C.quizGrid(P, { from: 0, to: 30, sector: 'B' }).all.f, 1);
+  const wk = C.series(P, { from: 0, to: 30 }, 'week');
+  assert.strictEqual(wk.reduce((n, x) => n + x.qF, 0), 3);
+});
