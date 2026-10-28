@@ -8,7 +8,7 @@ A live dashboard for NIETE covering **every ICT programme school and sector, pri
 
 | Area | Figures | Source rule (Taleemabad governed rules) |
 |---|---|---|
-| Lesson plans | Teachers who got a grade 1–5 plan (WhatsApp or teacher app), **LP engagement %** (÷ primary teachers), plans received, plans taught (teacher's own feedback answer) | `lp-query-rules.md` §0, §4, §6 |
+| Lesson plans | Teachers who generated a grade 1–5 plan (WhatsApp or teacher app), **LP engagement %** (÷ primary teachers), plans generated, plans taught (provisional: DC observations with one of the teacher's recent Rumi plans attached) | `lp-query-rules.md` §0, §4, §6 |
 | Digital Coach | Lessons recorded and scored, teachers who recorded | `coaching-query-rules.md` §1, `dc_complete` |
 | Coach visits (HITL) | Visits held, teachers visited, debriefed / debrief pending / awaiting review | `hitl_conducted`, `hitl_complete` |
 | FICO scores | Lesson-plan fidelity, Subject knowledge, Teaching practices, Student engagement — **Digital Coach and coach visits side by side, never pooled**. Subject knowledge is shown as two sections, FICO v2 (out of 32, to 7 Sep) and v3 (out of 20/24/28, from 8 Sep), because the change on 8 Sep makes them incomparable. LP fidelity only where a plan was attached. `/observe2` visits left out and counted. | `fico-scores-rules.md` §2c |
@@ -39,7 +39,7 @@ Browser ──► server.js (Railway) ──► Taleemabad data service (MCP ove
 |---|---|
 | `_common.sql` | Shared CTEs: programme schools, primary teachers, merged accounts |
 | `roster.sql` | Primary teachers and their levels |
-| `lp.sql` | Per teacher per day: got a grade 1–5 plan / grade 6–12 lesson, plans, taught, answered |
+| `lp.sql` | Per teacher per day: generated a grade 1–5 plan / grade 6–12 lesson, plans, taught, answered |
 | `observations.sql` | Per session: DC or HITL, HITL stage, FICO section score and maximum |
 | `quizzes.sql` | Quizzes made per teacher-day; children's sittings per day; distinct children per week, month and period, per teacher and for the whole school |
 | `quiz_sectors.sql` | Distinct children per sector and all ICT (one row per sector) |

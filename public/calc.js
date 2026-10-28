@@ -135,7 +135,7 @@
   function blankGroup() {
     return { teachers: 0, g15: 0, lpAny: 0, plans: 0, taught: 0, answered: 0, teachersTaught: 0,
       dc: 0, dcT: 0, hitl: 0, hitlT: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
-      made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, kidsL: null, kidsV: null,
+      made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, quizLT: 0, kidsL: null, kidsV: null,
       exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0,
       onProg: 0, didModule: 0, cert: [0, 0, 0, 0], mods: 0, schools: 0 };
   }
@@ -148,7 +148,7 @@
     g.hitl += t.hitl; if (t.hitl) g.hitlT++; g.hitlC += t.hitlC; g.hitlP += t.hitlP; g.hitlA += t.hitlA;
     mergeFico(g.ficoD, t.ficoD); mergeFico(g.ficoH, t.ficoH); g.odd += t.odd;
     g.made += t.made; if (t.made) g.madeT++;
-    g.sitL += t.sitL; g.finL += t.finL; g.sitV += t.sitV; g.finV += t.finV; if (t.sitL || t.sitV) g.quizT++;
+    g.sitL += t.sitL; g.finL += t.finL; g.sitV += t.sitV; g.finV += t.finV; if (t.sitL || t.sitV) g.quizT++; if (t.sitL) g.quizLT++;
     g.exReq += t.exReq; g.exOk += t.exOk; g.exFail += t.exFail; g.exStuck += t.exStuck; g.exEdit += t.exEdit; if (t.exOk) g.exT++;
     if (t.onProg) g.onProg++;
     const m = t.mods[0] + t.mods[1] + t.mods[2] + t.mods[3];

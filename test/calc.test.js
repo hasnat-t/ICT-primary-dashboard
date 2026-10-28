@@ -70,6 +70,7 @@ test('roll-up: LP usage, observations kept apart, FICO versions separate', () =>
   assert.strictEqual(r.sectors.get('A').teachers, 3);
   assert.strictEqual(r.sectors.get('B').teachers, 1);
   assert.strictEqual(r.all.onProg, 1);
+  assert.strictEqual(r.all.quizLT, 1);                     // teachers whose children took a lesson quiz
   assert.strictEqual(r.all.didModule, 2);
   assert.deepStrictEqual(r.all.cert, [1, 0, 0, 0]);
 });

@@ -129,10 +129,10 @@
   const COL = {
     schools: { k: 'schools', label: 'Schools', num: true, levels: ['sector'], val: (r) => r.schools, fmt: (r) => N(r.schools) },
     teachers: { k: 'teachers', label: 'Primary teachers', num: true, levels: ['sector', 'school'], val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
-    g15: { k: 'g15', label: 'Got a grade 1–5 plan', num: true, title: 'Teachers who got a grade 1–5 lesson plan on WhatsApp or read one in the teacher app in the period', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
-    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who got a grade 1–5 plan ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
-    plans: { k: 'plans', label: 'Plans received', num: true, title: 'Grade 1–5 lesson plans handed to teachers (lesson_plans rows; app reads before 13 Oct 19:09 are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
-    taught: { k: 'taught', label: 'Plans taught', num: true, title: 'Provisional: DC observations in which the teacher attached one of her recent Rumi lesson plans (the plan she received was taught and recorded)', val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
+    g15: { k: 'g15', label: 'Generated a grade 1–5 plan', num: true, title: 'Teachers who generated a grade 1–5 lesson plan with Rumi (picked from the curriculum menu or typed a topic; sent on WhatsApp or opened in the teacher app) in the period', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
+    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who generated a grade 1–5 lesson plan ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
+    plans: { k: 'plans', label: 'Plans generated', num: true, title: 'Grade 1–5 lesson plans Rumi generated for the teacher (lesson_plans rows; plans opened only in the teacher app between 12 and 13 Oct are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
+    taught: { k: 'taught', label: 'Plans taught', num: true, title: 'Provisional: DC observations in which the teacher attached one of her recent Rumi lesson plans (the plan she generated was taught and recorded)', val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
     tTaught: { k: 'tTaught', label: 'Teachers who taught one', num: true, levels: ['sector', 'school'], val: (r) => r.teachersTaught, fmt: (r) => N(r.teachersTaught) },
     dc: { k: 'dc', label: 'Lessons recorded', src: 'dc', num: true, title: 'Digital Coach self-recordings whose scores came back', val: (r) => r.dc, fmt: (r) => cnt(r, r.dc) },
     dcT: { k: 'dcT', label: 'Teachers recorded', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => r.dcT, fmt: (r) => N(r.dcT) },
@@ -153,7 +153,7 @@
     exOk: { k: 'exOk', label: 'Exams generated', num: true, title: 'Exam papers the /assessment generator produced for the teacher (root paper ready)', val: (r) => r.exOk, fmt: (r) => cnt(r, r.exOk) },
     exReq: { k: 'exReq', label: 'Papers requested', num: true, val: (r) => r.exReq, fmt: (r) => N(r.exReq) },
     exT: { k: 'exT', label: 'Teachers with a paper', num: true, levels: ['sector', 'school'], val: (r) => r.exT, fmt: (r) => N(r.exT) },
-    exPct: { k: 'exPct', label: '% of teachers', num: true, levels: ['sector', 'school'], title: 'Teachers who got at least one exam paper ÷ primary teachers', val: (r) => ratio(r.exT, r.teachers), fmt: (r) => cov(ratio(r.exT, r.teachers)) },
+    exPct: { k: 'exPct', label: '% of teachers', num: true, levels: ['sector', 'school'], title: 'Teachers who generated at least one exam paper ÷ primary teachers', val: (r) => ratio(r.exT, r.teachers), fmt: (r) => cov(ratio(r.exT, r.teachers)) },
     exFail: { k: 'exFail', label: 'Failed', num: true, title: 'The generator failed; the teacher was told and can ask again', val: (r) => r.exFail, fmt: (r) => N(r.exFail) },
     exStuck: { k: 'exStuck', label: 'Never finished', num: true, title: 'Still generating more than an hour after the request', val: (r) => r.exStuck, fmt: (r) => N(r.exStuck) },
     exEdit: { k: 'exEdit', label: 'Edited by teacher', num: true, title: 'Papers the teacher edited afterwards (removed questions, changed marks or wording)', val: (r) => r.exEdit, fmt: (r) => N(r.exEdit) },
@@ -324,7 +324,7 @@
     if (view === 'obs') {
       body = { insight: say('dc', 'DC recordings'), chart: chart(items((g) => [g.dc, g.hitl]), [{ name: 'DC observations', color: C1 }, { name: 'HITL observations', color: C2 }]), stats: stats('dc', 'DC recordings', 'hitl', 'HITL') };
     } else if (view === 'plans') {
-      body = { insight: say('teachersWithPlan', 'teachers getting plans'), chart: chart(items((g) => [g.teachersWithPlan, g.taught]), [{ name: 'Teachers who got a plan', color: C1 }, { name: 'Plans taught, seen in DC', color: C2 }]), stats: stats('teachersWithPlan', 'teachers with a plan', 'taught', 'plans taught') };
+      body = { insight: say('plans', 'plans generated'), chart: chart(items((g) => [g.plans, g.taught]), [{ name: 'Plans generated', color: C1 }, { name: 'Plans taught, seen in DC', color: C2 }]), stats: stats('plans', 'plans generated', 'taught', 'plans taught') };
     } else {
       const d = full.map((g) => fpct(g.ficoD.hlp)).filter((x) => x !== null), h = full.map((g) => fpct(g.ficoH.hlp)).filter((x) => x !== null);
       const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
@@ -377,7 +377,7 @@
     const lv = [0, 1, 2, 3].map((i) => ratio(g.cert[i], g.teachers));
 
     const hero = `<section class="hero" aria-label="Headline metrics">
-      ${heroCard('lp', 'Lesson-plan engagement', `${N(g.g15)} of ${N(g.teachers)} teachers got a grade 1–5 plan`, g, A, secs)}
+      ${heroCard('lp', 'Lesson-plan engagement', `${N(g.g15)} of ${N(g.teachers)} teachers generated a grade 1–5 lesson plan`, g, A, secs)}
       ${heroCard('dc', 'DC coverage', `${N(g.dcT)} teachers recorded a lesson on the Digital Coach`, g, A, secs)}
       ${heroCard('hitl', 'HITL coverage', `${N(g.hitlT)} teachers observed by a coach`, g, A, secs)}
       ${heroCard('l3', 'Teacher Leader certified', `${N(g.cert[3])} teachers hold Level 3`, g, A, secs, true)}</section>`;
@@ -386,8 +386,8 @@
       [g.kidsL, 'Children quizzed'], [g.exOk, 'Exams generated']];
     const volume = `<section class="volume" aria-label="Activity volume">${vol.map(([v, l]) => `<div><span class="vv">${N(v)}</span><span class="vl">${l}</span></div>`).join('')}</section>`;
 
-    const rungs = [['Got a grade 1–5 lesson plan', g.g15], ['Recorded a lesson (DC)', g.dcT], ['Made a lesson quiz', g.madeT], ['Used the exam generator', g.exT],
-      ['Observed by a coach (HITL)', g.hitlT], ['Taught a plan, seen in DC', g.teachersTaught], ['Had children take a lesson quiz', g.quizT]]
+    const rungs = [['Generated a grade 1–5 lesson plan', g.g15], ['Recorded a lesson (DC)', g.dcT], ['Made a lesson quiz', g.madeT], ['Used the exam generator', g.exT],
+      ['Observed by a coach (HITL)', g.hitlT], ['Taught a plan, seen in DC', g.teachersTaught], ['Children took one of their lesson quizzes', g.quizLT]]
       .map(([l, n]) => [l, n, ratio(n, g.teachers)]).sort((a, b) => (b[2] ?? 0) - (a[2] ?? 0));
     const ladder = `<section class="card" id="c-ladder" style="flex:3 1 520px"><div class="card-h"><div><h2>Teacher reach ladder</h2><p class="note">${esc(scopeName())} · share of ${N(g.teachers)} primary teachers reached by each part of the programme · ${periodText()}</p></div><button class="dl" data-dl="c-ladder">Download image</button></div>
       <div class="ladder"><div class="lrow"><div class="ll"><span>In the programme</span><span>${N(g.teachers)} teachers</span></div><div class="lbar"><div style="width:100%;background:var(--muted)"></div></div><span class="lpct">100%</span></div>
@@ -478,12 +478,12 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-lp', `Lesson plans · ${scopeName()} · ${periodText()}`,
-      'Got a plan = a grade 1–5 plan sent on WhatsApp or read in the teacher app. LP engagement % = primary teachers who got at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she got the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher getting a Rumi plan.',
+      'A plan is generated when the teacher asks Rumi for one (picks a lesson from the curriculum menu or types a topic) and it is sent on WhatsApp or opened in the teacher app. LP engagement % = primary teachers who generated at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she generated the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher generating a Rumi plan.',
       `<div class="kpis">${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers`)}
-        ${kpi('Plans received', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `${P1(ratio(a.taught, a.dc))} of DC observations`)}
+        ${kpi('Plans generated', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `${P1(ratio(a.taught, a.dc))} of DC observations`)}
         ${kpi('Teachers who taught one', N(a.teachersTaught))}${kpi('Any plan incl. grade 6–12', N(a.lpAny), 'teachers')}</div>`)
-      + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.teachersWithPlan, g.taught] })),
-        [{ name: 'Teachers who got a plan', color: GREEN }, { name: 'Plans taught', color: NAVY }]), granSeg())
+      + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.plans, g.taught] })),
+        [{ name: 'Plans generated', color: GREEN }, { name: 'Plans taught, seen in DC', color: NAVY }]), granSeg())
       + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.usage, COL.plans, COL.taught, COL.tTaught], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
@@ -540,7 +540,7 @@
     return card('c-quiz', `Quizzes · ${scopeName()} · ${periodText()}`,
       `Quizzes made = lesson quizzes written from the teacher's recorded lesson or plan and sent when she said yes. Children = distinct children who sat one through her share link (her own test runs are not children). Lesson and video quizzes are kept apart. Counts only — no child is ever listed.${kidsNote()} <b>Quiz scores</b> are not shown yet: there is no governed rule for them (request TKT-20261027-c75041).`,
       `<div class="kpis">${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers`)}${kpi('Children (lesson quizzes)', N(a.kidsL), `${N(a.sitL)} attempts, ${N(a.finL)} finished`)}
-        ${kpi('Children (video quizzes)', N(a.kidsV), `${N(a.sitV)} attempts`)}${kpi('Teachers whose children took one', N(a.quizT))}</div>`)
+        ${kpi('Children (video quizzes)', N(a.kidsV), `${N(a.sitV)} attempts`)}${kpi('Teachers whose children took a lesson quiz', N(a.quizLT))}</div>`)
       + card('c-quiz-trend', 'Quizzes over time', S.gran === 'day' || S.gran === 'week' || S.gran === 'month' ? 'Children per bucket are distinct within that day, week or month.' : '',
         chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.made, g.kidsL] })), [{ name: 'Quizzes made', color: NAVY }, { name: 'Children (lesson quizzes)', color: GREEN }]), granSeg())
       + card('c-quiz-t', `By ${level}`, level === 'sector' ? 'A child quizzed by teachers in two sectors is counted in each sector but once in the total.' : '',
@@ -583,7 +583,7 @@
   }
 
   const MISSING = [
-    ['', 'Everyone'], ['plan', 'No grade 1–5 plan'], ['taught', 'No plan taught'], ['dc', 'No DC observation'], ['hitl', 'No HITL observation'],
+    ['', 'Everyone'], ['plan', 'Generated no grade 1–5 plan'], ['taught', 'No plan taught'], ['dc', 'No DC observation'], ['hitl', 'No HITL observation'],
     ['quiz', 'No quiz made'], ['exam', 'No exam paper'], ['prog', 'Not on NIETE primary'], ['l1', 'No Level 0 certificate'],
   ];
   function viewTeachers(R) {
@@ -603,14 +603,14 @@
     const ser = seriesNow();
     const items = (f) => ser.map((g) => ({ label: bucketLabel(g), values: f(g) }));
     return `<div class="cards2">`
-      + card('c-a1', 'Teachers who got a lesson plan', '', chart(items((g) => [g.teachersWithPlan]), [{ name: 'Teachers', color: GREEN }]), granSeg())
+      + card('c-a1', 'Teachers who generated a lesson plan', '', chart(items((g) => [g.teachersWithPlan]), [{ name: 'Teachers', color: GREEN }]), granSeg())
       + card('c-a2', 'Plans taught', 'DC observations with one of the teacher&#39;s recent Rumi plans attached (provisional).', chart(items((g) => [g.taught]), [{ name: 'Plans taught', color: NAVY }]), granSeg())
       + card('c-a3', 'Classroom observations', 'DC and HITL observations side by side, never added.', chart(items((g) => [g.dc, g.hitl]), [{ name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }]), granSeg())
       + card('c-a4', 'Teaching practices score', 'FICO section C, score ÷ maximum.', chart(items((g) => [fpct(g.ficoD.hlp), fpct(g.ficoH.hlp)]), [{ name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }], 'line'), granSeg())
       + card('c-a5', 'Subject knowledge score', 'FICO v2 to 7 Sep and v3 from 8 Sep are different measures: two lines, never one.',
         chart(items((g) => [fpct(g.ficoD.tsk2), fpct(g.ficoD.tsk3), fpct(g.ficoH.tsk2), fpct(g.ficoH.tsk3)]),
           [{ name: 'DC v2', color: SOFT }, { name: 'DC v3', color: GREEN }, { name: 'HITL v2', color: GREY }, { name: 'HITL v3', color: NAVY }], 'line'), granSeg())
-      + card('c-a7', 'Exam generator', 'Exams generated (papers that came out of the exam generator), and the teachers who got one.', chart(items((g) => [g.exOk, g.teachersEx]), [{ name: 'Exams generated', color: NAVY }, { name: 'Teachers with a paper', color: GREEN }]), granSeg())
+      + card('c-a7', 'Exam generator', 'Exams generated by the exam generator, and the teachers who generated one.', chart(items((g) => [g.exOk, g.teachersEx]), [{ name: 'Exams generated', color: NAVY }, { name: 'Teachers with a paper', color: GREEN }]), granSeg())
       + card('c-a6', 'Quizzes', 'Children are distinct within each day, week or month.', chart(items((g) => [g.made, g.kidsL]), [{ name: 'Quizzes made', color: NAVY }, { name: 'Children (lesson quizzes)', color: GREEN }]), granSeg())
       + `</div>`;
   }
@@ -630,13 +630,13 @@
     $('#m-title').textContent = T.name;
     $('#m-sub').textContent = `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`;
     $('#m-body').innerHTML = `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
-      <div class="kpis">${kpi('Days with a lesson plan', N(t.lpDays))}${kpi('Plans received', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
+      <div class="kpis">${kpi('Days a plan was generated', N(t.lpDays))}${kpi('Plans generated', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
       ${kpi('DC observations', N(t.dc), 'lessons recorded')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`)}
       ${kpi('Quizzes made', N(t.made))}${kpi('Exam generator', N(t.exOk), `papers · ${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
       ${kpi('NIETE training', t.onProg ? 'On programme' : 'Not assigned', `${N(g.mods)} of 171 modules · certificates: ${t.certs ? t.certs.split('').map((l) => LEVELS[+l - 1]).join(', ') : 'none'}`)}</div>
       <h2>FICO section scores</h2>${ficoBlock(g)}
       <h2>Activity over time</h2>${chart([...by.values()].map((b) => ({ label: b.label, values: [b.plan, b.dc, b.hitl] })),
-        [{ name: S.gran === 'day' ? 'Got a plan' : 'Days with a plan', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
+        [{ name: S.gran === 'day' ? 'Generated a plan' : 'Days with a plan generated', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
       <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>`;
     const m = $('#modal');
     if (!m.open) m.showModal();
