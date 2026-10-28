@@ -633,6 +633,70 @@
         `<div class="row">${seg}</div>${view === 'n' ? '' : legend().replace('<span><i class="zero"></i>None in this period</span>', '')}<div class="xscroll"><div class="qg">${head}${body}</div></div>`);
   }
 
+  // HITL analytics: coverage depth, coaches, how coaches treat the AI's pre-filled form, grade, weekday.
+  function hitlAnalytics() {
+    const H = Calc.hitlStats(S.P, sel());
+    if (!H.n) return '';
+    if (!H.hasCoach) return card('c-hx', 'HITL analytics', 'Updating now: the dashboard is refreshing after an update. This part appears by itself when it finishes.', '');
+    const sp = (o, k) => (o.fico[k][2] ? fpct(o.fico[k]) : null);
+    const E = H.edits, edited = E.u + E.n + E.r;
+    const named = H.coaches.filter((c) => c.key);
+    const top = named[0];
+    const avg = H.wd.map((v, i) => (H.wdDays[i] ? v / H.wdDays[i] : 0));
+    const busiest = avg.indexOf(Math.max(...avg));
+    const again = H.per[2] + H.per[3] + H.per[4];
+
+    const facts = `<ul class="facts">
+      <li><b>${N(named.length)} coaches</b> held ${N(H.n)} HITL observations of ${N(H.observed)} teachers (${P1(ratio(H.observed, H.teachers))} of ${N(H.teachers)} primary teachers).</li>
+      ${top ? `<li>Most observations: <b>${esc(top.name)}</b> with ${N(top.n)} observations of ${N(top.teachers)} teachers.</li>` : ''}
+      <li><b>${N(H.per[0])} teachers</b> have not had a HITL observation in this period; ${N(again)} (${P1(ratio(again, H.observed))} of those observed) have had two or more.</li>
+      <li><b>${P1(ratio(H.stage.C || 0, H.n))}</b> of observations are debriefed; ${N(H.stage.P || 0)} wait for the debrief and ${N(H.stage.A || 0)} for the coach's review.</li>
+      ${edited ? `<li>Coaches changed the AI's scores on <b>${P1(ratio(E.r, edited))}</b> of observations, rewrote only the written feedback on ${P1(ratio(E.n, edited))}, and submitted ${P1(ratio(E.u, edited))} unchanged.</li>` : ''}
+      <li><b>${WD[busiest]}</b> is the busiest day (${avg[busiest].toFixed(1)} observations a day on average).</li>
+    </ul>`;
+
+    const per = card('c-hp', 'Observations per teacher', `How many HITL observations each primary teacher had · ${esc(scopeName())} · ${periodText()}.`,
+      chart(['None', '1', '2', '3', '4 or more'].map((l, i) => ({ label: l, values: [H.per[i]] })), [{ name: 'Teachers', color: NAVY }]));
+    const days = card('c-hw', 'Day of the week', `Average HITL observations per day · ${periodText()}.`,
+      chart(WD.map((w, i) => ({ label: w.slice(0, 3), values: [avg[i]] })), [{ name: 'Observations per day, on average', color: NAVY }], 'bar', (v) => v.toFixed(1)));
+
+    const form = card('c-hf', "How coaches use the AI's form",
+      "The AI listens to the lesson and fills in the whole HITL form first; the coach then reviews it and submits. <b>Changed scores</b> = the coach rescored at least one FICO indicator; <b>Feedback only</b> = rewrote the written feedback but kept every score; <b>Unchanged</b> = submitted the AI's form as it was. This shows how coaches work, not how good they are.",
+      splitBar([['Changed scores', E.r, NAVY], ['Feedback only', E.n, '#8FB8DE'], ['Unchanged', E.u, '#BBB']].filter((x) => x[1]), edited || 1));
+
+    const ccols = [
+      { k: 'name', label: 'Coach', val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.role && r.role !== 'coach' ? ` <span class="dim">(${esc(r.role)})</span>` : ''}` },
+      { k: 'sectors', label: 'Sectors', val: (r) => r.sectors, fmt: (r) => esc(r.sectors) },
+      { k: 'n', label: 'HITL observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'teachers', label: 'Teachers observed', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'schools', label: 'Schools', num: true, val: (r) => r.schools, fmt: (r) => N(r.schools) },
+      { k: 'deb', label: 'Debriefed', num: true, val: (r) => r.C / r.n, fmt: (r) => cov(ratio(r.C, r.n)) },
+      { k: 'resc', label: 'Changed scores', num: true, title: "Share of the coach's observations where they rescored the AI", val: (r) => r.r / r.n, fmt: (r) => P1(ratio(r.r, r.n)) },
+      { k: 'unch', label: 'Unchanged', num: true, title: "Share submitted exactly as the AI filled it", val: (r) => r.u / r.n, fmt: (r) => P1(ratio(r.u, r.n)) },
+      ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, title: 'Average score this coach gave', val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
+    ];
+    const coaches = card('c-hc', 'By coach',
+      `Each coach's HITL observations of primary teachers · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality. Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
+      table('hc', ccols, H.coaches, { sort: { k: 'n', dir: -1 } }));
+
+    const D = Calc.dcStats(S.P, sel(), 'H');
+    const G = D.gsrc;
+    const gcols = [
+      { k: 'name', label: 'Grade', val: (r) => r.ord, fmt: (r) => esc(r.key) },
+      { k: 'n', label: 'HITL observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
+    ];
+    const grades = card('c-hg', 'By grade',
+      `Grade of the observed lesson, taken in this order: the Rumi lesson plan attached (${P1(ratio(G.r, D.n))}); a clear grade typed in the plan (${P1(ratio(G.t, D.n))}); otherwise the teacher's classes on the roster (${P1(ratio(G.roster, D.n))}), where a teacher on two grades counts in both. ${P1(ratio(G.none, D.n))} have no grade (Grade unknown). <b>Provisional</b>: the plan grade is not yet a governed rule. HITL observations are not split by subject: only about one in ten records the subject.`,
+      `<span class="lbl">Where the grade comes from</span>${splitBar([['Rumi plan', G.r, NAVY], ['Typed in plan', G.t, '#8FB8DE'], ["Teacher's roster", G.roster, C2], ['Unknown', G.none, '#BBB']].filter((x) => x[1]), D.n)}`
+      + table('hg', gcols, D.grades, { noLegend: true }));
+
+    return `<div class="sec-h"><h2>HITL analytics</h2><p class="note">${N(H.n)} HITL observations of ${N(H.observed)} teachers · ${esc(scopeName())} · ${periodText()}. Coach visits only — never added to DC observations.</p></div>`
+      + card('c-hx', 'What stands out', '', facts)
+      + `<div class="cards2">${per}${days}</div>` + form + coaches + grades;
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
@@ -965,7 +1029,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;

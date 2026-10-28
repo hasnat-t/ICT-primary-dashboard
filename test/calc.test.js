@@ -14,8 +14,8 @@ function sample() {
     obs: [
       [0, 2, 'D', 'L', 18, 24, 30, 48, 20, 28, 30, 40, 'm', 'r3'], // v3 subject scale; taught a recent Rumi plan
       [0, 3, 'D', '-', 20, 32, 24, 48, 14, 28, null, null, 'u', ''], // v2 subject scale, no plan attached
-      [2, 3, 'H', 'C', 12, 24, 36, 48, 21, 28, 20, 40],
-      [2, 4, 'H', 'P', 10, 20, 12, 16, 21, 28, 20, 40],      // HLP out of 16 = unknown scale: not pooled
+      [2, 3, 'H', 'C', 12, 24, 36, 48, 21, 28, 20, 40, '', '', 'cccc0001', 'r'],
+      [2, 4, 'H', 'P', 10, 20, 12, 16, 21, 28, 20, 40, '', 'r4', 'cccc0001', 'u'],      // HLP out of 16 = unknown scale: not pooled
     ],
     quiz: {
       made: [[0, 2, 3], [3, 20, 1]],
@@ -185,4 +185,16 @@ test('DC analytics: by lesson subject and by roster grade (a teacher on two grad
   assert.strictEqual(D.cells.get('Grade 3|Mathematics').n, 1);
   assert.deepStrictEqual(D.subjects[0].fico.hlp, [54, 96, 2]);
   assert.strictEqual(C.dcStats(C.prepare(data), { from: 0, to: 30, sector: 'B' }).n, 1);
+});
+
+test('HITL analytics: observations per teacher, coaches, AI-form edits, grade from plan', () => {
+  const data = sample();
+  data.coaches = [{ id: 'cccc0001', name: 'Coach A', role: 'coach' }];
+  const H = C.hitlStats(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([H.n, H.teachers, H.observed], [2, 4, 1]);
+  assert.deepStrictEqual(H.per, [3, 0, 1, 0, 0]);
+  assert.deepStrictEqual([H.edits.u, H.edits.r, H.edits.n], [1, 1, 0]);
+  assert.deepStrictEqual(H.coaches.map((c) => [c.name, c.n, c.teachers, c.C, c.r]), [['Coach A', 2, 1, 1, 1]]);
+  const G = C.dcStats(C.prepare(data), { from: 0, to: 30 }, 'H');
+  assert.deepStrictEqual(G.grades.map((x) => [x.key, x.n]), [['Grade 4', 1], ['Grade unknown', 1]]);
 });

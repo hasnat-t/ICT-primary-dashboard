@@ -65,12 +65,12 @@ function buildObservations(rows, ro) {
   for (const r of rows) {
     observe2 += Number(r.observe2_excluded) || 0;
     for (const p of records('observations', r)) {
-      if (p.length !== 14) throw new Error('observations: malformed record');
+      if (p.length !== 16) throw new Error('observations: malformed record');
       const ti = teacherOf(ro, r.school_id, p[0], miss);
       if (ti === undefined) continue;
       // teacher, day, src (D/H), stage (-/C/P/A), score,max for TSK, HLP, SE, LPF (null when not scored), DC lesson subject code,
-      // DC plan grade (r<g> Rumi plan, t<g> typed in the plan, '' none)
-      out.push([ti, +p[1], p[2], p[3], ...p.slice(4, 12).map(num), p[12], p[13]]);
+      // plan grade (r<g> Rumi plan, t<g> typed in the plan, '' none), HITL coach id8 and form edit state (u/n/r)
+      out.push([ti, +p[1], p[2], p[3], ...p.slice(4, 12).map(num), p[12], p[13], p[14], p[15]]);
     }
   }
   if (miss.n) throw new Error(`observations: ${miss.n} records for teachers not in the roster`);
@@ -219,6 +219,21 @@ function buildTeacherGrades(rows, ro) {
   return out;
 }
 
+// HITL observers: [{ id: id8, name, role }]; a repeated id8 would merge two coaches, so it fails the part.
+function buildCoaches(rows) {
+  const out = [];
+  const seen = new Set();
+  for (const r of rows) {
+    for (const p of records('coaches', r, '|')) {
+      if (p.length !== 3) throw new Error('coaches: malformed record');
+      if (seen.has(p[0])) throw new Error('coaches: duplicate coach key');
+      seen.add(p[0]);
+      out.push({ id: p[0], name: p[1].trim(), role: p[2] });
+    }
+  }
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -241,4 +256,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, rosterSig, MIN_SCHOOLS };

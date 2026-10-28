@@ -26,8 +26,11 @@ test('lp and observations unpack to arrays; unknown teachers fail the part', () 
   const ro = roster();
   assert.deepStrictEqual(U.buildLp([{ school_id: 'sA', n: 1, t: 'cccc3333:5:1:0:2:1:1' }], ro), [[0, 5, 1, 0, 2, 1, 1]]);
   assert.throws(() => U.buildLp([{ school_id: 'sA', n: 1, t: 'zzzz9999:5:1:0:2:1:1' }], ro), /not in the roster/);
-  const o = U.buildObservations([{ school_id: 'sB', n: 1, observe2_excluded: 2, t: 'aaaa1111:40:H:C:18:24:30:48:20:28::::' }], ro);
-  assert.deepStrictEqual(o.rows, [[1, 40, 'H', 'C', 18, 24, 30, 48, 20, 28, null, null, '', '']]);
+  const o = U.buildObservations([{ school_id: 'sB', n: 1, observe2_excluded: 2, t: 'aaaa1111:40:H:C:18:24:30:48:20:28:::::cccc0001:r' }], ro);
+  assert.deepStrictEqual(o.rows, [[1, 40, 'H', 'C', 18, 24, 30, 48, 20, 28, null, null, '', '', 'cccc0001', 'r']]);
+  assert.deepStrictEqual(U.buildCoaches([{ school_id: 'coaches', n: 2, t: 'cccc0001|Ayesha K|coach~cccc0002||coach' }]),
+    [{ id: 'cccc0001', name: 'Ayesha K', role: 'coach' }, { id: 'cccc0002', name: '', role: 'coach' }]);
+  assert.throws(() => U.buildCoaches([{ school_id: 'coaches', n: 2, t: 'cccc0001|A|coach~cccc0001|B|coach' }]), /duplicate/);
   assert.deepStrictEqual(U.buildTeacherGrades([{ school_id: 'sB', n: 1, t: 'aaaa1111|4,5' }], ro), [[1, '4,5']]);
   assert.strictEqual(o.observe2_excluded, 2);
 });

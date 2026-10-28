@@ -396,7 +396,7 @@
   // (coaching-query-rules.md §1g: a teacher on two grades counts in each, so grade lines never add up).
   const DC_SUBJECT = { u: 'Urdu', m: 'Mathematics', e: 'English', i: 'Islamiat', s: 'Science', c: 'Social studies', g: 'General knowledge', o: 'Other subjects', '': 'Subject not recorded' };
   const gradeName = (g) => (g === 'ey' ? 'Early years' : +g >= 6 ? 'Grades 6–12' : `Grade ${g}`);
-  function dcStats(P, opts) {
+  function dcStats(P, opts, kind = 'D') {
     const { data } = P;
     const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
     const mk = () => ({ n: 0, t: new Set(), f: blankFico() });
@@ -410,7 +410,7 @@
       if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
       const roster = P.grades[ti] ? [...new Set(P.grades[ti].split(',').map(gradeName))] : null;
       for (const r of P.obs[ti]) {
-        if (r[2] !== 'D' || r[1] < from || r[1] > to) continue;
+        if (r[2] !== kind || r[1] < from || r[1] > to) continue;
         if (r[13] !== undefined) hasSubj = true;
         const pg = r[13] || '';
         const gs = pg ? [gradeName(pg.slice(1))] : roster || ['Grade unknown'];
@@ -428,5 +428,48 @@
       cells: new Map([...cell.entries()].map(([k, o]) => [k, { n: o.n, teachers: o.t.size, fico: o.f }])) };
   }
 
-  return { dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // HITL analytics: observations per teacher, coaches, how coaches treated the AI's pre-filled form, weekday.
+  function hitlStats(P, opts) {
+    const { data } = P;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const weekday = (day) => (new Date(Date.parse(data.window_start) + day * DAY).getUTCDay() + 6) % 7;
+    const coachName = new Map((data.coaches || []).map((c) => [c.id, c]));
+    const coaches = new Map();
+    const per = [0, 0, 0, 0, 0];   // teachers with 0, 1, 2, 3, 4+ observations
+    const edits = { u: 0, n: 0, r: 0, '': 0 }, stage = { C: 0, P: 0, A: 0 };
+    const wd = new Array(7).fill(0), wdDays = new Array(7).fill(0);
+    for (let day = from; day <= to; day++) wdDays[weekday(day)]++;
+    let n = 0, teachers = 0, hasCoach = false;
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      const T = data.teachers[ti];
+      if (opts.sector && data.schools[T.s].sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      teachers++;
+      let k = 0;
+      for (const r of P.obs[ti]) {
+        if (r[2] !== 'H' || r[1] < from || r[1] > to) continue;
+        n++; k++;
+        if (r[14] !== undefined) hasCoach = true;
+        stage[r[3]] = (stage[r[3]] || 0) + 1;
+        edits[r[15] || ''] = (edits[r[15] || ''] || 0) + 1;
+        wd[weekday(r[1])]++;
+        const id = r[14] || '';
+        if (!coaches.has(id)) coaches.set(id, { n: 0, t: new Set(), s: new Set(), sec: new Set(), C: 0, u: 0, nn: 0, r: 0, f: blankFico() });
+        const c = coaches.get(id);
+        c.n++; c.t.add(ti); c.s.add(T.s); c.sec.add(data.schools[T.s].sector);
+        if (r[3] === 'C') c.C++;
+        if (r[15] === 'u') c.u++; else if (r[15] === 'n') c.nn++; else if (r[15] === 'r') c.r++;
+        addFico(c.f, r);
+      }
+      per[Math.min(k, 4)]++;
+    }
+    const list = [...coaches.entries()].map(([id, c]) => {
+      const m = coachName.get(id);
+      return { key: id, name: m ? m.name || '(no name)' : id ? '(not in coach list)' : '(no coach recorded)', role: m ? m.role : '',
+        n: c.n, teachers: c.t.size, schools: c.s.size, sectors: [...c.sec].sort().join(', '), C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
+    }).sort((a, b) => b.n - a.n);
+    return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: list, hasCoach, hasCoachList: !!data.coaches };
+  }
+
+  return { hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

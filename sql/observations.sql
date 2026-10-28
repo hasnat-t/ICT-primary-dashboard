@@ -10,11 +10,13 @@
 -- Lesson subject (DC only): analysis_data.subject, fico-scores-rules.md §2c / transcripts-rules.md - on ~95% of DC rows and
 -- ~11% of HITL, so it is kept for DC only. Free text, grouped here into the primary subjects: u Urdu, m Mathematics, e English,
 -- i Islamiat, s Science, c Social studies, g General knowledge, o other, '' not recorded.
--- Lesson grade from the attached plan (DC only; Hasnat 2026-10-28, provisional - the governed by-grade route is the roster,
+-- Lesson grade from the attached plan (DC and HITL; Hasnat 2026-10-28, provisional - the governed by-grade route is the roster,
 -- coaching-query-rules.md §1g, which the page falls back to): r<g> = the Rumi plan's lesson_id (grade_<g>_...), t<g> = a clear
 -- grade typed in an uploaded/pasted plan (lesson_plan_structured.grade_level: 4, 4th, Grade 4, Class IV, four, چہارم ...;
 -- ranges and unclear text are left out), '' = none. g = 1..12 or ey (early years).
--- Record: "tid:day:src:stage:tsk_s:tsk_m:hlp_s:hlp_m:se_s:se_m:lpf_s:lpf_m:subj:pgrade"; src D/H; DC stage L or -; HITL stage C complete
+-- HITL only: coach = first 8 of observer_user_id (§2b); edit = how the coach treated the AI's pre-filled form (§2d):
+-- u submitted unedited (no observer_edit_summary), n edited the narrative only (indicators_rescored = 0), r rescored.
+-- Record: "tid:day:src:stage:tsk_s:tsk_m:hlp_s:hlp_m:se_s:se_m:lpf_s:lpf_m:subj:pgrade:coach:edit"; src D/H; DC stage L or -; HITL stage C complete
 -- (debrief done), P debrief pending, A awaiting review; day = days since 2026-08-01 (PKT).
 WITH {{COMMON}},
 sess_all AS (
@@ -26,8 +28,14 @@ sess_all AS (
               ELSE 'A' END AS stage,
          cs.has_lesson_plan,
          IF(cs.observation_type IS NULL, LOWER(TRIM(JSON_VALUE(cs.analysis_data, '$.subject'))), NULL) AS subj_raw,
-         IF(cs.observation_type IS NULL AND cs.has_lesson_plan, REGEXP_EXTRACT(JSON_VALUE(cs.lesson_plan_structured, '$._fidelity_ref.lesson_id'), r'^grade_(\d+)_'), NULL) AS g_ref,
-         IF(cs.observation_type IS NULL AND cs.has_lesson_plan, LOWER(TRIM(JSON_VALUE(cs.lesson_plan_structured, '$.grade_level'))), NULL) AS g_txt,
+         IF(cs.has_lesson_plan, REGEXP_EXTRACT(JSON_VALUE(cs.lesson_plan_structured, '$._fidelity_ref.lesson_id'), r'^grade_(\d+)_'), NULL) AS g_ref,
+         IF(cs.has_lesson_plan, LOWER(TRIM(JSON_VALUE(cs.lesson_plan_structured, '$.grade_level'))), NULL) AS g_txt,
+         IF(cs.observation_type = 'leader_observation', SUBSTR(cs.observer_user_id, 1, 8), '') AS coach,
+         CASE WHEN cs.observation_type IS NULL THEN ''
+              WHEN JSON_QUERY(cs.analysis_data, '$.observer_edit_summary') IS NULL
+                OR JSON_QUERY(cs.analysis_data, '$.observer_edit_summary') = 'null' THEN 'u'
+              WHEN COALESCE(SAFE_CAST(JSON_VALUE(cs.analysis_data, '$.observer_edit_summary.indicators_rescored') AS INT64), 0) > 0 THEN 'r'
+              ELSE 'n' END AS edit,
          JSON_VALUE(cs.analysis_data, '$.observe2.rubric') IS NOT NULL AS is_observe2,
          DATE_DIFF(DATE(SAFE_CAST(cs.created_at AS TIMESTAMP), 'Asia/Karachi'), DATE '2026-08-01', DAY) AS day,
          SAFE.PARSE_JSON(cs.analysis_data) AS j
@@ -70,7 +78,7 @@ dom AS (
 ),
 dom_ok AS (SELECT * FROM dom WHERE mx > 0 AND score IS NOT NULL),
 piv AS (
-  SELECT s.school_id, s.teacher_id, s.day, s.session_id, s.src, s.stage, s.pgrade,
+  SELECT s.school_id, s.teacher_id, s.day, s.session_id, s.src, s.stage, s.pgrade, s.coach, s.edit,
          CASE WHEN s.subj_raw IS NULL OR s.subj_raw IN ('', 'unable to determine') THEN ''
               WHEN REGEXP_CONTAINS(s.subj_raw, r'^(math|maths|mathematics|ریاضی)$') THEN 'm'
               WHEN REGEXP_CONTAINS(s.subj_raw, r'^urdu|اردو') THEN 'u'
@@ -86,7 +94,7 @@ piv AS (
          MAX(IF(d.domain = 'student_engagement',        d.score, NULL)) AS se_s,  MAX(IF(d.domain = 'student_engagement',        d.mx, NULL)) AS se_m,
          MAX(IF(d.domain = 'lesson_plan_fidelity',      d.score, NULL)) AS lpf_s, MAX(IF(d.domain = 'lesson_plan_fidelity',      d.mx, NULL)) AS lpf_m
   FROM sess s LEFT JOIN dom_ok d ON d.session_id = s.session_id
-  GROUP BY s.school_id, s.teacher_id, s.day, s.session_id, s.src, s.stage, s.pgrade, subj
+  GROUP BY s.school_id, s.teacher_id, s.day, s.session_id, s.src, s.stage, s.pgrade, s.coach, s.edit, subj
 ),
 rec AS (
   SELECT school_id, teacher_id, day, session_id,
@@ -94,7 +102,7 @@ rec AS (
                 IFNULL(FORMAT('%g', tsk_s), ''), ':', IFNULL(FORMAT('%g', tsk_m), ''), ':',
                 IFNULL(FORMAT('%g', hlp_s), ''), ':', IFNULL(FORMAT('%g', hlp_m), ''), ':',
                 IFNULL(FORMAT('%g', se_s),  ''), ':', IFNULL(FORMAT('%g', se_m),  ''), ':',
-                IFNULL(FORMAT('%g', lpf_s), ''), ':', IFNULL(FORMAT('%g', lpf_m), ''), ':', subj, ':', pgrade) AS r
+                IFNULL(FORMAT('%g', lpf_s), ''), ':', IFNULL(FORMAT('%g', lpf_m), ''), ':', subj, ':', pgrade, ':', coach, ':', edit) AS r
   FROM piv
 ),
 o2 AS (SELECT school_id, COUNT(DISTINCT session_id) AS observe2_excluded FROM sess_all WHERE is_observe2 GROUP BY school_id)
