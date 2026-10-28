@@ -666,7 +666,7 @@
 
     const ccols = [
       { k: 'name', label: 'Coach', val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.role && r.role !== 'coach' ? ` <span class="dim">(${esc(r.role)})</span>` : ''}` },
-      { k: 'sector', label: 'Main sector', title: 'The sector where most of this coach's observations are', val: (r) => r.sector, fmt: (r) => esc(r.sector) },
+      { k: 'sector', label: 'Main sector', title: 'The sector where most of this coach’s observations are', val: (r) => r.sector, fmt: (r) => esc(r.sector) },
       { k: 'n', label: 'HITL observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
       { k: 'teachers', label: 'Teachers observed', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
       { k: 'schools', label: 'Schools', num: true, val: (r) => r.schools, fmt: (r) => N(r.schools) },
