@@ -662,7 +662,7 @@
 
     const form = card('c-hf', "How coaches use the AI's form",
       "The AI listens to the lesson and fills in the whole HITL form first; the coach then reviews it and submits. <b>Changed scores</b> = the coach rescored at least one FICO indicator; <b>Feedback only</b> = rewrote the written feedback but kept every score; <b>Unchanged</b> = submitted the AI's form as it was. This shows how coaches work, not how good they are.",
-      splitBar([['Changed scores', E.r, NAVY], ['Feedback only', E.n, '#8FB8DE'], ['Unchanged', E.u, '#BBB']].filter((x) => x[1]), edited || 1));
+      splitBar([['Changed scores', E.r, NAVY], ['Feedback only', E.n, '#F2C89A'], ['Unchanged', E.u, '#BBB']].filter((x) => x[1]), edited || 1));
 
     const ccols = [
       { k: 'name', label: 'Coach', val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.role && r.role !== 'coach' ? ` <span class="dim">(${esc(r.role)})</span>` : ''}` },
@@ -689,7 +689,7 @@
     ];
     const grades = card('c-hg', 'By grade',
       `Grade of the observed lesson, taken in this order: the Rumi lesson plan attached (${P1(ratio(G.r, D.n))}); a clear grade typed in the plan (${P1(ratio(G.t, D.n))}); otherwise the teacher's classes on the roster (${P1(ratio(G.roster, D.n))}), where a teacher on two grades counts in both. ${P1(ratio(G.none, D.n))} have no grade (Grade unknown). <b>Provisional</b>: the plan grade is not yet a governed rule. HITL observations are not split by subject: only about one in ten records the subject.`,
-      `<span class="lbl">Where the grade comes from</span>${splitBar([['Rumi plan', G.r, NAVY], ['Typed in plan', G.t, '#8FB8DE'], ["Teacher's roster", G.roster, C2], ['Unknown', G.none, '#BBB']].filter((x) => x[1]), D.n)}`
+      `<span class="lbl">Where the grade comes from</span>${splitBar([['Rumi plan', G.r, NAVY], ['Typed in plan', G.t, '#F2C89A'], ["Teacher's roster", G.roster, '#5B6B85'], ['Unknown', G.none, '#BBB']].filter((x) => x[1]), D.n)}`
       + table('hg', gcols, D.grades, { noLegend: true }));
 
     return `<div class="sec-h"><h2>HITL analytics</h2><p class="note">${N(H.n)} HITL observations of ${N(H.observed)} teachers · ${esc(scopeName())} · ${periodText()}. Coach visits only — never added to DC observations.</p></div>`
