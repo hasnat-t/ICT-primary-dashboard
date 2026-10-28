@@ -647,7 +647,7 @@
       + card('c-qs', 'Scores at a glance', '', `<div class="kpis">${kpiP('Average score', avg, `${N(all.f)} quizzes finished`)}
           ${kpi('Mastered', P1(ratio(all.m, all.f)), `${N(all.m)} quizzes`)}${kpi('Developing', P1(ratio(all.d, all.f)), `${N(all.d)} quizzes`)}${kpi('Needs practice', P1(ratio(all.n, all.f)), `${N(all.n)} quizzes`)}
           ${kpi('Teachers with scored quizzes', N(a.qT), `of ${N(a.teachers)} primary teachers`)}</div>${masteryBar}`)
-      + card('c-qg', 'Scores by grade and subject', "Grade and subject are the quiz's own. Each cell: average score and quizzes finished. Hover a cell for the mastered share.",
+      + card('c-qg', 'Scores by grade and subject', "Grade and subject are the quiz's own. A quiz made from a lesson plan always has its exact grade; one made from a recorded lesson sometimes has only a range (e.g. Grades 1–2) when the exact grade could not be told — those rows sit after the grades they cover and are never added into them. Each cell: average score and quizzes finished. Hover a cell for the mastered share.",
         `<div class="row">${seg}</div>${view === 'score' ? legend().replace('<span><i class="zero"></i>None in this period</span>', '') : ''}<div class="xscroll"><div class="qg">${head}${body}${foot}</div></div>`)
       + card('c-qst', 'Average score over time', `By ${S.gran === 'day' ? 'day' : S.gran === 'week' ? 'week' : 'month'}, finished lesson quizzes.`, trend, granSeg());
   }

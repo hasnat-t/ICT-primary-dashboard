@@ -146,8 +146,8 @@ test('quiz scores: pooled score, grade x subject grid, filters', () => {
   const r = C.rollup(P, { from: 0, to: 30 });
   assert.deepStrictEqual([r.all.qF, r.all.qC, r.all.qA, r.all.qT], [3, 22, 24, 2]);
   const g = C.quizGrid(P, { from: 0, to: 30 });
-  assert.deepStrictEqual(g.grades, ['Grade 1', 'Grades 3–5']);
-  assert.strictEqual(g.cells.get('Grades 3–5|Mathematics').c, 14);
+  assert.deepStrictEqual(g.grades, ['Grade 1', 'Grades 3–5 (exact grade not recorded)']);
+  assert.strictEqual(g.cells.get('Grades 3–5 (exact grade not recorded)|Mathematics').c, 14);
   assert.strictEqual(g.all.m, 2);
   assert.strictEqual(C.quizGrid(P, { from: 0, to: 30, sector: 'B' }).all.f, 1);
   const wk = C.series(P, { from: 0, to: 30 }, 'week');

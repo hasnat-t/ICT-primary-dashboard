@@ -322,7 +322,7 @@
   const QSUBJECT = { maths: 'Mathematics', math: 'Mathematics', english: 'English', urdu: 'Urdu', science: 'Science', sst: 'Social studies',
     genk: 'General knowledge', islamiat: 'Islamiat', islamiyat: 'Islamiat' };
   const quizSubject = (s) => QSUBJECT[s] || 'Other';
-  const quizGrade = (g) => { if (!g) return 'No grade'; const m = g.match(/^(\d+)\s*-\s*(\d+)$/); return m ? `Grades ${m[1]}–${m[2]}` : /^\d+$/.test(g) ? `Grade ${g}` : g; };
+  const quizGrade = (g) => { if (!g) return 'No grade'; const m = g.match(/^(\d+)\s*-\s*(\d+)$/); return m ? `Grades ${m[1]}–${m[2]} (exact grade not recorded)` : /^\d+$/.test(g) ? `Grade ${g}` : g; };
   function quizGrid(P, opts) {
     const { data } = P;
     if (!data.qscore) return null;
@@ -339,7 +339,8 @@
       const g = quizGrade(r[2]), s = quizSubject(r[3]);
       add(get(cells, `${g}|${s}`), r); add(get(rows, g), r); add(get(cols, s), r); add(all, r);
     }
-    const order = (g) => { const m = g.match(/(\d+)/); return m ? +m[1] * 10 + (g.startsWith('Grades') ? 5 : 0) : 999; };
+    // a range sits after the last grade it covers: Grade 1, Grade 2, Grades 1–2, Grade 3 ...
+    const order = (g) => { const m = g.match(/(\d+)(?:–(\d+))?/); return m ? (m[2] ? +m[2] * 10 + 5 : +m[1] * 10) : 999; };
     return { cells, rows, cols, all, grades: [...rows.keys()].sort((a, b) => order(a) - order(b)), subjects: [...cols.keys()].sort((a, b) => cols.get(b).f - cols.get(a).f) };
   }
 
