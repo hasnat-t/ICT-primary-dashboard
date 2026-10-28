@@ -409,7 +409,7 @@
         if (!vs.length) continue;
         const [lowN, lowV] = vs[0], [hiN, hiV] = vs[vs.length - 1];
         if (hiV < 60) att.push({ v: lowV, focus: `sector:${lowN}`, title: `${MET[k].label} is under ${Math.ceil(hiV / 5) * 5}% in every sector`, body: `All ICT is at ${P1(MET[k].f(A))}. ${lowN} is lowest at ${P1(lowV)}.`, tag: `Focus ${lowN} →` });
-        else if (lowV < 70) att.push({ v: lowV, focus: `sector:${lowN}`, title: `${lowN} trails on ${MET[k].label.replace('LP', 'lesson-plan').toLowerCase()}`, body: `${P1(lowV)} against ${P1(MET[k].f(A))} across ICT; ${hiN} leads at ${P1(hiV)}.`, tag: `Focus ${lowN} →` });
+        else if (lowV < 70) att.push({ v: lowV, focus: `sector:${lowN}`, title: `${lowN} trails on ${MET[k].label}`, body: `${P1(lowV)} against ${P1(MET[k].f(A))} across ICT; ${hiN} leads at ${P1(hiV)}.`, tag: `Focus ${lowN} →` });
       }
       const best = secs.map(([n, s]) => [n, ((MET.lp.f(s) || 0) + (MET.dc.f(s) || 0)) / 2, s]).sort((a, b) => b[1] - a[1])[0];
       if (best) att.push({ v: 85, focus: `sector:${best[0]}`, title: `${best[0]} leads on lesson plans and recordings`, body: `LP engagement ${P1(MET.lp.f(best[2]))} and DC coverage ${P1(MET.dc.f(best[2]))}.`, tag: `Focus ${best[0]} →` });
