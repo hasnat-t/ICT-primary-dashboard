@@ -219,8 +219,9 @@ function buildTeacherGrades(rows, ro) {
   return out;
 }
 
-// HITL observers: [{ id: id8, name, role }]; a repeated id8 would merge two coaches, so it fails the part.
-function buildCoaches(rows) {
+// HITL observers: [{ id: id8, name, role, hide? }]; a repeated id8 would merge two coaches, so it fails the part.
+// config/coach-overrides.json renames coaches and hides some from the per-coach table (totals keep them).
+function buildCoaches(rows, ov = require('./config/coach-overrides.json')) {
   const out = [];
   const seen = new Set();
   for (const r of rows) {
@@ -228,7 +229,9 @@ function buildCoaches(rows) {
       if (p.length !== 3) throw new Error('coaches: malformed record');
       if (seen.has(p[0])) throw new Error('coaches: duplicate coach key');
       seen.add(p[0]);
-      out.push({ id: p[0], name: p[1].trim(), role: p[2] });
+      const c = { id: p[0], name: (ov.rename || {})[p[0]] || p[1].trim(), role: p[2] };
+      if ((ov.hide_roles || []).includes(c.role) || (ov.hide || {})[p[0]]) c.hide = true;
+      out.push(c);
     }
   }
   return out;

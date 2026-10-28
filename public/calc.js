@@ -463,12 +463,12 @@
       }
       per[Math.min(k, 4)]++;
     }
-    const list = [...coaches.entries()].map(([id, c]) => {
+    const list = [...coaches.entries()].filter(([id]) => !(coachName.get(id) || {}).hide).map(([id, c]) => {
       const m = coachName.get(id);
       return { key: id, name: m ? m.name || '(no name)' : id ? '(not in coach list)' : '(no coach recorded)', role: m ? m.role : '',
         n: c.n, teachers: c.t.size, schools: c.s.size, sectors: [...c.sec].sort().join(', '), C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
     }).sort((a, b) => b.n - a.n);
-    return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: list, hasCoach, hasCoachList: !!data.coaches };
+    return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: list, hidden: [...coaches.keys()].filter((id) => (coachName.get(id) || {}).hide).length, hasCoach, hasCoachList: !!data.coaches };
   }
 
   return { hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };

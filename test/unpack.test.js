@@ -31,6 +31,8 @@ test('lp and observations unpack to arrays; unknown teachers fail the part', () 
   assert.deepStrictEqual(U.buildCoaches([{ school_id: 'coaches', n: 2, t: 'cccc0001|Ayesha K|coach~cccc0002||coach' }]),
     [{ id: 'cccc0001', name: 'Ayesha K', role: 'coach' }, { id: 'cccc0002', name: '', role: 'coach' }]);
   assert.throws(() => U.buildCoaches([{ school_id: 'coaches', n: 2, t: 'cccc0001|A|coach~cccc0001|B|coach' }]), /duplicate/);
+  assert.deepStrictEqual(U.buildCoaches([{ school_id: 'coaches', n: 3, t: 'cccc0001|A|coach~cccc0002|B|principal~cccc0003|C|coach' }],
+    { hide_roles: ['principal'], hide: { cccc0003: 'C' }, rename: { cccc0001: 'A2' } }).map((c) => [c.name, !!c.hide]), [['A2', false], ['B', true], ['C', true]]);
   assert.deepStrictEqual(U.buildTeacherGrades([{ school_id: 'sB', n: 1, t: 'aaaa1111|4,5' }], ro), [[1, '4,5']]);
   assert.strictEqual(o.observe2_excluded, 2);
 });

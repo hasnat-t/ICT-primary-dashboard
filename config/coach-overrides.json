@@ -1,0 +1,12 @@
+{
+  "_note": "Coach table display fixes requested by Hasnat (2026-10-28). Keys are the first 8 characters of the observer's user id. Hidden coaches are left out of the per-coach table only; their HITL observations still count in every total.",
+  "hide_roles": ["principal"],
+  "hide": {
+    "a8bf5a34": "Hasnat Tariq",
+    "b0a2d9ff": "Amena Ahmed",
+    "c30c79f1": "Haroon Yaseen"
+  },
+  "rename": {
+    "21f1119a": "Irum Afzal"
+  }
+}
