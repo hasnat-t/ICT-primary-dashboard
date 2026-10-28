@@ -571,6 +571,66 @@
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
 
+  // DC observations by lesson subject and by the teacher's roster grade, with section scores side by side.
+  const DC_SECS = [['hlp', 'Teaching practices'], ['se', 'Student engagement'], ['tsk3', 'Subject knowledge'], ['lpf', 'Lesson-plan fidelity']];
+  const DC_MIN = 30;   // fewest lessons for a group to be ranked
+  function dcAnalytics() {
+    const D = Calc.dcStats(S.P, sel());
+    if (!D.n) return '';
+    if (!D.hasSubj) return card('c-dcx', 'DC analytics by subject and grade', 'Updating now: the dashboard is refreshing after an update. This part appears by itself when it finishes.', '');
+    const sp = (o, k) => (o.fico[k][2] ? fpct(o.fico[k]) : null);
+    const cols = (what) => [
+      { k: 'name', label: what, val: (r) => r.key, fmt: (r) => esc(r.key) },
+      { k: 'n', label: 'Lessons recorded', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'share', label: 'Share of lessons', num: true, val: (r) => r.n / D.n, fmt: (r) => P1(ratio(r.n, D.n)) },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
+    ];
+    const note = `Average DC score per FICO section · ${esc(scopeName())} · ${periodText()}. Subject knowledge is the v3 rubric (from 8 Sep) only: the earlier v2 scored every lesson on maths and science items, which makes subjects look unequal by design. Lesson-plan fidelity counts only lessons with a plan attached.`;
+
+    // what stands out: best and weakest subject and grade per section, among groups with enough lessons
+    const ranked = (arr, k) => arr.filter((r) => r.fico[k][2] >= DC_MIN && !/not recorded|Other|No class/.test(r.key)).map((r) => ({ key: r.key, v: sp(r, k), n: r.fico[k][2] })).sort((a, b) => b.v - a.v);
+    const line = (arr, k, l, what) => {
+      const r = ranked(arr, k);
+      if (r.length < 2) return '';
+      const hi = r[0], lo = r[r.length - 1];
+      return `<li><b>${l}</b>: ${what} <b>${esc(hi.key)}</b> scores highest (${P1(hi.v)}), <b>${esc(lo.key)}</b> lowest (${P1(lo.v)}), a gap of ${(hi.v - lo.v).toFixed(1)} points.</li>`;
+    };
+    const top = D.subjects.filter((r) => !/not recorded/.test(r.key));
+    const busiestG = D.grades.filter((r) => r.key !== 'No class on the roster').sort((a, b) => b.n - a.n)[0];
+    const facts = `<ul class="facts">
+      ${top[0] ? `<li><b>${esc(top[0].key)}</b> is the most recorded subject: ${P1(ratio(top[0].n, D.n))} of DC lessons${top[1] ? `, then ${esc(top[1].key)} (${P1(ratio(top[1].n, D.n))})` : ''}.</li>` : ''}
+      ${busiestG ? `<li>Teachers on <b>${esc(busiestG.key)}</b> record the most lessons (${N(busiestG.n)}).</li>` : ''}
+      ${DC_SECS.map(([k, l]) => line(D.subjects, k, l, 'by subject,')).join('')}
+      ${DC_SECS.map(([k, l]) => line(D.grades, k, l, 'by grade,')).join('')}
+    </ul><p class="note">Ranked only where a subject or grade has at least ${DC_MIN} scored lessons.</p>`;
+
+    // grade x subject heatmap: lessons recorded, or one section's average score
+    const view = S.dview || 'n';
+    const subs = D.subjects.map((r) => r.key);
+    const mx = Math.max(1, ...[...D.cells.values()].map((c) => c.n));
+    const cell = (o) => {
+      if (!o || !o.n) return '<span class="hm-c na">—</span>';
+      if (view === 'n') { const a = o.n / mx; return `<span class="hm-c" style="background:rgba(31,122,76,${(0.15 + 0.85 * a).toFixed(2)});color:${a > 0.45 ? '#FFF' : 'var(--fg)'}" title="${N(o.n)} lessons by ${N(o.teachers)} teachers">${N(o.n)}</span>`; }
+      const v = sp(o, view);
+      if (v === null) return '<span class="hm-c na">—</span>';
+      const b = band(v);
+      return `<span class="hm-c ${b}" title="${P1(v)} · ${N(o.fico[view][2])} scored lessons"><span><i>${GLYPH[b]}</i>${P1(v)}<small>${N(o.fico[view][2])} lessons</small></span></span>`;
+    };
+    const tpl = `grid-template-columns: minmax(130px, 1.1fr) repeat(${subs.length}, minmax(78px, 1fr))`;
+    const head = `<div class="qg-r qg-h" style="${tpl}"><span>Grade</span>${subs.map((c) => `<span>${esc(c)}</span>`).join('')}</div>`;
+    const body = D.grades.map((g) => `<div class="qg-r" style="${tpl}"><span class="qg-n">${esc(g.key)}</span>${subs.map((c) => cell(D.cells.get(`${g.key}|${c}`))).join('')}</div>`).join('');
+    const seg = `<div class="seg" role="group" aria-label="Show">${[['n', 'Lessons recorded'], ...DC_SECS].map(([k, l]) => `<button type="button" data-dview="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>`;
+
+    const gradeNote = D.hasGrades ? 'Grade is the teacher\'s, from their classes on the roster: a lesson has no grade of its own, so a teacher on two grades counts in both and the grade rows do not add up to the total.' : 'Grades are not loaded yet: the dashboard may still be refreshing after an update.';
+    return `<div class="sec-h"><h2>DC analytics by subject and grade</h2><p class="note">${N(D.n)} DC lessons by ${N(D.teachers)} teachers · ${esc(scopeName())} · ${periodText()}. Subject is the one the Digital Coach heard in the recording.</p></div>`
+      + card('c-dcx', 'What stands out', '', facts)
+      + card('c-dcs', 'By subject', note, table('dcs', cols('Subject'), D.subjects, { sort: { k: 'n', dir: -1 }, noLegend: true }))
+      + card('c-dcg', 'By grade', `${gradeNote} ${note}`, table('dcg', cols('Grade'), D.grades, { noLegend: true }))
+      + card('c-dch', 'Grade × subject', `Pick what to show. Scores are coloured by the performance bands. ${D.hasGrades ? '' : gradeNote}`,
+        `<div class="row">${seg}</div>${view === 'n' ? '' : legend().replace('<span><i class="zero"></i>None in this period</span>', '')}<div class="xscroll"><div class="qg">${head}${body}</div></div>`);
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
@@ -903,7 +963,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: viewDc, hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
@@ -934,6 +994,7 @@
     else if (b.dataset.dl) download(b.dataset.dl);
     else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }
     else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
+    else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
     else if (b.dataset.focus) {
       const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);
       if (kind === 'clear') { S.sector = ''; S.school = ''; }

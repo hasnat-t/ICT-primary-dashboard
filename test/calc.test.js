@@ -12,8 +12,8 @@ function sample() {
     teachers: [{ s: 0, name: 'T0', lv: 'P' }, { s: 0, name: 'T1', lv: 'PM' }, { s: 1, name: 'T2', lv: 'P' }, { s: 2, name: 'T3', lv: 'P' }],
     lp: [[0, 2, 1, 0, 2, 1, 1], [0, 9, 1, 0, 1, 0, 1], [1, 9, 0, 1, 0, 0, 0], [3, 20, 1, 0, 1, 1, 1]],
     obs: [
-      [0, 2, 'D', 'L', 18, 24, 30, 48, 20, 28, 30, 40],      // v3 subject scale; taught a recent Rumi plan
-      [0, 3, 'D', '-', 20, 32, 24, 48, 14, 28, null, null],  // v2 subject scale, no plan attached
+      [0, 2, 'D', 'L', 18, 24, 30, 48, 20, 28, 30, 40, 'm'], // v3 subject scale; taught a recent Rumi plan
+      [0, 3, 'D', '-', 20, 32, 24, 48, 14, 28, null, null, 'u'], // v2 subject scale, no plan attached
       [2, 3, 'H', 'C', 12, 24, 36, 48, 21, 28, 20, 40],
       [2, 4, 'H', 'P', 10, 20, 12, 16, 21, 28, 20, 40],      // HLP out of 16 = unknown scale: not pooled
     ],
@@ -25,6 +25,7 @@ function sample() {
     quiz_sectors: { A: [['a', '', 'L', 6], ['o', '202608', 'L', 6], ['w', '2', 'L', 6]], B: [], ALL: [['a', '', 'L', 6], ['o', '202608', 'L', 6], ['w', '2', 'L', 6]] },
     exams: [[0, 9, 3, 2, 1, 0, 1], [3, 20, 1, 1, 0, 0, 0]],
     training: [[0, 1, 46, 10, 0, 0, '1'], [3, 0, 5, 0, 0, 0, '']],
+    tgr: [[0, '4,5']],
   };
 }
 
@@ -170,4 +171,16 @@ test('exam analytics: subjects, sources, surfaces, weekdays, chapters', () => {
   assert.strictEqual(E.wd[0], 2);                         // generated on Monday 3 Aug
   assert.deepStrictEqual(E.chapters.map((c) => c.key), ['Grade 4|Mathematics|3']);
   assert.strictEqual(C.examStats(C.prepare(data), { from: 0, to: 30, sector: 'A' }).req, 3);
+});
+
+test('DC analytics: by lesson subject and by roster grade (a teacher on two grades counts in each)', () => {
+  const data = sample();
+  data.obs.push([3, 5, 'D', '-', 12, 24, 24, 48, 14, 28, null, null, 'm']);
+  const D = C.dcStats(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([D.n, D.teachers], [3, 2]);
+  assert.deepStrictEqual(D.subjects.map((x) => [x.key, x.n]), [['Mathematics', 2], ['Urdu', 1]]);
+  assert.deepStrictEqual(D.grades.map((x) => [x.key, x.n]), [['Grade 4', 2], ['Grade 5', 2], ['No class on the roster', 1]]);
+  assert.strictEqual(D.cells.get('Grade 4|Mathematics').n, 1);
+  assert.deepStrictEqual(D.subjects[0].fico.hlp, [54, 96, 2]);
+  assert.strictEqual(C.dcStats(C.prepare(data), { from: 0, to: 30, sector: 'B' }).n, 1);
 });

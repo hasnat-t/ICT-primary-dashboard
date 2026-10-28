@@ -317,3 +317,6 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .qg-t { border-top: 2px solid var(--ctl); padding-top: 4px; }
 .mbar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line-2); }
 .mbar span { height: 100%; }
+
+/* DC analytics */
+.facts { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }

@@ -88,7 +88,8 @@
     for (const r of data.training || []) training[r[0]] = r;
     const modules = data.modules || MODULES;
     return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
-      parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+      grades: (() => { const g = new Array(nT).fill(null); for (const r of data.tgr || []) g[r[0]] = r[1]; return g; })(),
+      parts: { teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -390,5 +391,37 @@
         subjects: flat(bSubj), scopes: flat(bScope), grades: flat(bGrade), surfaces: flat(bSurf) } };
   }
 
-  return { examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // DC observations by lesson subject and by the observed teacher's roster grade (coaching-query-rules.md §1g: a teacher on
+  // two grades counts in each, so grade lines never add up; no class = its own line). Subject is the DC recording's own.
+  const DC_SUBJECT = { u: 'Urdu', m: 'Mathematics', e: 'English', i: 'Islamiat', s: 'Science', c: 'Social studies', g: 'General knowledge', o: 'Other subjects', '': 'Subject not recorded' };
+  const gradeName = (g) => (g === 'ey' ? 'Early years' : +g >= 6 ? 'Grades 6–12' : `Grade ${g}`);
+  function dcStats(P, opts) {
+    const { data } = P;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const mk = () => ({ n: 0, t: new Set(), f: blankFico() });
+    const subj = new Map(), grade = new Map(), cell = new Map(), all = mk();
+    const add = (m, k, ti, r) => { if (!m.has(k)) m.set(k, mk()); const o = m.get(k); o.n++; o.t.add(ti); addFico(o.f, r); };
+    let hasSubj = false;
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      const T = data.teachers[ti];
+      if (opts.sector && data.schools[T.s].sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      const gs = P.grades[ti] ? [...new Set(P.grades[ti].split(',').map(gradeName))] : ['No class on the roster'];
+      for (const r of P.obs[ti]) {
+        if (r[2] !== 'D' || r[1] < from || r[1] > to) continue;
+        if (r[12] !== undefined) hasSubj = true;
+        const sb = DC_SUBJECT[r[12] || ''] || DC_SUBJECT.o;
+        all.n++; all.t.add(ti); addFico(all.f, r);
+        add(subj, sb, ti, r);
+        for (const g of gs) { add(grade, g, ti, r); add(cell, `${g}|${sb}`, ti, r); }
+      }
+    }
+    const flat = (m) => [...m.entries()].map(([k, o]) => ({ key: k, n: o.n, teachers: o.t.size, fico: o.f }));
+    const order = (k) => (k === 'Early years' ? 0 : k === 'Grades 6–12' ? 60 : k === 'No class on the roster' ? 99 : +k.replace('Grade ', '') * 10);
+    return { n: all.n, teachers: all.t.size, fico: all.f, hasSubj, hasGrades: !!data.tgr,
+      subjects: flat(subj).sort((a, b) => (/^(Other|Subject not)/.test(a.key) - /^(Other|Subject not)/.test(b.key)) || b.n - a.n), grades: flat(grade).sort((a, b) => order(a.key) - order(b.key)),
+      cells: new Map([...cell.entries()].map(([k, o]) => [k, { n: o.n, teachers: o.t.size, fico: o.f }])) };
+  }
+
+  return { dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

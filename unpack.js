@@ -65,11 +65,11 @@ function buildObservations(rows, ro) {
   for (const r of rows) {
     observe2 += Number(r.observe2_excluded) || 0;
     for (const p of records('observations', r)) {
-      if (p.length !== 12) throw new Error('observations: malformed record');
+      if (p.length !== 13) throw new Error('observations: malformed record');
       const ti = teacherOf(ro, r.school_id, p[0], miss);
       if (ti === undefined) continue;
-      // teacher, day, src (D/H), stage (-/C/P/A), then score,max for TSK, HLP, SE, LPF (null when not scored)
-      out.push([ti, +p[1], p[2], p[3], ...p.slice(4).map(num)]);
+      // teacher, day, src (D/H), stage (-/C/P/A), score,max for TSK, HLP, SE, LPF (null when not scored), DC lesson subject code
+      out.push([ti, +p[1], p[2], p[3], ...p.slice(4, 12).map(num), p[12]]);
     }
   }
   if (miss.n) throw new Error(`observations: ${miss.n} records for teachers not in the roster`);
@@ -203,6 +203,21 @@ function buildExamDetail(rows, ro) {
   return out;
 }
 
+// Roster grades per teacher: [teacher, 'grade,grade'] (1..12, ey = early years). Teachers with no class are absent.
+function buildTeacherGrades(rows, ro) {
+  const out = [];
+  const miss = { n: 0 };
+  for (const r of rows) {
+    for (const p of records('teacher_grades', r, '|')) {
+      if (p.length !== 2) throw new Error('teacher_grades: malformed record');
+      const ti = teacherOf(ro, r.school_id, p[0], miss);
+      if (ti !== undefined) out.push([ti, p[1]]);
+    }
+  }
+  if (miss.n) throw new Error(`teacher_grades: ${miss.n} records for teachers not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -225,4 +240,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, rosterSig, MIN_SCHOOLS };
