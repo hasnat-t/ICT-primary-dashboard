@@ -252,7 +252,7 @@ table.t tfoot td { font-weight: 600; background: var(--panel-2); position: stick
 #tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 6px 10px; font-size: 12px; white-space: nowrap; z-index: 30; color: var(--fg); }
 
 /* modal */
-dialog.modal { border: 0; padding: 0; background: transparent; max-width: min(64rem, calc(100vw - 24px)); width: 100%; max-height: calc(100dvh - 32px); color: var(--fg); font-family: var(--body); }
+dialog.modal { border: 0; padding: 0; background: transparent; max-width: min(80rem, calc(100vw - 24px)); width: 100%; max-height: calc(100dvh - 32px); color: var(--fg); font-family: var(--body); }
 dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .m-panel { background: var(--bg); border-radius: var(--r); box-shadow: var(--shadow); display: flex; flex-direction: column; max-height: calc(100dvh - 32px); overflow: hidden; }
 .m-head { display: flex; gap: 12px; align-items: flex-start; background: var(--navy); color: #FFF; padding: 16px 22px; }
@@ -289,3 +289,11 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
   .scroll { max-height: 70vh; }
 }
 @media (pointer: coarse) { .seg button { min-height: 44px; } }
+
+.m-head { align-items: center; }
+.m-tt { min-width: 0; flex: 1; }
+.m-head .back { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #4A5464; background: transparent; color: #FFF; font-size: 13px; font-weight: 600; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) {
+  dialog.modal[open] .m-panel { animation: mIn .22s cubic-bezier(.22, 1, .36, 1); }
+  @keyframes mIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+}

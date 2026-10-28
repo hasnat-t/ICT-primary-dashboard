@@ -91,6 +91,7 @@
   // cols: {k, label, src?, num?, val(row) -> sortable value, fmt?(row) -> html, levels?: ['sector','school','teacher']}
   function table(id, cols, rows, opt = {}) {
     const level = opt.level;
+    tableCols[id] = cols;
     cols = cols.filter((c) => !c.levels || c.levels.includes(level));
     const sort = S.sort[id] || opt.sort || { k: cols[0].k, dir: 1 };
     const c0 = cols.find((c) => c.k === sort.k) || cols[0];
@@ -108,6 +109,7 @@
     return `${opt.noLegend ? '' : legend()}<div class="scroll"><table class="t" id="tbl-${id}"><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="empty">Nothing to show for this selection.</td></tr>`}</tbody>${foot}</table></div>`;
   }
   const rowHandlers = {};
+  const tableCols = {};
 
   // The rows one level below the current selection: sectors, then a sector's schools, then a school's teachers.
   function levelRows(R) {
@@ -116,9 +118,10 @@
     return { level: 'sector', rows: [...R.sectors.entries()].map(([n, g]) => Object.assign(g, { name: n, key: n })), what: 'sectors' };
   }
   function drill(level, key) {
-    if (level === 'sector') { S.sector = key; S.school = ''; render(); }
-    else if (level === 'school') { S.school = String(key); render(); }
-    else openTeacher(+key);
+    const cols = tableCols[S.lastTable];
+    if (level === 'sector') modalOpen({ kind: 'sector', key, cols });
+    else if (level === 'school') modalOpen({ kind: 'school', key: +key, cols });
+    else modalOpen({ kind: 'teacher', key: +key });
   }
   const nameCol = (level) => ({ k: 'name', label: level === 'sector' ? 'Sector' : level === 'school' ? 'School' : 'Teacher',
     val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.emis ? ` <span class="dim">EMIS ${esc(r.emis)}</span>` : ''}${r.t && r.t.lv.length > 1 ? ' <span class="dim">(also middle/high)</span>' : ''}` });
@@ -578,7 +581,7 @@
     const cols = [nameCol('school'), { k: 'sector', label: 'Sector', val: (r) => r.sector }, COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct,
       ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'hitl-hlp'), COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
     return card('c-sch', `All schools · ${S.sector || 'All ICT'} · ${periodText()}`, `${N(shown.length)} schools with primary teachers. One complete row per school; click for its teachers.`,
-      table('sch', cols, shown, { level: 'school', onRow: (k) => { S.school = String(k); S.sector = S.data.schools[+k].sector; S.tab = 'teachers'; render(); }, rowKey: (r) => r.key }),
+      table('sch', cols, shown, { level: 'school', onRow: (k) => modalOpen({ kind: 'school', key: +k, cols: tableCols.sch }), rowKey: (r) => r.key }),
       `<div class="row"><input class="inp" type="search" id="search" placeholder="Search school or EMIS" value="${esc(S.search)}"></div>`);
   }
 
@@ -616,7 +619,7 @@
   }
 
   // ---------- teacher scorecard ----------
-  function openTeacher(ti) {
+  function teacherView(ti) {
     const T = S.data.teachers[ti], sc = S.data.schools[T.s];
     const R = Calc.rollup(S.P, { from: S.from, to: S.to, school: T.s });
     const t = R.teachers.find((x) => x.i === ti);
@@ -627,9 +630,7 @@
     const keyOf = (d) => (S.gran === 'day' ? d : S.gran === 'week' ? Math.max(Calc.mondayOf(S.data.window_start, d), 0) : Calc.monthKey(S.data.window_start, d));
     for (const r of S.P.lp[ti]) if (r[1] >= S.from && r[1] <= S.to && by.has(keyOf(r[1]))) by.get(keyOf(r[1])).plan += r[2] || r[3] ? 1 : 0;
     for (const r of S.P.obs[ti]) if (r[1] >= S.from && r[1] <= S.to && by.has(keyOf(r[1]))) by.get(keyOf(r[1]))[r[2] === 'D' ? 'dc' : 'hitl']++;
-    $('#m-title').textContent = T.name;
-    $('#m-sub').textContent = `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`;
-    $('#m-body').innerHTML = `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
+    return { title: T.name, sub: `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`, html: `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
       <div class="kpis">${kpi('Days a plan was generated', N(t.lpDays))}${kpi('Plans generated', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
       ${kpi('DC observations', N(t.dc), 'lessons recorded')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`)}
       ${kpi('Quizzes made', N(t.made))}${kpi('Exam generator', N(t.exOk), `papers · ${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
@@ -637,11 +638,61 @@
       <h2>FICO section scores</h2>${ficoBlock(g)}
       <h2>Activity over time</h2>${chart([...by.values()].map((b) => ({ label: b.label, values: [b.plan, b.dc, b.hitl] })),
         [{ name: S.gran === 'day' ? 'Generated a plan' : 'Days with a plan generated', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
-      <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>`;
+      <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>` };
+  }
+  // ---------- drill-down card ----------
+  // A stack of views shown in the centred card: a sector's schools, a school's teachers, a teacher's scorecard.
+  const MS = [];
+  function openTeacher(ti) { modalOpen({ kind: 'teacher', key: ti }); }
+  function modalOpen(v) {
+    if (!$('#modal').open) MS.length = 0;
+    MS.push(v);
+    renderModal();
+  }
+  function modalCols(cols, level) {
+    const base = cols && cols.length ? cols.slice(1) : [COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.exOk, COL.onProg];
+    return [nameCol(level), ...base];
+  }
+  function miniKpis(g) {
+    return `<div class="kpis">${kpi('Primary teachers', N(g.teachers), `${N(g.schools)} school${g.schools === 1 ? '' : 's'}`)}
+      ${kpiP('LP engagement', ratio(g.g15, g.teachers), `${N(g.g15)} generated a plan`)}${kpiP('DC coverage', ratio(g.dcT, g.teachers), `${N(g.dcT)} recorded`)}
+      ${kpiP('HITL coverage', ratio(g.hitlT, g.teachers), `${N(g.hitlT)} observed`)}${kpiP('Exam generator', ratio(g.exT, g.teachers), `${N(g.exT)} teachers`)}</div>`;
+  }
+  function renderModal() {
+    const v = MS[MS.length - 1];
+    if (!v) return;
+    let title, sub, html;
+    const trail = MS.map((x) => (x.kind === 'sector' ? x.key : x.kind === 'school' ? S.data.schools[x.key].name : S.data.teachers[x.key].name));
+    if (v.kind === 'sector') {
+      const R = Calc.rollup(S.P, { from: S.from, to: S.to, sector: v.key });
+      const rows = [...R.schools.values()].map((g) => Object.assign(g, { name: S.data.schools[g.s].name, emis: S.data.schools[g.s].emis, key: g.s }));
+      title = v.key;
+      sub = `Sector · ${N(R.all.schools)} schools · ${N(R.all.teachers)} primary teachers · ${periodText()}`;
+      html = `<section class="card" id="m-c1"><div class="card-h"><h2>Schools in ${esc(v.key)}</h2><button class="dl" data-dl="m-c1">Download image</button></div>${miniKpis(R.all)}
+        <p class="note">Click a school to see its teachers.</p>
+        ${table('m-sch', modalCols(v.cols, 'school'), rows, { level: 'school', onRow: (k) => modalOpen({ kind: 'school', key: +k, cols: v.cols }), rowKey: (r) => r.key, foot: R.all })}</section>`;
+    } else if (v.kind === 'school') {
+      const sc = S.data.schools[v.key];
+      const R = Calc.rollup(S.P, { from: S.from, to: S.to, school: v.key });
+      const rows = R.teachers.map((t) => Object.assign(Calc.asGroup(t), { t, name: t.name, key: t.i }));
+      title = sc.name;
+      sub = `EMIS ${sc.emis}${MS.length > 1 ? '' : ` · ${sc.sector}`} · ${N(R.all.teachers)} primary teachers · ${periodText()}`;
+      html = `<section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
+        <p class="note">Click a teacher for the scorecard. Contains teacher names — internal use only.</p>
+        ${table('m-tch', modalCols(v.cols, 'teacher'), rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`;
+    } else {
+      ({ title, sub, html } = teacherView(v.key));
+    }
+    $('#m-title').textContent = title;
+    $('#m-sub').textContent = MS.length > 1 ? `${trail.slice(0, -1).join(' › ')} ›  ${sub}` : sub;
+    $('#m-back').hidden = MS.length < 2;
+    $('#m-body').innerHTML = html;
     const m = $('#modal');
     if (!m.open) m.showModal();
+    $('#m-body').scrollTop = 0;
     drawCharts(m);
   }
+
 
   // ---------- render ----------
   function render() {
@@ -708,8 +759,9 @@
       const cur = S.sort[id];
       S.sort[id] = { k, dir: cur && cur.k === k ? -cur.dir : (k === 'name' || k === 'school' || k === 'sector' ? 1 : -1) };
       render();
-    } else if (b.dataset.row) { const i = b.dataset.row.indexOf(':'); const h = rowHandlers[b.dataset.row.slice(0, i)]; if (h) h(b.dataset.row.slice(i + 1)); }
+    } else if (b.dataset.row) { const i = b.dataset.row.indexOf(':'); S.lastTable = b.dataset.row.slice(0, i); const h = rowHandlers[S.lastTable]; if (h) h(b.dataset.row.slice(i + 1)); }
     else if (b.id === 'm-x') $('#modal').close();
+    else if (b.id === 'm-back') { MS.pop(); renderModal(); }
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('tr.click')) e.target.click(); });
   document.addEventListener('change', (e) => {
