@@ -647,7 +647,7 @@
     const again = H.per[2] + H.per[3] + H.per[4];
 
     const facts = `<ul class="facts">
-      <li><b>${N(named.length)} coaches</b>${H.hidden ? ` and ${N(H.hidden)} other observers` : ''} held ${N(H.n)} HITL observations of ${N(H.observed)} teachers (${P1(ratio(H.observed, H.teachers))} of ${N(H.teachers)} primary teachers).</li>
+      <li><b>${N(named.length)} coaches</b>${H.principals.length ? `, ${N(H.principals.length)} principals` : ''}${H.hidden ? ` and ${N(H.hidden)} other observers` : ''} held ${N(H.n)} HITL observations of ${N(H.observed)} teachers (${P1(ratio(H.observed, H.teachers))} of ${N(H.teachers)} primary teachers).</li>
       ${top ? `<li>Most observations: <b>${esc(top.name)}</b> with ${N(top.n)} observations of ${N(top.teachers)} teachers.</li>` : ''}
       <li><b>${N(H.per[0])} teachers</b> have not had a HITL observation in this period; ${N(again)} (${P1(ratio(again, H.observed))} of those observed) have had two or more.</li>
       <li><b>${P1(ratio(H.stage.C || 0, H.n))}</b> of observations are debriefed; ${N(H.stage.P || 0)} wait for the debrief and ${N(H.stage.A || 0)} for the coach's review.</li>
@@ -676,8 +676,19 @@
       ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, title: 'Average score this coach gave', val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
     ];
     const coaches = card('c-hc', 'By coach',
-      `Each coach's HITL observations of primary teachers · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality.${H.hidden ? ` ${N(H.hidden)} observers (school principals and a few accounts with only a handful of visits) are not listed here, but their observations count in every total.` : ''} Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
+      `Each coach's HITL observations of primary teachers · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality.${H.principals.length ? ' Principals have their own table below.' : ''}${H.hidden ? ` ${N(H.hidden)} other accounts with only a handful of visits are not listed; their observations still count in every total.` : ''} Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
       table('hc', ccols, H.coaches, { sort: { k: 'n', dir: -1 } }));
+
+    const P0 = H.principals, pn = P0.reduce((a, c) => a + c.n, 0);
+    const pcols = [
+      { k: 'name', label: 'Principal', val: (r) => r.name, fmt: (r) => esc(r.name) },
+      { k: 'school', label: 'Main school', title: 'The school where most of this principal’s observations are', val: (r) => r.school, fmt: (r) => esc(r.school) },
+      ...ccols.slice(1),
+    ];
+    const principals = P0.length ? card('c-hpr', 'Principals doing HITL',
+      `School principals who held HITL observations of their primary teachers · ${esc(scopeName())} · ${periodText()}. ${N(P0.length)} principals held ${N(pn)} observations (${P1(ratio(pn, H.n))} of all HITL). They are counted in every HITL total above, but not in the coach table. Contains names — internal use only.`,
+      table('hpr', pcols, P0, { sort: { k: 'n', dir: -1 } }))
+      : card('c-hpr', 'Principals doing HITL', `No principal held a HITL observation in ${periodText()}.`, '');
 
     const D = Calc.dcStats(S.P, sel(), 'H');
     const G = D.gsrc;
@@ -694,7 +705,7 @@
 
     return `<div class="sec-h"><h2>HITL analytics</h2><p class="note">${N(H.n)} HITL observations of ${N(H.observed)} teachers · ${esc(scopeName())} · ${periodText()}. Coach visits only — never added to DC observations.</p></div>`
       + card('c-hx', 'What stands out', '', facts)
-      + `<div class="cards2">${per}${days}</div>` + form + coaches + grades;
+      + `<div class="cards2">${per}${days}</div>` + form + coaches + principals + grades;
   }
 
   function viewHitl(R) {

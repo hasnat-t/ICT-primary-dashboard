@@ -59,7 +59,7 @@ const exd = [];
 for (const r of exams) exd.push([r[0], r[1], 8 + Math.floor(rnd() * 12), String(1 + Math.floor(rnd() * 5)), pick(['english', 'maths', 'urdu', 'science', 'islamiat']), pick(['s', 's', 'b', 'u']), pick(['w', 'p']), rnd() < 0.3 ? String(1 + Math.floor(rnd() * 8)) : '', r[2], r[3], 15, 12, 3, r[1] > 75 && rnd() < 0.3 ? pick(['f', 'f', 'f', 'c', 'p']) : '']);
 const tgr = teachers.map((_, i) => [i, rnd() < 0.15 ? null : rnd() < 0.8 ? String(1 + Math.floor(rnd() * 5)) : pick(['1,2', '3,4', '4,5', 'ey,1', '5,6'])]).filter((r) => r[1]);
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
-  coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: `Coach ${i + 1}`, role: 'coach' })),
+  coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: i < 5 ? `Head ${i + 1}` : `Coach ${i + 1}`, role: i < 5 ? 'principal' : 'coach', hide: i < 5 })),
   tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));

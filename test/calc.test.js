@@ -194,7 +194,10 @@ test('HITL analytics: observations per teacher, coaches, AI-form edits, grade fr
   assert.deepStrictEqual([H.n, H.teachers, H.observed], [2, 4, 1]);
   assert.deepStrictEqual(H.per, [3, 0, 1, 0, 0]);
   assert.deepStrictEqual([H.edits.u, H.edits.r, H.edits.n], [1, 1, 0]);
-  assert.deepStrictEqual(H.coaches.map((c) => [c.name, c.n, c.teachers, c.C, c.r]), [['Coach A', 2, 1, 1, 1]]);
+  assert.deepStrictEqual(H.coaches.map((c) => [c.name, c.n, c.teachers, c.C, c.r, c.school]), [['Coach A', 2, 1, 1, 1, 'S2']]);
+  data.coaches[0] = { id: 'cccc0001', name: 'Head A', role: 'principal', hide: true };
+  const H2 = C.hitlStats(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([H2.coaches.length, H2.principals.length, H2.principals[0].n, H2.hidden, H2.n], [0, 1, 2, 0, 2]);
   const G = C.dcStats(C.prepare(data), { from: 0, to: 30 }, 'H');
   assert.deepStrictEqual(G.grades.map((x) => [x.key, x.n]), [['Grade 4', 1], ['Grade unknown', 1]]);
 });

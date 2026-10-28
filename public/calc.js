@@ -454,21 +454,23 @@
         edits[r[15] || ''] = (edits[r[15] || ''] || 0) + 1;
         wd[weekday(r[1])]++;
         const id = r[14] || '';
-        if (!coaches.has(id)) coaches.set(id, { n: 0, t: new Set(), s: new Set(), sec: new Map(), C: 0, u: 0, nn: 0, r: 0, f: blankFico() });
+        if (!coaches.has(id)) coaches.set(id, { n: 0, t: new Set(), s: new Set(), sch: new Map(), sec: new Map(), C: 0, u: 0, nn: 0, r: 0, f: blankFico() });
         const c = coaches.get(id);
-        c.n++; c.t.add(ti); c.s.add(T.s); const sc = data.schools[T.s].sector; c.sec.set(sc, (c.sec.get(sc) || 0) + 1);
+        c.n++; c.t.add(ti); c.s.add(T.s); c.sch.set(T.s, (c.sch.get(T.s) || 0) + 1); const sc = data.schools[T.s].sector; c.sec.set(sc, (c.sec.get(sc) || 0) + 1);
         if (r[3] === 'C') c.C++;
         if (r[15] === 'u') c.u++; else if (r[15] === 'n') c.nn++; else if (r[15] === 'r') c.r++;
         addFico(c.f, r);
       }
       per[Math.min(k, 4)]++;
     }
-    const list = [...coaches.entries()].filter(([id]) => !(coachName.get(id) || {}).hide).map(([id, c]) => {
+    const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0][0];
+    const all = [...coaches.entries()].map(([id, c]) => {
       const m = coachName.get(id);
       return { key: id, name: m ? m.name || '(no name)' : id ? '(not in coach list)' : '(no coach recorded)', role: m ? m.role : '',
-        n: c.n, teachers: c.t.size, schools: c.s.size, sector: [...c.sec.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0], C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
+        n: c.n, teachers: c.t.size, schools: c.s.size, sector: top(c.sec), school: data.schools[top(c.sch)].name, hide: !!(m && m.hide), C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
     }).sort((a, b) => b.n - a.n);
-    return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: list, hidden: [...coaches.keys()].filter((id) => (coachName.get(id) || {}).hide).length, hasCoach, hasCoachList: !!data.coaches };
+    return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: all.filter((c) => !c.hide), principals: all.filter((c) => c.role === 'principal'),
+      hidden: all.filter((c) => c.hide && c.role !== 'principal').length, hasCoach, hasCoachList: !!data.coaches };
   }
 
   return { hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
