@@ -141,8 +141,8 @@
     dcT: { k: 'dcT', label: 'Teachers recorded', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => r.dcT, fmt: (r) => N(r.dcT) },
     dcPct: { k: 'dcPct', label: '% of teachers', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.dcT, r.teachers), fmt: (r) => cov(ratio(r.dcT, r.teachers)) },
     hitl: { k: 'hitl', label: 'HITL observations', src: 'hitl', num: true, title: 'HITL coach visits conducted (scored; not cancelled, abandoned, failed or test)', val: (r) => r.hitl, fmt: (r) => cnt(r, r.hitl) },
-    hitlT: { k: 'hitlT', label: 'Teachers visited', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => r.hitlT, fmt: (r) => N(r.hitlT) },
-    hitlPct: { k: 'hitlPct', label: '% visited', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.hitlT, r.teachers), fmt: (r) => cov(ratio(r.hitlT, r.teachers)) },
+    hitlT: { k: 'hitlT', label: 'Teachers observed', title: 'Different teachers with at least one HITL observation in the period (each counted once)', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => r.hitlT, fmt: (r) => N(r.hitlT) },
+    hitlPct: { k: 'hitlPct', label: '% observed', title: 'Teachers with at least one HITL observation ÷ primary teachers', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.hitlT, r.teachers), fmt: (r) => cov(ratio(r.hitlT, r.teachers)) },
     hitlC: { k: 'hitlC', label: 'Debriefed', src: 'hitl', num: true, title: 'Complete: the teacher got the debrief', val: (r) => r.hitlC, fmt: (r) => N(r.hitlC) },
     hitlP: { k: 'hitlP', label: 'Debrief pending', src: 'hitl', num: true, title: 'Reviewed by the coach, debrief not yet sent', val: (r) => r.hitlP, fmt: (r) => N(r.hitlP) },
     hitlA: { k: 'hitlA', label: 'Awaiting review', src: 'hitl', num: true, val: (r) => r.hitlA, fmt: (r) => N(r.hitlA) },
@@ -637,11 +637,11 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-hitl', `HITL observations · ${scopeName()} · ${periodText()}`, 'A coach observes the lesson in person. Held = conducted (scored, not cancelled, abandoned, failed or a test). Held = debriefed + debrief pending + awaiting review. <code>/observe2</code> visits use another rubric and are left out.',
-      `<div class="kpis">${kpi('HITL observations', N(a.hitl), '')}${kpi('Teachers visited', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)}`)}
+      `<div class="kpis">${kpi('HITL observations', N(a.hitl), '')}${kpi('Teachers observed at least once', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)}`)}
         ${kpi('Debriefed', N(a.hitlC), P1(ratio(a.hitlC, a.hitl)))}${kpi('Debrief pending', N(a.hitlP), '')}${kpi('Awaiting review', N(a.hitlA), '')}</div>
         <p class="note">${N(S.data.observe2_excluded || 0)} /observe2 visits (all time since 1 Aug, all schools shown) are not counted here.</p>`)
       + card('c-hitl-trend', 'HITL observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.hitl, g.teachersHitl] })),
-        [{ name: 'HITL observations', color: NAVY }, { name: 'Teachers visited', color: GREY }]), granSeg())
+        [{ name: 'HITL observations', color: NAVY }, { name: 'Teachers observed', color: GREY }]), granSeg())
       + card('c-hitl-t', `By ${level}`, '', table('hitl', [nameCol(level), COL.teachers, COL.hitl, COL.hitlT, COL.hitlPct, COL.hitlC, COL.hitlP, COL.hitlA, ...ficoCols().filter((c) => c.src === 'hitl')], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
