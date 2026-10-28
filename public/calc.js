@@ -265,5 +265,52 @@
     return o;
   }
 
-  return { dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // Lesson-plan analytics for a period and filter, from data.lpd (lessons, gen [teacher, day, hour, lesson, plans],
+  // taught [teacher, day, lesson, times]): by subject, grade, weekday, hour and lesson.
+  const SUBJECT = {
+    urdu: 'Urdu', english: 'English', math: 'Mathematics', maths: 'Mathematics', general_science: 'General science', islamiat: 'Islamiat',
+    general_knowledge: 'General knowledge (English)', general_knowledge_en: 'General knowledge (English)', general_knowledge_ur: 'General knowledge (Urdu)',
+    social_studies_en: 'Social studies (English)', social_studies_ur: 'Social studies (Urdu)', social_studies: 'Social studies (Urdu)', '': 'Typed topic (no subject)',
+  };
+  const subjectName = (code) => SUBJECT[code] || code.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  function lessonStats(P, opts) {
+    const { data } = P;
+    const d = data.lpd;
+    if (!d) return null;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const ok = (ti, day) => {
+      if (day < from || day > to) return false;
+      const T = data.teachers[ti], S = data.schools[T.s];
+      if (opts.sector && S.sector !== opts.sector) return false;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) return false;
+      return true;
+    };
+    const weekday = (day) => (new Date(Date.parse(data.window_start) + day * DAY).getUTCDay() + 6) % 7;   // 0 Monday
+    const subj = new Map(), grade = new Map(), lesson = new Map();
+    const wd = new Array(7).fill(0), wdDays = new Array(7).fill(0), hrs = new Array(24).fill(0);
+    const heat = Array.from({ length: 7 }, () => new Array(24).fill(0));
+    for (let day = from; day <= to; day++) wdDays[weekday(day)]++;
+    const bump = (m, k) => { if (!m.has(k)) m.set(k, { key: k, gen: 0, taught: 0, tg: new Set(), tt: new Set() }); return m.get(k); };
+    let genTotal = 0, taughtTotal = 0;
+    const genTeachers = new Set();
+    for (const [ti, day, hr, li, n] of d.gen) {
+      if (!ok(ti, day)) continue;
+      const L = d.lessons[li];
+      genTotal += n; genTeachers.add(ti);
+      const w = weekday(day);
+      wd[w] += n; hrs[hr] += n; heat[w][hr] += n;
+      for (const g of [bump(subj, subjectName(L.subject)), bump(grade, L.grade ? `Grade ${L.grade}` : 'No grade'), bump(lesson, li)]) { g.gen += n; g.tg.add(ti); }
+    }
+    for (const [ti, day, li, n] of d.taught) {
+      if (!ok(ti, day)) continue;
+      const L = d.lessons[li];
+      taughtTotal += n;
+      for (const g of [bump(subj, subjectName(L.subject)), bump(grade, L.grade ? `Grade ${L.grade}` : 'No grade'), bump(lesson, li)]) { g.taught += n; g.tt.add(ti); }
+    }
+    const flat = (m) => [...m.values()].map((g) => ({ key: g.key, gen: g.gen, taught: g.taught, teachersGen: g.tg.size, teachersTaught: g.tt.size }));
+    const lessons = flat(lesson).map((g) => Object.assign(g, { lesson: d.lessons[g.key], subject: subjectName(d.lessons[g.key].subject) }));
+    return { genTotal, taughtTotal, teachers: genTeachers.size, subjects: flat(subj), grades: flat(grade), lessons, wd, wdDays, hrs, heat };
+  }
+
+  return { lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

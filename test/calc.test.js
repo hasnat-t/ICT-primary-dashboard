@@ -118,3 +118,23 @@ test('exam papers: delivered, failed and teachers, by period', () => {
   assert.strictEqual(C.rollup(P, { from: 0, to: 10 }).all.exOk, 2);
   assert.strictEqual(C.series(P, { from: 0, to: 30 }, 'week').reduce((n, g) => n + g.exOk, 0), 3);
 });
+
+test('lesson-plan analytics: subject, weekday, hour and lessons taught', () => {
+  const data = sample();
+  data.lpd = {
+    lessons: [{ id: '', grade: '', subject: '', title: 'Typed' }, { id: 'grade_5_math_ch1_seg1', grade: '5', subject: 'math', title: 'Fractions' }],
+    gen: [[0, 2, 9, 1, 2], [3, 20, 10, 0, 1]],     // Mon 3 Aug 09:00, two maths plans; Fri 21 Aug 10:00, one typed plan
+    taught: [[0, 3, 1, 1]],
+  };
+  const L = C.lessonStats(C.prepare(data), { from: 0, to: 30 });
+  assert.strictEqual(L.genTotal, 3);
+  assert.strictEqual(L.taughtTotal, 1);
+  const maths = L.subjects.find((x) => x.key === 'Mathematics');
+  assert.deepStrictEqual([maths.gen, maths.taught, maths.teachersGen], [2, 1, 1]);
+  assert.strictEqual(L.wd[0], 2);           // Monday
+  assert.strictEqual(L.wd[4], 1);           // Friday
+  assert.strictEqual(L.hrs[9], 2);
+  assert.strictEqual(L.wdDays.reduce((a, b) => a + b, 0), 31);
+  assert.strictEqual(L.lessons.find((x) => x.lesson.title === 'Fractions').taught, 1);
+  assert.strictEqual(C.lessonStats(C.prepare(data), { from: 0, to: 30, sector: 'B' }).genTotal, 1);
+});

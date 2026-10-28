@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const db = require('./db');
-const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, rosterSig } = require('./unpack');
+const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, rosterSig } = require('./unpack');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -29,7 +29,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'observations', 'quizzes', 'quiz_sectors', 'exams', 'training'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'exams', 'training'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false };
 
@@ -88,18 +88,20 @@ const QUESTIONS = {
   observations: 'scheduled refresh: ICT Primary Teachers dashboard, Digital Coach and coach-visit observations with FICO section scores per primary teacher since 1 Aug 2026',
   quizzes: 'scheduled refresh: ICT Primary Teachers dashboard, quizzes made and children taking quizzes per primary teacher since 1 Aug 2026 (counts only)',
   quiz_sectors: 'scheduled refresh: ICT Primary Teachers dashboard, distinct children taking quizzes per sector since 1 Aug 2026 (counts only)',
+  lp_detail: 'scheduled refresh: ICT Primary Teachers dashboard, lesson plans generated per primary teacher by day, hour and curriculum lesson, and lessons taught in DC, since 1 Aug 2026',
+  lp_lessons: 'scheduled refresh: ICT Primary Teachers dashboard, curriculum lesson catalogue (lesson, grade, subject, title)',
   exams: 'scheduled refresh: ICT Primary Teachers dashboard, exam papers from the /assessment generator per primary teacher per day since 1 Aug 2026',
   training: 'scheduled refresh: ICT Primary Teachers dashboard, NIETE primary training per primary teacher, all time',
 };
 
 // Run a per-school packed query page by page (stable ORDER BY school_id) until a short page comes back.
-async function runPaged(name) {
+async function runPaged(name, size = PAGE_SIZE) {
   const rows = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const sql = SQL[name].replace('{{LIMIT}}', String(PAGE_SIZE)).replace('{{OFFSET}}', String(offset));
-    const page = await executeQuery(sql, `${QUESTIONS[name]} (page ${offset / PAGE_SIZE + 1})`);
+  for (let offset = 0; ; offset += size) {
+    const sql = SQL[name].replace('{{LIMIT}}', String(size)).replace('{{OFFSET}}', String(offset));
+    const page = await executeQuery(sql, `${QUESTIONS[name]} (page ${offset / size + 1})`);
     rows.push(...page);
-    if (page.length < PAGE_SIZE) break;
+    if (page.length < size) break;
     if (offset > 2000) throw new Error(`${name}: too many pages`);
   }
   if (new Set(rows.map((r) => r.school_id)).size !== rows.length) throw new Error(`${name}: a school came back twice across pages`);
@@ -133,9 +135,13 @@ async function refresh(reason) {
       ['quizzes', async () => ({ quiz: buildQuizzes(await runPaged('quizzes'), ro) })],
       ['quiz_sectors', async () => ({ quiz_sectors: buildQuizSectors(await executeQuery(SQL.quiz_sectors, QUESTIONS.quiz_sectors)) })],
       ['exams', async () => ({ exams: buildExams(await runPaged('exams'), ro) })],
+      ['lp_detail', async () => {
+        const lessons = buildLessons(await executeQuery(SQL.lp_lessons, QUESTIONS.lp_lessons));
+        return { lpd: buildLpDetail(await runPaged('lp_detail', Math.min(PAGE_SIZE, 25)), ro, lessons) };
+      }],
       ['training', async () => ({ training: buildTraining(await runPaged('training'), ro) })],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], training: ['training'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], training: ['training'] };
     for (const [name, run] of parts) {
       try {
         Object.assign(next, await run());

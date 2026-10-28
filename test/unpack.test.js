@@ -53,3 +53,13 @@ test('exams unpack per teacher-day', () => {
   assert.deepStrictEqual(U.buildExams([{ school_id: 'sB', n: 1, t: 'aaaa1111:40:3:2:1:0:1' }], ro), [[1, 40, 3, 2, 1, 0, 1]]);
   assert.throws(() => U.buildExams([{ school_id: 'sB', n: 1, t: 'aaaa1111:40:3:2' }], ro), /malformed/);
 });
+
+test('lesson detail: catalogue, typed plans and unknown lessons', () => {
+  const ro = roster();
+  const cat = Array.from({ length: 100 }, (_, i) => ({ id: `grade_1_urdu_ch1_seg${i}`, grade: '1', subject: 'urdu', title: `L${i}` }));
+  const d = U.buildLpDetail([{ school_id: 'sB', n: 3, t: 'p:aaaa1111:5:9:grade_1_urdu_ch1_seg3:2~p:aaaa1111:5:10::1~t:aaaa1111:6:grade_4_math_ch2_seg1:1' }], ro, cat);
+  assert.deepStrictEqual(d.gen, [[1, 5, 9, 4, 2], [1, 5, 10, 0, 1]]);
+  assert.deepStrictEqual(d.taught, [[1, 6, 101, 1]]);
+  assert.deepStrictEqual(d.lessons[101], { id: 'grade_4_math_ch2_seg1', grade: '4', subject: 'math', title: '' });
+  assert.throws(() => U.buildLessons([{ subject: 'urdu', n: 1, t: 'a|1|x' }]), /only 1 lessons/);
+});

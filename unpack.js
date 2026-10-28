@@ -127,6 +127,48 @@ function buildExams(rows, ro) {
   return out;
 }
 
+// Lesson catalogue: [{ id, grade, subject, title }], one row per subject packed "lesson_id|grade|title".
+function buildLessons(rows) {
+  const out = [];
+  for (const r of rows) {
+    for (const p of records('lp_lessons', { ...r, school_id: r.subject }, '|')) {
+      if (p.length !== 3) throw new Error('lp_lessons: malformed record');
+      out.push({ id: p[0], grade: p[1], subject: r.subject === '(none)' ? '' : r.subject, title: p[2].trim() });
+    }
+  }
+  if (out.length < 100) throw new Error(`lp_lessons: only ${out.length} lessons`);
+  return out;
+}
+
+// Lesson-plan detail. lessons[0] is "no curriculum lesson" (a typed plan); a lesson missing from the catalogue is added
+// with the grade and subject read from its id (grade_5_math_ch4_seg7).
+function buildLpDetail(rows, ro, catalogue) {
+  const lessons = [{ id: '', grade: '', subject: '', title: 'Typed topic (no curriculum lesson)' }, ...catalogue];
+  const idx = new Map(lessons.map((l, i) => [l.id, i]));
+  const lessonOf = (id) => {
+    if (!idx.has(id)) {
+      const m = id.match(/^grade_(\d+)_(.+?)_ch\d+/);
+      idx.set(id, lessons.length);
+      lessons.push({ id, grade: m ? m[1] : '', subject: m ? m[2] : '', title: '' });
+    }
+    return idx.get(id);
+  };
+  const gen = [];     // [teacher, day, hour, lesson, plans]
+  const taught = [];  // [teacher, day, lesson, times taught]
+  const miss = { n: 0 };
+  for (const r of rows) {
+    for (const p of records('lp_detail', r)) {
+      const ti = teacherOf(ro, r.school_id, p[1], miss);
+      if (ti === undefined) continue;
+      if (p[0] === 'p' && p.length === 6) gen.push([ti, +p[2], +p[3], lessonOf(p[4]), +p[5]]);
+      else if (p[0] === 't' && p.length === 5) taught.push([ti, +p[2], lessonOf(p[3]), +p[4]]);
+      else throw new Error('lp_detail: malformed record');
+    }
+  }
+  if (miss.n) throw new Error(`lp_detail: ${miss.n} records for teachers not in the roster`);
+  return { lessons, gen, taught };
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -149,4 +191,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, rosterSig, MIN_SCHOOLS };
