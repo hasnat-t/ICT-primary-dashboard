@@ -153,3 +153,15 @@ test('quiz scores: pooled score, grade x subject grid, filters', () => {
   const wk = C.series(P, { from: 0, to: 30 }, 'week');
   assert.strictEqual(wk.reduce((n, x) => n + x.qF, 0), 3);
 });
+
+test('exam analytics: subjects, sources, surfaces, weekdays, chapters', () => {
+  const data = sample();
+  data.exd = [[0, 2, 9, '4', 'maths', 's', 'w', '3', 2, 2, 20, 15, 5], [3, 20, 15, '5', 'urdu', 'u', 'p', '', 1, 0, 10, 10, 0]];
+  const E = C.examStats(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([E.req, E.gen, E.q, E.obj, E.subjq, E.teachers], [3, 2, 30, 25, 5, 2]);
+  assert.strictEqual(E.subjects.find((x) => x.key === 'Mathematics').gen, 2);
+  assert.strictEqual(E.sources.find((x) => x.key === 'u').req, 1);
+  assert.strictEqual(E.wd[0], 2);                         // generated on Monday 3 Aug
+  assert.deepStrictEqual(E.chapters.map((c) => c.key), ['Grade 4|Mathematics|3']);
+  assert.strictEqual(C.examStats(C.prepare(data), { from: 0, to: 30, sector: 'A' }).req, 2);
+});

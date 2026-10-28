@@ -186,6 +186,23 @@ function buildQuizScores(rows, ro) {
   return out;
 }
 
+// Exam-generator detail: [teacher, day, hour, grade, subject, source s|u|b, surface w|p, chapter, requested, generated,
+// questions asked, objective questions, subjective questions].
+function buildExamDetail(rows, ro) {
+  const out = [];
+  const miss = { n: 0 };
+  for (const r of rows) {
+    for (const p of records('exam_detail', r)) {
+      if (p.length !== 13) throw new Error('exam_detail: malformed record');
+      const ti = teacherOf(ro, r.school_id, p[0], miss);
+      if (ti === undefined) continue;
+      out.push([ti, +p[1], +p[2], p[3], p[4], p[5], p[6], p[7], +p[8], +p[9], +p[10], +p[11], +p[12]]);
+    }
+  }
+  if (miss.n) throw new Error(`exam_detail: ${miss.n} records for teachers not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -208,4 +225,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, rosterSig, MIN_SCHOOLS };

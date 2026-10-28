@@ -88,7 +88,7 @@
     for (const r of data.training || []) training[r[0]] = r;
     const modules = data.modules || MODULES;
     return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
-      parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+      parts: { lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -344,5 +344,39 @@
     return { cells, rows, cols, all, grades: [...rows.keys()].sort((a, b) => order(a) - order(b)), subjects: [...cols.keys()].sort((a, b) => cols.get(b).f - cols.get(a).f) };
   }
 
-  return { quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // Exam-generator analytics for a period and filter: by subject, grade, question source, surface, weekday, hour and chapter.
+  const ESUBJECT = { english: 'English', maths: 'Mathematics', math: 'Mathematics', urdu: 'Urdu', science: 'Science', islamiat: 'Islamiat',
+    social_studies: 'Social studies', general_knowledge: 'General knowledge' };
+  const examSubject = (s) => ESUBJECT[s] || (s ? s.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'No subject');
+  function examStats(P, opts) {
+    const { data } = P;
+    if (!data.exd) return null;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const weekday = (day) => (new Date(Date.parse(data.window_start) + day * DAY).getUTCDay() + 6) % 7;
+    const mk = () => ({ req: 0, gen: 0, q: 0, t: new Set() });
+    const subj = new Map(), grade = new Map(), src = new Map(), surf = new Map(), chap = new Map();
+    const wd = new Array(7).fill(0), wdDays = new Array(7).fill(0), hrs = new Array(24).fill(0);
+    const heat = Array.from({ length: 7 }, () => new Array(24).fill(0));
+    for (let day = from; day <= to; day++) wdDays[weekday(day)]++;
+    const tot = { req: 0, gen: 0, q: 0, obj: 0, subjq: 0, t: new Set() };
+    const put = (m, k, r) => { if (!m.has(k)) m.set(k, mk()); const o = m.get(k); o.req += r[8]; o.gen += r[9]; o.q += r[10]; o.t.add(r[0]); };
+    for (const r of data.exd) {
+      const [ti, day, hr] = r;
+      if (day < from || day > to) continue;
+      const T = data.teachers[ti], S = data.schools[T.s];
+      if (opts.sector && S.sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      tot.req += r[8]; tot.gen += r[9]; tot.q += r[10]; tot.obj += r[11]; tot.subjq += r[12]; tot.t.add(ti);
+      const w = weekday(day);
+      wd[w] += r[9]; hrs[hr] += r[9]; heat[w][hr] += r[9];
+      const sb = examSubject(r[4]), gr = r[3] ? `Grade ${r[3]}` : 'No grade';
+      put(subj, sb, r); put(grade, gr, r); put(src, r[5], r); put(surf, r[6], r);
+      if (r[7]) put(chap, `${gr}|${sb}|${r[7]}`, r);
+    }
+    const flat = (m) => [...m.entries()].map(([k, o]) => ({ key: k, req: o.req, gen: o.gen, q: o.q, teachers: o.t.size }));
+    return { req: tot.req, gen: tot.gen, q: tot.q, obj: tot.obj, subjq: tot.subjq, teachers: tot.t.size,
+      subjects: flat(subj), grades: flat(grade), sources: flat(src), surfaces: flat(surf), chapters: flat(chap), wd, wdDays, hrs, heat };
+  }
+
+  return { examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));
