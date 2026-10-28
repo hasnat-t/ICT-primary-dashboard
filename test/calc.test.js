@@ -12,8 +12,8 @@ function sample() {
     teachers: [{ s: 0, name: 'T0', lv: 'P' }, { s: 0, name: 'T1', lv: 'PM' }, { s: 1, name: 'T2', lv: 'P' }, { s: 2, name: 'T3', lv: 'P' }],
     lp: [[0, 2, 1, 0, 2, 1, 1], [0, 9, 1, 0, 1, 0, 1], [1, 9, 0, 1, 0, 0, 0], [3, 20, 1, 0, 1, 1, 1]],
     obs: [
-      [0, 2, 'D', 'L', 18, 24, 30, 48, 20, 28, 30, 40, 'm'], // v3 subject scale; taught a recent Rumi plan
-      [0, 3, 'D', '-', 20, 32, 24, 48, 14, 28, null, null, 'u'], // v2 subject scale, no plan attached
+      [0, 2, 'D', 'L', 18, 24, 30, 48, 20, 28, 30, 40, 'm', 'r3'], // v3 subject scale; taught a recent Rumi plan
+      [0, 3, 'D', '-', 20, 32, 24, 48, 14, 28, null, null, 'u', ''], // v2 subject scale, no plan attached
       [2, 3, 'H', 'C', 12, 24, 36, 48, 21, 28, 20, 40],
       [2, 4, 'H', 'P', 10, 20, 12, 16, 21, 28, 20, 40],      // HLP out of 16 = unknown scale: not pooled
     ],
@@ -175,12 +175,14 @@ test('exam analytics: subjects, sources, surfaces, weekdays, chapters', () => {
 
 test('DC analytics: by lesson subject and by roster grade (a teacher on two grades counts in each)', () => {
   const data = sample();
-  data.obs.push([3, 5, 'D', '-', 12, 24, 24, 48, 14, 28, null, null, 'm']);
+  data.obs.push([3, 5, 'D', '-', 12, 24, 24, 48, 14, 28, null, null, 'm', '']);
   const D = C.dcStats(C.prepare(data), { from: 0, to: 30 });
   assert.deepStrictEqual([D.n, D.teachers], [3, 2]);
   assert.deepStrictEqual(D.subjects.map((x) => [x.key, x.n]), [['Mathematics', 2], ['Urdu', 1]]);
-  assert.deepStrictEqual(D.grades.map((x) => [x.key, x.n]), [['Grade 4', 2], ['Grade 5', 2], ['No class on the roster', 1]]);
-  assert.strictEqual(D.cells.get('Grade 4|Mathematics').n, 1);
+  // lesson 1: Rumi plan grade 3; lesson 2: no plan grade -> roster grades 4 and 5; lesson 3: no grade at all
+  assert.deepStrictEqual(D.grades.map((x) => [x.key, x.n]), [['Grade 3', 1], ['Grade 4', 1], ['Grade 5', 1], ['Grade unknown', 1]]);
+  assert.deepStrictEqual(D.gsrc, { r: 1, t: 0, roster: 1, none: 1 });
+  assert.strictEqual(D.cells.get('Grade 3|Mathematics').n, 1);
   assert.deepStrictEqual(D.subjects[0].fico.hlp, [54, 96, 2]);
   assert.strictEqual(C.dcStats(C.prepare(data), { from: 0, to: 30, sector: 'B' }).n, 1);
 });

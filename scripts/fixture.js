@@ -25,12 +25,12 @@ schools.forEach((sc, si) => {
       if (rnd() < keen * 0.12) {
         const v3 = d >= 38;
         obs.push([ti, d, 'D', '-', v3 ? 12 + Math.round(rnd() * 10) : 14 + Math.round(rnd() * 14), v3 ? pick([24, 24, 24, 20, 28]) : 32,
-          20 + Math.round(rnd() * 26), 48, 12 + Math.round(rnd() * 15), 28, rnd() < 0.5 ? 15 + Math.round(rnd() * 24) : null, rnd() < 0.5 ? 40 : null, pick(['u', 'u', 'm', 'm', 'e', 'e', 'i', 's', 'c', 'g', 'o', ''])]);
+          20 + Math.round(rnd() * 26), 48, 12 + Math.round(rnd() * 15), 28, rnd() < 0.5 ? 15 + Math.round(rnd() * 24) : null, rnd() < 0.5 ? 40 : null, pick(['u', 'u', 'm', 'm', 'e', 'e', 'i', 's', 'c', 'g', 'o', '']), rnd() < 0.3 ? 'r' + (1 + Math.floor(rnd() * 5)) : rnd() < 0.15 ? 't' + (1 + Math.floor(rnd() * 5)) : '']);
         if (obs[obs.length - 1][10] === null) obs[obs.length - 1][11] = null;
       }
       if (rnd() < 0.015) {
         const v3 = d >= 38;
-        obs.push([ti, d, 'H', pick(['C', 'C', 'C', 'P', 'A']), v3 ? 14 : 18, v3 ? 24 : 32, 28, 48, 18, 28, 22, 40, '']);
+        obs.push([ti, d, 'H', pick(['C', 'C', 'C', 'P', 'A']), v3 ? 14 : 18, v3 ? 24 : 32, 28, 48, 18, 28, 22, 40, '', '']);
       }
       if (d > 36 && rnd() < keen * 0.05) { const ok = rnd() < 0.95 ? 1 : 0; exams.push([ti, d, 1, ok, 1 - ok, 0, rnd() < 0.1 ? 1 : 0]); }
       if (d > 30 && rnd() < keen * 0.08) {

@@ -391,8 +391,9 @@
         subjects: flat(bSubj), scopes: flat(bScope), grades: flat(bGrade), surfaces: flat(bSurf) } };
   }
 
-  // DC observations by lesson subject and by the observed teacher's roster grade (coaching-query-rules.md §1g: a teacher on
-  // two grades counts in each, so grade lines never add up; no class = its own line). Subject is the DC recording's own.
+  // DC observations by lesson subject and grade. Subject is the DC recording's own. Grade, in this order (Hasnat 2026-10-28):
+  // the Rumi plan's lesson (r), a clear grade typed in the attached plan (t), else the teacher's roster grades
+  // (coaching-query-rules.md §1g: a teacher on two grades counts in each, so grade lines never add up).
   const DC_SUBJECT = { u: 'Urdu', m: 'Mathematics', e: 'English', i: 'Islamiat', s: 'Science', c: 'Social studies', g: 'General knowledge', o: 'Other subjects', '': 'Subject not recorded' };
   const gradeName = (g) => (g === 'ey' ? 'Early years' : +g >= 6 ? 'Grades 6–12' : `Grade ${g}`);
   function dcStats(P, opts) {
@@ -402,14 +403,18 @@
     const subj = new Map(), grade = new Map(), cell = new Map(), all = mk();
     const add = (m, k, ti, r) => { if (!m.has(k)) m.set(k, mk()); const o = m.get(k); o.n++; o.t.add(ti); addFico(o.f, r); };
     let hasSubj = false;
+    const gsrc = { r: 0, t: 0, roster: 0, none: 0 };
     for (let ti = 0; ti < data.teachers.length; ti++) {
       const T = data.teachers[ti];
       if (opts.sector && data.schools[T.s].sector !== opts.sector) continue;
       if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
-      const gs = P.grades[ti] ? [...new Set(P.grades[ti].split(',').map(gradeName))] : ['No class on the roster'];
+      const roster = P.grades[ti] ? [...new Set(P.grades[ti].split(',').map(gradeName))] : null;
       for (const r of P.obs[ti]) {
         if (r[2] !== 'D' || r[1] < from || r[1] > to) continue;
-        if (r[12] !== undefined) hasSubj = true;
+        if (r[13] !== undefined) hasSubj = true;
+        const pg = r[13] || '';
+        const gs = pg ? [gradeName(pg.slice(1))] : roster || ['Grade unknown'];
+        gsrc[pg ? pg[0] : roster ? 'roster' : 'none']++;
         const sb = DC_SUBJECT[r[12] || ''] || DC_SUBJECT.o;
         all.n++; all.t.add(ti); addFico(all.f, r);
         add(subj, sb, ti, r);
@@ -417,9 +422,9 @@
       }
     }
     const flat = (m) => [...m.entries()].map(([k, o]) => ({ key: k, n: o.n, teachers: o.t.size, fico: o.f }));
-    const order = (k) => (k === 'Early years' ? 0 : k === 'Grades 6–12' ? 60 : k === 'No class on the roster' ? 99 : +k.replace('Grade ', '') * 10);
-    return { n: all.n, teachers: all.t.size, fico: all.f, hasSubj, hasGrades: !!data.tgr,
-      subjects: flat(subj).sort((a, b) => (/^(Other|Subject not)/.test(a.key) - /^(Other|Subject not)/.test(b.key)) || b.n - a.n), grades: flat(grade).sort((a, b) => order(a.key) - order(b.key)),
+    const order = (k) => (k === 'Early years' ? 0 : k === 'Grades 6–12' ? 60 : k === 'Grade unknown' ? 99 : +k.replace('Grade ', '') * 10);
+    return { n: all.n, teachers: all.t.size, fico: all.f, hasSubj, hasGrades: !!data.tgr, gsrc,
+      subjects: flat(subj).sort((a, b) => (/^(Other|Subject not)/.test(a.key) - /^(Other|Subject not)/.test(b.key)) || b.n - a.n), grades: flat(grade).map((r) => Object.assign(r, { ord: order(r.key) })).sort((a, b) => a.ord - b.ord),
       cells: new Map([...cell.entries()].map(([k, o]) => [k, { n: o.n, teachers: o.t.size, fico: o.f }])) };
   }
 

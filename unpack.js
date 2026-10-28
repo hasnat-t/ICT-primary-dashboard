@@ -65,11 +65,12 @@ function buildObservations(rows, ro) {
   for (const r of rows) {
     observe2 += Number(r.observe2_excluded) || 0;
     for (const p of records('observations', r)) {
-      if (p.length !== 13) throw new Error('observations: malformed record');
+      if (p.length !== 14) throw new Error('observations: malformed record');
       const ti = teacherOf(ro, r.school_id, p[0], miss);
       if (ti === undefined) continue;
-      // teacher, day, src (D/H), stage (-/C/P/A), score,max for TSK, HLP, SE, LPF (null when not scored), DC lesson subject code
-      out.push([ti, +p[1], p[2], p[3], ...p.slice(4, 12).map(num), p[12]]);
+      // teacher, day, src (D/H), stage (-/C/P/A), score,max for TSK, HLP, SE, LPF (null when not scored), DC lesson subject code,
+      // DC plan grade (r<g> Rumi plan, t<g> typed in the plan, '' none)
+      out.push([ti, +p[1], p[2], p[3], ...p.slice(4, 12).map(num), p[12], p[13]]);
     }
   }
   if (miss.n) throw new Error(`observations: ${miss.n} records for teachers not in the roster`);

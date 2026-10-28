@@ -580,7 +580,7 @@
     if (!D.hasSubj) return card('c-dcx', 'DC analytics by subject and grade', 'Updating now: the dashboard is refreshing after an update. This part appears by itself when it finishes.', '');
     const sp = (o, k) => (o.fico[k][2] ? fpct(o.fico[k]) : null);
     const cols = (what, share = true) => [
-      { k: 'name', label: what, val: (r) => r.key, fmt: (r) => esc(r.key) },
+      { k: 'name', label: what, val: (r) => (r.ord !== undefined ? r.ord : r.key), fmt: (r) => esc(r.key) },
       { k: 'n', label: 'Lessons recorded', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
       ...(share ? [{ k: 'share', label: 'Share of lessons', num: true, val: (r) => r.n / D.n, fmt: (r) => P1(ratio(r.n, D.n)) }] : []),
       { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
@@ -589,7 +589,7 @@
     const note = `Average DC score per FICO section · ${esc(scopeName())} · ${periodText()}. Subject knowledge is the v3 rubric (from 8 Sep) only: the earlier v2 scored every lesson on maths and science items, which makes subjects look unequal by design. Lesson-plan fidelity counts only lessons with a plan attached.`;
 
     // what stands out: best and weakest subject and grade per section, among groups with enough lessons
-    const ranked = (arr, k) => arr.filter((r) => r.fico[k][2] >= DC_MIN && !/not recorded|Other|No class/.test(r.key)).map((r) => ({ key: r.key, v: sp(r, k), n: r.fico[k][2] })).sort((a, b) => b.v - a.v);
+    const ranked = (arr, k) => arr.filter((r) => r.fico[k][2] >= DC_MIN && !/not recorded|Other|unknown/.test(r.key)).map((r) => ({ key: r.key, v: sp(r, k), n: r.fico[k][2] })).sort((a, b) => b.v - a.v);
     const line = (arr, k, l, what) => {
       const r = ranked(arr, k);
       if (r.length < 2) return '';
@@ -597,7 +597,7 @@
       return `<li><b>${l}</b>: ${what} <b>${esc(hi.key)}</b> scores highest (${P1(hi.v)}), <b>${esc(lo.key)}</b> lowest (${P1(lo.v)}), a gap of ${(hi.v - lo.v).toFixed(1)} points.</li>`;
     };
     const top = D.subjects.filter((r) => !/not recorded/.test(r.key));
-    const busiestG = D.grades.filter((r) => r.key !== 'No class on the roster').sort((a, b) => b.n - a.n)[0];
+    const busiestG = D.grades.filter((r) => r.key !== 'Grade unknown').sort((a, b) => b.n - a.n)[0];
     const facts = `<ul class="facts">
       ${top[0] ? `<li><b>${esc(top[0].key)}</b> is the most recorded subject: ${P1(ratio(top[0].n, D.n))} of DC lessons${top[1] ? `, then ${esc(top[1].key)} (${P1(ratio(top[1].n, D.n))})` : ''}.</li>` : ''}
       ${busiestG ? `<li>Teachers on <b>${esc(busiestG.key)}</b> record the most lessons (${N(busiestG.n)}).</li>` : ''}
@@ -622,12 +622,14 @@
     const body = D.grades.map((g) => `<div class="qg-r" style="${tpl}"><span class="qg-n">${esc(g.key)}</span>${subs.map((c) => cell(D.cells.get(`${g.key}|${c}`))).join('')}</div>`).join('');
     const seg = `<div class="seg" role="group" aria-label="Show">${[['n', 'Lessons recorded'], ...DC_SECS].map(([k, l]) => `<button type="button" data-dview="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>`;
 
-    const gradeNote = D.hasGrades ? 'Grade is the teacher\'s, from their classes on the roster: a lesson has no grade of its own, so a teacher on two grades counts in both and the grade rows do not add up to the total.' : 'Grades are not loaded yet: the dashboard may still be refreshing after an update.';
+    const G = D.gsrc;
+    const gradeNote = `Grade of the lesson, taken in this order: the Rumi lesson plan the teacher attached (${P1(ratio(G.r, D.n))} of lessons); a clear grade typed in an uploaded or pasted plan (${P1(ratio(G.t, D.n))}); otherwise the teacher's classes on the roster (${P1(ratio(G.roster, D.n))}), where a teacher on two grades counts in both, so the rows can add up to more than the total. ${P1(ratio(G.none, D.n))} have no grade either way (Grade unknown). <b>Provisional</b>: the plan grade is not yet a governed rule.${D.hasGrades ? '' : ' Roster grades are not loaded yet: the dashboard may still be refreshing.'}`;
+    const gradeBar = splitBar([['Rumi plan', G.r, C1], ['Typed in plan', G.t, '#8FD3AE'], ['Teacher\'s roster', G.roster, C2], ['Unknown', G.none, '#BBB']].filter((x) => x[1]), D.n);
     return `<div class="sec-h"><h2>DC analytics by subject and grade</h2><p class="note">${N(D.n)} DC lessons by ${N(D.teachers)} teachers · ${esc(scopeName())} · ${periodText()}. Subject is the one the Digital Coach heard in the recording.</p></div>`
       + card('c-dcx', 'What stands out', '', facts)
       + card('c-dcs', 'By subject', note, table('dcs', cols('Subject'), D.subjects, { sort: { k: 'n', dir: -1 }, noLegend: true }))
-      + card('c-dcg', 'By grade', `${gradeNote} ${note}`, table('dcg', cols('Grade', false), D.grades, { noLegend: true }))
-      + card('c-dch', 'Grade × subject', `Pick what to show. Scores are coloured by the performance bands; faded cells have fewer than ${DC_MIN} scored lessons, too few to read much into. ${D.hasGrades ? '' : gradeNote}`,
+      + card('c-dcg', 'By grade', `${gradeNote} ${note}`, `<span class="lbl">Where the grade comes from</span>${gradeBar}` + table('dcg', cols('Grade', false), D.grades, { noLegend: true }))
+      + card('c-dch', 'Grade × subject', `Pick what to show. Grade as in the table above. Scores are coloured by the performance bands; faded cells have fewer than ${DC_MIN} scored lessons, too few to read much into.`,
         `<div class="row">${seg}</div>${view === 'n' ? '' : legend().replace('<span><i class="zero"></i>None in this period</span>', '')}<div class="xscroll"><div class="qg">${head}${body}</div></div>`);
   }
 
