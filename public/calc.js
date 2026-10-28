@@ -454,9 +454,9 @@
         edits[r[15] || ''] = (edits[r[15] || ''] || 0) + 1;
         wd[weekday(r[1])]++;
         const id = r[14] || '';
-        if (!coaches.has(id)) coaches.set(id, { n: 0, t: new Set(), s: new Set(), sec: new Set(), C: 0, u: 0, nn: 0, r: 0, f: blankFico() });
+        if (!coaches.has(id)) coaches.set(id, { n: 0, t: new Set(), s: new Set(), sec: new Map(), C: 0, u: 0, nn: 0, r: 0, f: blankFico() });
         const c = coaches.get(id);
-        c.n++; c.t.add(ti); c.s.add(T.s); c.sec.add(data.schools[T.s].sector);
+        c.n++; c.t.add(ti); c.s.add(T.s); const sc = data.schools[T.s].sector; c.sec.set(sc, (c.sec.get(sc) || 0) + 1);
         if (r[3] === 'C') c.C++;
         if (r[15] === 'u') c.u++; else if (r[15] === 'n') c.nn++; else if (r[15] === 'r') c.r++;
         addFico(c.f, r);
@@ -466,7 +466,7 @@
     const list = [...coaches.entries()].filter(([id]) => !(coachName.get(id) || {}).hide).map(([id, c]) => {
       const m = coachName.get(id);
       return { key: id, name: m ? m.name || '(no name)' : id ? '(not in coach list)' : '(no coach recorded)', role: m ? m.role : '',
-        n: c.n, teachers: c.t.size, schools: c.s.size, sectors: [...c.sec].sort().join(', '), C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
+        n: c.n, teachers: c.t.size, schools: c.s.size, sector: [...c.sec.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0],   // where most of the coach's observations are C: c.C, u: c.u, nn: c.nn, r: c.r, fico: c.f };
     }).sort((a, b) => b.n - a.n);
     return { n, teachers, observed: teachers - per[0], per, edits, stage, wd, wdDays, coaches: list, hidden: [...coaches.keys()].filter((id) => (coachName.get(id) || {}).hide).length, hasCoach, hasCoachList: !!data.coaches };
   }
