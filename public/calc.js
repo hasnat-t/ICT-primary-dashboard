@@ -89,7 +89,7 @@
     const modules = data.modules || MODULES;
     return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
       grades: (() => { const g = new Array(nT).fill(null); for (const r of data.tgr || []) g[r[0]] = r[1]; return g; })(),
-      parts: { teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+      parts: { observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -473,5 +473,76 @@
       hidden: all.filter((c) => c.hide && c.role !== 'principal').length, hasCoach, hasCoachList: !!data.coaches };
   }
 
-  return { addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // /observe2 (fico17): the impact team's coach-scored rubric. Never pooled with /observe (FICO).
+  const O2 = [['C1', "The teacher's questions"], ['C2', 'When an answer was wrong'], ['C3', 'Who got to answer'], ['C4', "Children's choices"],
+    ['C5', 'Switching activities'], ['C6', 'Safe to be wrong'], ['C7', 'Group work'], ['C8', 'Books and materials'],
+    ['D1', "Children's reasoning"], ['D2', 'How many children spoke'], ['D3', 'Children answering each other'], ['D4', 'Trying when unsure'],
+    ['D5', "Children's own questions"], ['F1', 'Accuracy of content'], ['F2', 'Subject words'], ['F3', 'Explaining why'], ['F4', 'Links to real life']];
+  const O2_GROUP = { C: 'What the teacher does', D: 'What the children do', F: 'Subject knowledge' };
+  function observe2Stats(P, opts) {
+    const { data } = P;
+    if (!data.o2) return null;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const ind = O2.map(([id, name]) => ({ id, name, group: id[0], c: { 1: 0, 2: 0, 3: 0, 4: 0, n: 0, i: 0, '-': 0 }, sum: 0, k: 0 }));
+    const prio = new Map(), also = new Map(), seen = new Map(), coaches = new Map(), sectors = new Map(), byT = new Map();
+    const tset = new Set(), sset = new Set();
+    let n = 0, C = 0, pctS = 0, pctN = 0, lpfS = 0, lpfM = 0, withSeen = 0, first = null;
+    const inc = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+    for (const r of data.o2) {
+      const [ti, day] = r;
+      if (first === null || day < first) first = day;
+      if (day < from || day > to) continue;
+      const T = data.teachers[ti], Sx = data.schools[T.s];
+      if (opts.sector && Sx.sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      n++; tset.add(ti); sset.add(T.s); if (r[3] === 'C') C++;
+      if (r[8] !== null) { pctS += r[8]; pctN++; }
+      if (r[9] !== null && r[10]) { lpfS += r[9]; lpfM += r[10]; }
+      for (let i = 0; i < 17; i++) { const v = r[4][i]; ind[i].c[v] = (ind[i].c[v] || 0) + 1; if (v >= '1' && v <= '4') { ind[i].sum += +v; ind[i].k++; } }
+      if (r[5]) inc(prio, r[5]);
+      r[6].forEach((x) => inc(also, x));
+      if (r[7].length) withSeen++;
+      r[7].forEach((x) => inc(seen, x));
+      if (!coaches.has(r[2])) coaches.set(r[2], { n: 0, t: new Set(), C: 0, pS: 0, pN: 0, na: 0, prio: new Map(), sec: new Map() });
+      const c = coaches.get(r[2]);
+      c.n++; c.t.add(ti); if (r[3] === 'C') c.C++; if (r[8] !== null) { c.pS += r[8]; c.pN++; }
+      c.na += [...r[4]].filter((v) => v === 'n' || v === 'i').length;
+      if (r[5]) inc(c.prio, r[5]); inc(c.sec, Sx.sector);
+      if (!sectors.has(Sx.sector)) sectors.set(Sx.sector, { key: Sx.sector, n: 0, t: new Set(), co: new Set(), pS: 0, pN: 0 });
+      const s = sectors.get(Sx.sector); s.n++; s.t.add(ti); s.co.add(r[2]); if (r[8] !== null) { s.pS += r[8]; s.pN++; }
+      if (!byT.has(ti)) byT.set(ti, []);
+      byT.get(ti).push(r);
+    }
+    // weekly progress from the first /observe2 visit
+    const weeks = [];
+    if (first !== null) {
+      const start = Math.max(mondayOf(data.window_start, Math.max(first, from)), 0);
+      for (let w = start; w <= to; w += 7) weeks.push({ from: w, n: 0, t: new Set() });
+      for (const [ti, list] of byT) for (const r of list) { const wk = weeks[Math.floor((r[1] - start) / 7)]; if (wk) { wk.n++; wk.t.add(ti); } }
+    }
+    // teachers visited more than once: first vs latest level per indicator
+    const repeat = [...byT.values()].filter((l) => l.length > 1).map((l) => l.slice().sort((a, b) => a[1] - b[1]));
+    const change = O2.map((_, i) => {
+      let d = 0, k = 0;
+      for (const l of repeat) {
+        const a = l.find((r) => r[4][i] >= '1' && r[4][i] <= '4'), b = [...l].reverse().find((r) => r[4][i] >= '1' && r[4][i] <= '4');
+        if (a && b && a !== b) { d += +b[4][i] - +a[4][i]; k++; }
+      }
+      return k >= 3 ? { d: d / k, k } : null;   // too few repeat visits otherwise
+    });
+    let od = 0, ok = 0;
+    for (const l of repeat) { const a = l.find((r) => r[8] !== null), b = [...l].reverse().find((r) => r[8] !== null); if (a && b && a !== b) { od += b[8] - a[8]; ok++; } }
+    const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1])[0];
+    return {
+      n, teachers: tset.size, schools: sset.size, coachCount: coaches.size, C, pct: pctN ? pctS / pctN : null, lpf: lpfM ? (100 * lpfS) / lpfM : null,
+      ind, prio: [...prio.entries()].sort((a, b) => b[1] - a[1]), also: [...also.entries()].sort((a, b) => b[1] - a[1]),
+      seen: [...seen.entries()].sort((a, b) => b[1] - a[1]), withSeen, weeks: weeks.map((w) => ({ from: w.from, n: w.n, teachers: w.t.size })),
+      repeat: repeat.length, change, overallChange: ok ? { d: od / ok, k: ok } : null,
+      coaches: [...coaches.entries()].map(([id, c]) => ({ key: id, n: c.n, teachers: c.t.size, C: c.C, pct: c.pN ? c.pS / c.pN : null,
+        na: c.na / (17 * c.n), prio: c.prio.size ? top(c.prio)[0] : '', sector: top(c.sec)[0] })),
+      sectors: [...sectors.values()].map((s) => ({ key: s.key, n: s.n, teachers: s.t.size, coaches: s.co.size, pct: s.pN ? s.pS / s.pN : null })),
+    };
+  }
+
+  return { O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

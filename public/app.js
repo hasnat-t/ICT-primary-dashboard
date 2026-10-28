@@ -16,7 +16,7 @@
   const NAV = [
     ['', [['overview', 'Overview']]],
     ['Teaching', [['lp', 'Lesson plans'], ['quiz', 'Quizzes'], ['exams', 'Exam generator']]],
-    ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['fico', 'FICO scores']]],
+    ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
     ['Growth', [['training', 'Training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers']]],
     ['Insights', [['trends', 'Analytics']]],
@@ -708,13 +708,87 @@
       + `<div class="cards2">${per}${days}</div>` + form + coaches + principals + grades;
   }
 
+  // ---------- /observe2 pilot (fico17) ----------
+  const SEEN = { recall: 'Repeated or copied it', new: 'Solved a new problem', why: 'Explained why', apply: 'Applied it', ownq: 'Asked their own question' };
+  const LVL = [['1', 'Level 1', 'var(--t1)'], ['2', 'Level 2', 'var(--t2)'], ['3', 'Level 3', 'var(--t3)'], ['4', 'Level 4', 'var(--t4)'], ['n', 'Not applicable', '#CFCFCF'], ['i', 'Couldn’t tell', '#9AA0A6']];
+  const o2Name = (id) => (id === 'plan' ? 'The lesson plan' : (Calc.O2.find((x) => x[0] === id) || [id, id])[1]);
+  function viewObserve2() {
+    const O = Calc.observe2Stats(S.P, sel());
+    const about = "<code>/observe2</code> is the impact team's experiment, running beside the main HITL flow (<code>/observe</code>) since 9 Oct 2026. The coach scores <b>17 indicators</b> themselves on the impact team's workbook, each at level 1–4 (or not applicable / couldn't tell), and Rumi only proposes evidence. The coach then picks one thing for the teacher to <b>work on first</b>. Its indicators share letters with FICO but measure different things, so nothing here is added to HITL or FICO figures.";
+    if (!O) return card('c-o2', `/observe2 pilot · ${esc(scopeName())}`, 'Not available yet: the dashboard may still be refreshing after an update. This appears by itself when it finishes.', '');
+    if (!O.n) return card('c-o2', `/observe2 pilot · ${esc(scopeName())} · ${periodText()}`, `${about}<br><br>No /observe2 visits in this period.`, '');
+    const avg = (x) => (x.k ? x.sum / x.k : null);
+    const scored = O.ind.filter((x) => x.k >= 10).map((x) => ({ ...x, a: avg(x) })).sort((a, b) => a.a - b.a);
+    const low = scored.slice(0, 3), high = scored.slice(-3).reverse();
+    const naAll = O.ind.reduce((s, x) => s + x.c.n + x.c.i, 0);
+    const p0 = O.prio[0];
+    const recall = (O.seen.find((x) => x[0] === 'recall') || [0, 0])[1];
+    const facts = `<ul class="facts">
+      <li><b>${N(O.n)} visits</b> to ${N(O.teachers)} teachers in ${N(O.schools)} schools by ${N(O.coachCount)} coaches; ${P1(ratio(O.C, O.n))} are debriefed.</li>
+      ${low.length ? `<li><b>Weakest areas</b> (lowest average level): ${low.map((x) => `${esc(x.name)} (${x.a.toFixed(1)})`).join(', ')}.</li>` : ''}
+      ${high.length ? `<li><b>Strongest areas</b>: ${high.map((x) => `${esc(x.name)} (${x.a.toFixed(1)})`).join(', ')}.</li>` : ''}
+      ${p0 ? `<li>Coaches most often ask teachers to <b>work on ${esc(o2Name(p0[0]).toLowerCase())}</b> first (${P1(ratio(p0[1], O.n))} of visits)${O.prio[1] ? `, then ${esc(o2Name(O.prio[1][0]).toLowerCase())} (${P1(ratio(O.prio[1][1], O.n))})` : ''}.</li>` : ''}
+      ${O.withSeen ? `<li>Where the coach noted the children's thinking (${N(O.withSeen)} visits), children mostly <b>repeated or copied</b> (${P1(ratio(recall, O.withSeen))}); explaining why, applying it or asking their own questions were seen far less.</li>` : ''}
+      <li>${P1(ratio(naAll, O.n * 17))} of indicator ratings were "not applicable" or "couldn't tell".</li>
+      ${O.overallChange && O.overallChange.k >= 3 ? `<li><b>${N(O.repeat)} teachers</b> have had more than one /observe2 visit; their overall score moved ${O.overallChange.d >= 0 ? 'up' : 'down'} ${Math.abs(O.overallChange.d).toFixed(1)} points from first to latest visit on average (early days: few repeat visits).</li>` : `<li>${O.repeat ? `Only ${N(O.repeat)} teacher${O.repeat === 1 ? ' has' : 's have'} had a second /observe2 visit so far, too few to measure change.` : 'No teacher has had a second /observe2 visit yet, so there is no change to measure.'}</li>`}
+    </ul>`;
+
+    const kpis = `<div class="kpis">${kpi('Visits', N(O.n))}${kpi('Teachers visited', N(O.teachers), `${N(O.schools)} schools`)}${kpi('Coaches using it', N(O.coachCount))}
+      ${kpi('Debriefed', P1(ratio(O.C, O.n)), `${N(O.C)} of ${N(O.n)}`)}${kpi('Average overall score', O.pct === null ? '—' : P1(O.pct), 'on the fico17 scale')}${kpi('Visited more than once', N(O.repeat), 'teachers')}</div>`;
+
+    const trend = O.weeks.length ? chart(O.weeks.map((w) => ({ label: `w/c ${nice(w.from)}`, values: [w.n, w.teachers] })), [{ name: 'Visits', color: NAVY }, { name: 'Teachers visited', color: GREY }]) : '';
+
+    const groups = ['C', 'D', 'F'].map((g) => {
+      const rows = O.ind.filter((x) => x.group === g).map((x) => {
+        const tot = Object.values(x.c).reduce((s, v) => s + v, 0) || 1;
+        const a = avg(x);
+        const ch = O.change[Calc.O2.findIndex((y) => y[0] === x.id)];
+        return `<div class="o2r"><div class="o2n"><b>${x.id}</b> ${esc(x.name)}</div>
+          <div class="mbar">${LVL.map(([k, l, c]) => (x.c[k] ? `<span style="width:${(100 * x.c[k]) / tot}%;background:${c}" title="${l}: ${N(x.c[k])} (${P1(ratio(x.c[k], tot))})"></span>` : '')).join('')}</div>
+          <div class="o2v">${a === null ? '—' : `<span class="sc ${band((100 * a) / 4)}">${a.toFixed(1)} / 4</span>`}${ch ? `<span class="${ch.d >= 0 ? 'up' : 'down'}" title="Average change from first to latest visit, ${N(ch.k)} teachers">${ch.d >= 0 ? '▲' : '▼'}${Math.abs(ch.d).toFixed(1)}</span>` : ''}</div></div>`;
+      }).join('');
+      return `<div class="o2g"><span class="lbl">${g} · ${esc(Calc.O2_GROUP[g])}</span>${rows}</div>`;
+    }).join('');
+    const lvlLegend = `<div class="legend">${LVL.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+
+    const maxP = Math.max(1, ...O.prio.map((x) => x[1]));
+    const prio = `<div class="ladder">${O.prio.map(([id, k]) => `<div class="lrow"><div class="ll"><span>${esc(o2Name(id))}</span><span>${id === 'plan' ? '' : id} · also picked ${N((O.also.find((x) => x[0] === id) || [0, 0])[1])} times</span></div>
+      <div class="lbar"><div style="width:${(100 * k) / maxP}%;background:${NAVY}"></div></div><span class="lpct">${N(k)}</span></div>`).join('')}</div>`;
+    const seen = O.withSeen ? `<div class="ladder">${O.seen.map(([k, v]) => `<div class="lrow"><div class="ll"><span>${esc(SEEN[k] || k)}</span><span>${P1(ratio(v, O.withSeen))} of visits</span></div>
+      <div class="lbar"><div style="width:${(100 * v) / O.withSeen}%;background:${C1}"></div></div><span class="lpct">${N(v)}</span></div>`).join('')}</div>` : '<p class="note">Not recorded yet.</p>';
+
+    const ccols = [
+      { k: 'name', label: 'Coach', val: (r) => coachLabel(r.key), fmt: (r) => esc(coachLabel(r.key)) },
+      { k: 'sector', label: 'Main sector', val: (r) => r.sector, fmt: (r) => esc(r.sector) },
+      { k: 'n', label: 'Visits', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'deb', label: 'Debriefed', num: true, val: (r) => r.C / r.n, fmt: (r) => cov(ratio(r.C, r.n)) },
+      { k: 'pct', label: 'Average overall score', num: true, val: (r) => r.pct, fmt: (r) => sc(r.pct) },
+      { k: 'na', label: 'Not applicable / couldn’t tell', num: true, title: 'Share of indicator ratings left out', val: (r) => r.na, fmt: (r) => P1(r.na) },
+      { k: 'prio', label: 'Most chosen focus', val: (r) => r.prio, fmt: (r) => esc(r.prio ? o2Name(r.prio) : '—') },
+    ];
+    const scols = [
+      { k: 'name', label: 'Sector', val: (r) => r.key, fmt: (r) => esc(r.key) },
+      { k: 'n', label: 'Visits', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'coaches', label: 'Coaches', num: true, val: (r) => r.coaches, fmt: (r) => N(r.coaches) },
+      { k: 'pct', label: 'Average overall score', num: true, val: (r) => r.pct, fmt: (r) => sc(r.pct) },
+    ];
+    return card('c-o2', `/observe2 pilot · ${esc(scopeName())} · ${periodText()}`, about, kpis)
+      + card('c-o2l', 'What we are learning', 'Read from the visits so far. The pilot is young, so treat these as early signals.', facts)
+      + `<div class="cards2">${card('c-o2t', 'Progress by week', 'Visits and teachers visited each week since the pilot began.', trend)}${card('c-o2s', 'By sector', '', table('o2s', scols, O.sectors, { sort: { k: 'n', dir: -1 }, noLegend: true }))}</div>`
+      + card('c-o2i', 'The 17 indicators', `How coaches rated each indicator across ${N(O.n)} visits. Bars show the share at each level; the number is the average level (out of 4, leaving out "not applicable" and "couldn't tell"). Arrows show the average change from a teacher's first to latest visit, where they had more than one.`, `${lvlLegend}<div class="o2">${groups}</div>`)
+      + `<div class="cards2">${card('c-o2p', 'What to work on first', 'The one thing the coach asked the teacher to work on first, by how often it was chosen.', prio)}${card('c-o2c', "Children's thinking the coach saw", `Share of the ${N(O.withSeen)} visits where the coach noted it. A visit can show more than one.`, seen)}</div>`
+      + card('c-o2co', 'By coach', 'Contains coach names — internal use only. Visits are activity, not quality; scores also reflect which teachers each coach visits.', table('o2co', ccols, O.coaches, { sort: { k: 'n', dir: -1 } }));
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-hitl', `HITL observations · ${scopeName()} · ${periodText()}`, 'A coach observes the lesson in person. Held = conducted (scored, not cancelled, abandoned, failed or a test). Held = debriefed + debrief pending + awaiting review. <code>/observe2</code> visits use another rubric and are left out.',
       `<div class="kpis">${kpi('HITL observations', N(a.hitl), '')}${kpi('Teachers observed at least once', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)}`)}
         ${kpi('Debriefed', N(a.hitlC), P1(ratio(a.hitlC, a.hitl)))}${kpi('Debrief pending', N(a.hitlP), '')}${kpi('Awaiting review', N(a.hitlA), '')}</div>
-        <p class="note">${N(S.data.observe2_excluded || 0)} /observe2 visits (all time since 1 Aug, all schools shown) are not counted here.</p>`)
+        <p class="note">${N(S.data.observe2_excluded || 0)} /observe2 visits (since 1 Aug, all schools) use the impact team's own rubric and are not counted here — see the <a href="#tab=observe2">/observe2 pilot</a> tab.</p>`)
       + card('c-hitl-trend', 'HITL observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.hitl, g.teachersHitl] })),
         [{ name: 'HITL observations', color: NAVY }, { name: 'Teachers observed', color: GREY }]), granSeg())
       + card('c-hitl-t', `By ${level}`, '', table('hitl', [nameCol(level), COL.teachers, COL.hitl, COL.hitlT, COL.hitlPct, COL.hitlC, COL.hitlP, COL.hitlA, ...ficoCols().filter((c) => c.src === 'hitl')], rows,
@@ -1143,7 +1217,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;

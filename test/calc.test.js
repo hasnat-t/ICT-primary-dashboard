@@ -201,3 +201,17 @@ test('HITL analytics: observations per teacher, coaches, AI-form edits, grade fr
   const G = C.dcStats(C.prepare(data), { from: 0, to: 30 }, 'H');
   assert.deepStrictEqual(G.grades.map((x) => [x.key, x.n]), [['Grade 4', 1], ['Grade unknown', 1]]);
 });
+
+test('/observe2: indicator levels, priorities, repeat visits, kept apart from HITL', () => {
+  const data = sample();
+  data.o2 = [[2, 10, 'cccc0001', 'C', '1234n123412341234', 'C7', ['D1'], ['recall'], 50, null, null],
+    [2, 20, 'cccc0001', 'P', '23443234423442344', 'C7', [], [], 60, null, null]];
+  const O = C.observe2Stats(C.prepare(data), { from: 0, to: 30 });
+  assert.deepStrictEqual([O.n, O.teachers, O.C, O.repeat], [2, 1, 1, 1]);
+  assert.deepStrictEqual(O.ind[0].c['1'], 1);
+  assert.strictEqual(O.ind[4].c.n, 1);
+  assert.deepStrictEqual(O.prio, [['C7', 2]]);
+  assert.strictEqual(O.change[0], null);                  // one repeat teacher: too few for an arrow
+  assert.strictEqual(O.overallChange.d, 10);
+  assert.strictEqual(C.rollup(C.prepare(data), { from: 0, to: 30 }).all.hitl, 2);   // /observe2 does not touch HITL
+});

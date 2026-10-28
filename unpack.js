@@ -271,6 +271,23 @@ function buildDebriefs(rows, ro) {
   return out;
 }
 
+// /observe2 (fico17) visits: [teacher, day, coach id8, stage, levels(17 chars), priority, also[], seen[], overall %, lpf score, lpf max].
+function buildObserve2(rows, ro) {
+  const out = [];
+  const miss = { n: 0 };
+  for (const r of rows) {
+    for (const p of records('observe2', r)) {
+      if (p.length !== 11 || p[4].length !== 17) throw new Error('observe2: malformed record');
+      const ti = teacherOf(ro, r.school_id, p[0], miss);
+      if (ti === undefined) continue;
+      const list = (x) => (x ? x.split(',') : []);
+      out.push([ti, +p[1], p[2], p[3], p[4], p[5], list(p[6]), list(p[7]), num(p[8]), num(p[9]), num(p[10])]);
+    }
+  }
+  if (miss.n) throw new Error(`observe2: ${miss.n} records for teachers not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -293,4 +310,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, unquote, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, unquote, rosterSig, MIN_SCHOOLS };
