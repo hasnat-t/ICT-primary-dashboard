@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ICT Primary Dashboard</title>
-<meta name="description" content="NIETE ICT primary teachers: lesson plans, Digital Coach and coach-visit observations, FICO scores, children's quizzes and NIETE training, per sector, school and teacher.">
+<meta name="description" content="NIETE ICT primary teachers: lesson plans, DC and HITL observations, FICO scores, children's quizzes, the exam generator and NIETE training, per sector, school and teacher.">
 <link rel="icon" type="image/png" href="/assets/niete-logo.png">
 <link rel="stylesheet" href="/app.css?v=__V_CSS__">
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js" defer></script>
@@ -12,41 +12,54 @@
 <script src="/app.js?v=__V_APP__" defer></script>
 </head>
 <body>
-<div class="wrap">
-  <header class="head">
-    <span class="dia d1"></span><span class="dia d2"></span><span class="dia d3"></span>
-    <div class="logo"><img src="/assets/niete-logo.png" alt="NIETE"></div>
-    <div class="txt">
-      <h1>ICT Primary Dashboard</h1>
-      <p id="headline">Lesson plans, classroom observations, children's quizzes and NIETE training for primary teachers in every ICT programme school.</p>
+<div class="app">
+  <nav class="side" id="side" aria-label="Dashboard sections">
+    <div class="brand">
+      <div class="brand-logo"><img src="/assets/niete-logo.png" alt="NIETE"></div>
+      <div class="brand-txt"><span class="brand-name">ICT Primary</span><span class="brand-sub">Teacher programme</span></div>
     </div>
-  </header>
+    <div class="nav" id="nav"></div>
+    <div class="side-note">Contains teacher names. Internal use only.</div>
+  </nav>
 
-  <div class="bar" id="bar">
-    <div class="row">
-      <span class="lbl">Period</span>
-      <div class="seg" id="presets" role="group" aria-label="Period"></div>
-      <span class="row" id="custom" hidden>
-        <input class="inp" type="date" id="from" aria-label="From">
-        <span class="dim">to</span>
-        <input class="inp" type="date" id="to" aria-label="To">
-      </span>
-    </div>
-    <div class="row">
-      <span class="lbl">Area</span>
-      <select class="sel" id="sector" aria-label="Sector"></select>
-      <select class="sel" id="school" aria-label="School"></select>
-      <span class="period" id="period"></span>
-    </div>
-    <nav class="tabs" id="tabs" role="tablist" aria-label="Sections"></nav>
-  </div>
+  <main class="main">
+    <header class="top">
+      <div class="top-txt">
+        <div class="crumbs" id="crumbs"></div>
+        <h1 id="h1">Overview</h1>
+        <p class="sub" id="headline">Loading the latest data…</p>
+      </div>
+      <div class="top-btns">
+        <button class="btn" type="button" data-dl="main-content">Download image</button>
+        <button class="btn dark" type="button" id="present">Present</button>
+      </div>
+    </header>
 
-  <main id="main"><div class="loading">Loading the latest data…</div></main>
+    <section class="filters" id="filters" aria-label="Filters">
+      <div class="fld">
+        <label for="presetSel">Period</label>
+        <div class="row">
+          <select class="sel" id="presetSel"></select>
+          <span class="row" id="custom" hidden>
+            <input class="inp" type="date" id="from" aria-label="From">
+            <span class="dim">to</span>
+            <input class="inp" type="date" id="to" aria-label="To">
+          </span>
+          <span class="period" id="period"></span>
+        </div>
+      </div>
+      <div class="fld"><label for="sector">Sector</label><select class="sel" id="sector"></select></div>
+      <div class="fld grow"><label for="school">School</label><select class="sel" id="school"></select></div>
+      <div class="fld"><span class="lbl">Group charts by</span><div class="seg" id="granTop" role="group" aria-label="Group charts by"></div></div>
+    </section>
 
-  <footer class="foot">
-    <span>Data: Taleemabad data service (BigQuery, Niete_Rumi_db), governed rules <span id="rule"></span>. Primary teachers = verified teachers at ICT programme schools whose level includes primary. Contains teacher names — internal use only. Children's data is counts only.</span>
-    <span id="status"></span>
-  </footer>
+    <div id="main-content"><div id="main"><div class="loading">Loading the latest data…</div></div></div>
+
+    <footer class="foot">
+      <span>Data: Taleemabad data service (BigQuery, Niete_Rumi_db), governed rules <span id="rule"></span>. Primary teachers are verified teachers at ICT programme schools whose level includes primary. Children's data is counts only.</span>
+      <span id="status"></span>
+    </footer>
+  </main>
 </div>
 <dialog class="modal" id="modal"><div class="m-panel"><div class="m-head"><div><h3 id="m-title"></h3><p id="m-sub"></p></div><button class="x" id="m-x" aria-label="Close">×</button></div><div class="m-body" id="m-body"></div></div></dialog>
 </body>

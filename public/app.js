@@ -11,12 +11,17 @@
   const LEVELS = ['Level 0 · Aspiring Teacher', 'Level 1 · Emerging Practitioner', 'Level 2 · Skilled Practitioner', 'Level 3 · Teacher Leader'];
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  const S = { data: null, P: null, tab: 'overview', preset: 'all', from: 0, to: 0, gran: 'week', sector: '', school: '', search: '', missing: '', sort: {} };
+  const S = { data: null, P: null, tab: 'overview', preset: 'all', from: 0, to: 0, gran: 'week', sector: '', school: '', search: '', missing: '', sort: {}, mview: 'obs' };
 
-  const TABS = [
-    ['overview', 'Overview'], ['lp', 'Lesson plans'], ['dc', 'DC observations'], ['hitl', 'HITL observations'], ['fico', 'FICO scores'],
-    ['quiz', 'Quizzes'], ['exams', 'Exam generator'], ['training', 'Training'], ['schools', 'All schools'], ['teachers', 'Teachers'], ['trends', 'Analytics'],
+  const NAV = [
+    ['', [['overview', 'Overview']]],
+    ['Teaching', [['lp', 'Lesson plans'], ['quiz', 'Quizzes'], ['exams', 'Exam generator']]],
+    ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['fico', 'FICO scores']]],
+    ['Growth', [['training', 'Training']]],
+    ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers']]],
+    ['Insights', [['trends', 'Analytics']]],
   ];
+  const TABS = NAV.flatMap(([, items]) => items);
 
   // ---------- dates ----------
   const iso = (d) => Calc.dayToDate(S.data.window_start, d);
@@ -73,8 +78,9 @@
   const BANDS = [[80, 'b4', 'Exemplary', '80% and above'], [70, 'b3', 'Proficient', '70–79.9%'], [60, 'b2', 'Developing', '60–69.9%'], [-Infinity, 'b1', 'Needs support', 'below 60%']];
   const band = (p) => (p === null || p === undefined || !isFinite(p) ? '' : BANDS.find((b) => p >= b[0])[1]);
   const bandName = (p) => { const c = band(p); const b = BANDS.find((x) => x[1] === c); return b ? b[2] : ''; };
-  const sc = (p, extra = '') => (p === null || p === undefined || !isFinite(p) ? '<span class="dim">—</span>' : `<span class="sc ${band(p)}" title="${bandName(p)}">${P1(p)}</span>${extra}`);
-  const legend = () => `<div class="legend bands">${BANDS.map((b) => `<span><i class="${b[1]}"></i>${b[2]} <span class="dim">${b[3]}</span></span>`).join('')}<span><i class="zero"></i>None in this period</span></div>`;
+  const GLYPH = { b4: '✓', b3: '●', b2: '▲', b1: '!' };
+  const sc = (p, extra = '') => (p === null || p === undefined || !isFinite(p) ? '<span class="dim">—</span>' : `<span class="sc ${band(p)}" title="${bandName(p)}"><i aria-hidden="true">${GLYPH[band(p)]}</i>${P1(p)}</span>${extra}`);
+  const legend = () => `<div class="legend bands">${BANDS.map((b) => `<span><i class="${b[1]}">${GLYPH[b[1]]}</i><b>${b[2]}</b> <span class="dim">${b[3]}</span></span>`).join('')}<span><i class="zero"></i>None in this period</span></div>`;
   const cov = (p) => (p === null ? '<span class="dim">—</span>' : `<span class="cov">${sc(p)}<span class="b"><span class="${band(p)}" style="width:${Math.min(100, Math.max(0, p))}%"></span></span></span>`);
   // A teacher's own count: zero is highlighted, since it is the thing to follow up.
   const cnt = (r, v) => (r.t && !v ? '<span class="zero">0</span>' : N(v));
@@ -201,7 +207,7 @@
     const plotW = W - L - 4, slot = plotW / items.length;
     const y = (v) => T + (H - T - B) * (1 - Math.min(v, max) / max);
     let svg = '';
-    for (let v = 0; v <= max + 1e-9; v += step) svg += `<line class="gl" x1="${L}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${tick(v)}</text>`;
+    for (let v = 0; v <= max + 1e-9; v += step) svg += `<line class="${v ? 'gl' : 'gl0'}" x1="${L}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${tick(v)}</text>`;
     const every = Math.max(1, Math.ceil(items.length / Math.max(2, Math.floor(plotW / 70))));
     items.forEach((it, i) => { if (i % every === 0) svg += `<text x="${L + slot * i + slot / 2}" y="${H - 8}" text-anchor="middle">${esc(it.label)}</text>`; });
     if (kind === 'bar') {
@@ -210,21 +216,23 @@
       items.forEach((it, i) => it.values.forEach((v, j) => {
         if (!v) return;
         const x = L + slot * i + (slot - group) / 2 + j * (bw + 4);
-        svg += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${Math.max(1, bw).toFixed(1)}" height="${(H - B - y(v)).toFixed(1)}" rx="2" fill="${series[j].color}" data-tip="${esc(`${it.label} · ${series[j].name}: ${fmt(v)}`)}"/>`;
+        svg += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${Math.max(1, bw).toFixed(1)}" height="${(H - B - y(v)).toFixed(1)}" rx="3" fill="${series[j].color}" opacity="${it.faded ? 0.4 : 1}" data-tip="${esc(`${it.label} · ${series[j].name}: ${fmt(v)}${it.faded ? ' (in progress)' : ''}`)}"/>`;
       }));
     } else {
       series.forEach((s, j) => {
         const pts = items.map((it, i) => (it.values[j] === null || it.values[j] === undefined ? null : [L + slot * i + slot / 2, y(it.values[j]), it]));
         let d = '';
         pts.forEach((pt, i) => { if (pt) d += `${d && pts[i - 1] ? 'L' : 'M'}${pt[0].toFixed(1)},${pt[1].toFixed(1)}`; });
-        svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2"/>`;
-        pts.forEach((pt) => { if (pt) svg += `<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="${items.length > 40 ? 2 : 3.5}" fill="${s.color}" data-tip="${esc(`${pt[2].label} · ${s.name}: ${P1(pt[2].values[j])}`)}"/>`; });
+        svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        pts.forEach((pt) => { if (pt) svg += `<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="${items.length > 40 ? 2 : 4}" fill="${s.color}" stroke="#FFF" stroke-width="1.5" opacity="${pt[2].faded ? 0.45 : 1}" data-tip="${esc(`${pt[2].label} · ${s.name}: ${P1(pt[2].values[j])}`)}"/>`; });
       });
     }
     el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">${svg}</svg>`;
   }
   function drawCharts(root = document) { root.querySelectorAll('.chart[data-chart]').forEach((el) => { const c = charts[+el.dataset.chart]; if (c) drawChart(el, c); }); }
-  const GREEN = '#47BA7D', NAVY = '#333847', GREY = '#8A90A2', SOFT = '#8FD3AE';
+  // Chart colours: green for DC (and the first series), amber for HITL (and the second), as in the overview.
+  const C1 = '#1F7A4C', C2 = '#C4741C';
+  const GREEN = C1, NAVY = C2, GREY = '#8A929E', SOFT = '#8FD3AE';
   const granSeg = () => `<div class="seg" role="group" aria-label="Group by">${[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']].map(([k, l]) => `<button data-gran="${k}" aria-pressed="${S.gran === k}">${l}</button>`).join('')}</div>`;
   function seriesNow() { return Calc.series(S.P, sel(), S.gran); }
   const sel = () => ({ from: S.from, to: S.to, sector: S.sector, school: S.school });
@@ -235,32 +243,235 @@
     return S.sector || 'All ICT';
   }
   function crumbs() {
-    const parts = [`<button data-crumb="all">All ICT</button>`];
-    if (S.sector) parts.push(S.school !== '' ? `<button data-crumb="sector">${esc(S.sector)}</button>` : `<b>${esc(S.sector)}</b>`);
+    const parts = [S.sector || S.school !== '' ? '<button type="button" data-focus="clear">All ICT</button>' : '<b>All ICT</b>'];
+    if (S.sector) parts.push(S.school !== '' ? `<button type="button" data-focus="sector:${esc(S.sector)}">${esc(S.sector)}</button>` : `<b>${esc(S.sector)}</b>`);
     if (S.school !== '') parts.push(`<b>${esc(S.data.schools[+S.school].name)}</b>`);
-    return `<div class="crumbs">${parts.join(' › ')}</div>`;
+    return parts.join('<span aria-hidden="true">›</span>');
+  }
+
+
+  // ---------- overview ----------
+  const TIER = { b4: ['✓', 'Exemplary'], b3: ['●', 'Proficient'], b2: ['▲', 'Developing'], b1: ['!', 'Needs support'] };
+  const tierPill = (p) => { const b = band(p); return b ? `<span class="sc ${b}"><i>${TIER[b][0]}</i>${TIER[b][1]}</span>` : '<span class="pill-t">No data</span>'; };
+  const tierBg = (p) => ({ b4: 'var(--t4)', b3: 'var(--t3)', b2: 'var(--t2)', b1: 'var(--t1)' }[band(p)] || 'var(--line)');
+  const MET = {
+    lp: { label: 'LP engagement', f: (g) => ratio(g.g15, g.teachers) },
+    dc: { label: 'DC coverage', f: (g) => ratio(g.dcT, g.teachers) },
+    hitl: { label: 'HITL coverage', f: (g) => ratio(g.hitlT, g.teachers) },
+    ex: { label: 'Exam generator', f: (g) => ratio(g.exT, g.teachers) },
+    l0: { label: 'L0', f: (g) => ratio(g.cert[0], g.teachers) },
+    l1: { label: 'L1', f: (g) => ratio(g.cert[1], g.teachers) },
+    l2: { label: 'L2', f: (g) => ratio(g.cert[2], g.teachers) },
+    l3: { label: 'L3', f: (g) => ratio(g.cert[3], g.teachers) },
+  };
+  const signed = (v) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(1)}%`;
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+  function heroCard(key, label, note, g, A, secs, allTime) {
+    const f = MET[key].f, v = f(g);
+    const vals = secs.map(([, s]) => f(s)).filter((x) => x !== null);
+    const lo = Math.max(0, Math.floor((Math.min(v ?? 100, ...vals) - 5) / 10) * 10), hi = 100;
+    const pos = (x) => ((x - lo) / (hi - lo)) * 100;
+    const scoped = S.sector || S.school !== '';
+    const all = f(A);
+    const diff = v !== null && all !== null ? v - all : null;
+    const cmp = scoped && diff !== null
+      ? `<span class="cmp ${diff >= 0 ? 'up' : 'dn'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(1)} pts vs All ICT (${P1(all)})</span>`
+      : `<span class="cmp">Sectors range ${P1(Math.min(...vals))} – ${P1(Math.max(...vals))}</span>`;
+    const dots = secs.map(([n, s]) => {
+      const x = f(s); if (x === null) return '';
+      const on = n === S.sector, sz = on ? 16 : 11;
+      return `<button class="d ${on ? 'on' : ''}" type="button" data-focus="sector:${esc(n)}" title="${esc(n)}: ${P1(x)}" aria-label="${esc(n)} ${P1(x)}" style="top:${14 - sz / 2}px;left:calc(${pos(x).toFixed(2)}% - ${sz / 2}px);width:${sz}px;height:${sz}px;background:${tierBg(x)}"></button>`;
+    }).join('');
+    const tick = all !== null ? `<div class="tk" style="left:calc(${pos(all).toFixed(2)}% - 1px)" title="All ICT ${P1(all)}"></div>` : '';
+    return `<article class="hcard"><div class="hcard-h"><span class="hcard-l">${esc(label)}</span>${allTime ? '<span class="pill-t">All-time</span>' : ''}</div>
+      <div class="hcard-v"><span class="big">${P1(v)}</span>${tierPill(v)}</div><span class="hnote">${note}</span>
+      <div class="strip" role="img" aria-label="Sector spread; the grey tick is All ICT"><div class="ln"></div>${tick}${dots}</div>${cmp}</article>`;
+  }
+
+  // The last bucket of a series is faded when it is still in progress.
+  function partialOf(ser) {
+    const last = ser[ser.length - 1];
+    if (!last || last.to !== S.data.today || S.gran === 'day') return -1;
+    if (S.gran === 'week') return last.to - last.from < 6 ? ser.length - 1 : -1;
+    return ser.length - 1;
+  }
+  function momentum(ser) {
+    const view = S.mview || 'obs';
+    const part = partialOf(ser);
+    const full = ser.filter((_, i) => i !== part);
+    const unit = S.gran === 'day' ? 'day' : S.gran === 'week' ? 'week' : 'month';
+    const peakIdx = (k) => { let b = 0; full.forEach((g, i) => { if (g[k] > full[b][k]) b = i; }); return b; };
+    const items = (f) => ser.map((g, i) => ({ label: bucketLabel(g), values: f(g), faded: i === part }));
+    const stats = (k, name, k2, name2) => {
+      if (!full.length) return '';
+      const p = peakIdx(k), last = full[full.length - 1], pv = full[p][k];
+      const ch = pv ? ((last[k] - pv) / pv) * 100 : 0;
+      return `<div class="stat"><span class="sl">Peak ${unit}</span><span class="sv">${N(pv)}</span><span class="ss">${name}, ${bucketLabel(full[p])}</span></div>
+        <div class="stat"><span class="sl">Latest full ${unit}</span><span class="sv">${N(last[k])}</span><span class="ss">${name} and ${N(last[k2])} ${name2}, ${bucketLabel(last)}</span></div>
+        <div class="stat"><span class="sl">Change from peak</span><span class="sv ${ch < -0.5 ? 'dn' : ''}">${full.length > 1 ? signed(ch) : '—'}</span><span class="ss">${name}</span></div>`;
+    };
+    const say = (k, name) => {
+      if (full.length < 2) return `Pick a longer period to see how ${name} change over time.`;
+      const p = peakIdx(k), last = full[full.length - 1], pv = full[p][k];
+      if (!pv) return `No ${name} in this period.`;
+      const ch = ((last[k] - pv) / pv) * 100;
+      if (p === full.length - 1) return `${cap(name)} are at their highest in the latest full ${unit} (${bucketLabel(last)}).`;
+      if (ch > -10) return `${cap(name)} are holding close to their peak (${bucketLabel(full[p])}).`;
+      return `${cap(name)} peaked in ${bucketLabel(full[p])} and the latest full ${unit} is ${Math.abs(ch).toFixed(0)}% lower.`;
+    };
+    let body;
+    if (view === 'obs') {
+      body = { insight: say('dc', 'DC recordings'), chart: chart(items((g) => [g.dc, g.hitl]), [{ name: 'DC observations', color: C1 }, { name: 'HITL observations', color: C2 }]), stats: stats('dc', 'DC recordings', 'hitl', 'HITL') };
+    } else if (view === 'plans') {
+      body = { insight: say('teachersWithPlan', 'teachers getting plans'), chart: chart(items((g) => [g.teachersWithPlan, g.taught]), [{ name: 'Teachers who got a plan', color: C1 }, { name: 'Plans taught, seen in DC', color: C2 }]), stats: stats('teachersWithPlan', 'teachers with a plan', 'taught', 'plans taught') };
+    } else {
+      const d = full.map((g) => fpct(g.ficoD.hlp)).filter((x) => x !== null), h = full.map((g) => fpct(g.ficoH.hlp)).filter((x) => x !== null);
+      const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+      const rng = (a) => (a.length ? `${P1(Math.min(...a))}–${P1(Math.max(...a))}` : '—');
+      body = {
+        insight: d.length ? `Teaching practices: DC averages ${P1(avg(d))}${h.length ? ` and HITL ${P1(avg(h))}, ${Math.abs(avg(h) - avg(d)).toFixed(1)} points ${avg(h) >= avg(d) ? 'higher' : 'lower'}` : ''}.` : 'No scored observations in this period.',
+        chart: chart(items((g) => [fpct(g.ficoD.hlp), fpct(g.ficoH.hlp)]), [{ name: 'DC observations', color: C1 }, { name: 'HITL observations', color: C2 }], 'line'),
+        stats: `<div class="stat"><span class="sl">DC, latest full ${unit}</span><span class="sv">${P1(d.length ? d[d.length - 1] : null)}</span><span class="ss">teaching practices score</span></div>
+          <div class="stat"><span class="sl">HITL, latest full ${unit}</span><span class="sv">${P1(h.length ? h[h.length - 1] : null)}</span><span class="ss">teaching practices score</span></div>
+          <div class="stat"><span class="sl">Range in period</span><span class="sv" style="font-size:22px">${rng(d)}</span><span class="ss">DC · HITL ${rng(h)}</span></div>`,
+      };
+    }
+    const tabs = [['obs', 'Classroom observations'], ['plans', 'Lesson plans'], ['score', 'Teaching practices score']]
+      .map(([k, l]) => `<button type="button" data-mview="${k}" aria-pressed="${view === k}">${l}</button>`).join('');
+    return `<section class="card" id="c-mom"><div class="card-h"><div><h2>Momentum</h2><p class="note">${esc(scopeName())} · by ${unit} · ${periodText()}${part >= 0 ? `. The last ${unit} is still in progress and shown faded.` : '.'}</p></div>
+      <div class="row"><div class="seg" role="group" aria-label="Momentum metric">${tabs}</div><button class="dl" data-dl="c-mom">Download image</button></div></div>
+      <p class="insight">${esc(body.insight)}</p>
+      <div class="flexrow"><div class="mom">${body.chart}</div><div class="stats">${body.stats}</div></div></section>`;
+  }
+
+  function heatRows(rows, A, kind) {
+    const keys = ['lp', 'dc', 'hitl', 'ex', 'l0', 'l1', 'l2', 'l3'];
+    const cells = (g, dim) => keys.map((k) => {
+      const v = g.teachers ? MET[k].f(g) : null;
+      if (v === null) return '<span class="hm-c na">—</span>';
+      const b = band(v);
+      return `<span class="hm-c ${b} ${dim ? 'dim' : ''}" title="${esc(g.name)} · ${MET[k].label}: ${P1(v)} (${TIER[b][1]})"><i>${TIER[b][0]}</i>${v.toFixed(1)}</span>`;
+    }).join('');
+    const focused = kind === 'sector' ? S.sector : S.school;
+    return rows.map((g) => {
+      const on = String(g.key) === String(focused);
+      const dim = focused !== '' && !on;
+      return `<button class="hm-r" type="button" data-focus="${kind}:${esc(g.key)}" aria-pressed="${on}"><span class="hm-n"><b>${esc(g.name)}</b><span>${esc(g.sub)}</span></span>${cells(g, dim)}</button>`;
+    }).join('') + (A ? `<button class="hm-r total" type="button" data-focus="${A.focus}"><span class="hm-n"><b>${esc(A.name)}</b><span>${esc(A.sub)}</span></span>${cells(A, false)}</button>` : '');
+  }
+  function heatmap(title, note, rowsHtml, id) {
+    const heads = ['Lesson plans', 'DC coverage', 'HITL coverage', 'Exam generator', 'L0', 'L1', 'L2', 'L3'];
+    const leg = ['b4', 'b3', 'b2', 'b1'].map((b) => `<span><i class="${b}">${TIER[b][0]}</i><b>${TIER[b][1]}</b> ${BANDS.find((x) => x[1] === b)[3]}</span>`).join('');
+    return `<section class="card" id="${id}" style="flex:3 1 740px"><div class="card-h"><div><h2>${esc(title)}</h2><p class="note">${note}</p></div><button class="dl" data-dl="${id}">Download image</button></div>
+      <div class="legend bands">${leg}</div>
+      <div class="xscroll"><div class="hm"><div class="hm-g"><span></span><span class="grp">Classroom reach · this period</span><span class="grp">Certification · all-time</span></div>
+      <div class="hm-h"><span>Name</span>${heads.map((h) => `<span>${h}</span>`).join('')}</div><div class="hm-list">${rowsHtml}</div></div></div></section>`;
   }
 
   function viewOverview(R) {
-    const a = R.all, { level, rows } = levelRows(R);
-    // Every activity tile is coloured by the share of primary teachers it reached, so all tiles follow one rule.
-    const reach = (k, v, n, what) => kpi(k, v, `${what} · <b>${P1(ratio(n, a.teachers))}</b> of teachers`, `kb ${band(ratio(n, a.teachers))}`);
-    const k = `<div class="kpis">
-      ${kpi('Primary teachers', N(a.teachers), `${N(a.schools)} schools`)}
-      ${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} got a grade 1–5 plan`)}
-      ${reach('Plans taught', N(a.taught), a.teachersTaught, `${N(a.teachersTaught)} teachers · seen in DC`)}
-      ${reach('DC observations', N(a.dc), a.dcT, `${N(a.dcT)} teachers recorded`)}
-      ${reach('HITL observations', N(a.hitl), a.hitlT, `${N(a.hitlT)} teachers observed`)}
-      ${reach('Quizzes made', N(a.made), a.madeT, `${N(a.madeT)} teachers`)}
-      ${reach('Children quizzed', N(a.kidsL), a.quizT, `${N(a.sitL)} quiz attempts · ${N(a.quizT)} teachers`)}
-      ${reach('Exam generator', N(a.exOk), a.exT, `papers · ${N(a.exT)} teachers got one`)}
-      ${reach('On NIETE primary training', N(a.onProg), a.onProg, `${N(a.cert[0])} hold Level 0 · all time`)}
-    </div>
-    <p class="note">Tile colour = share of primary teachers reached in this period, using the same bands as the tables.</p>`;
-    const cols = [nameCol(level), COL.schools, COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.kidsL, COL.exOk, COL.exPct, COL.onProg, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
-    return card('c-over', `${scopeName()} · ${periodText()}`, `Everything below counts primary teachers only.${kidsNote()} Training is all-time.`, k)
-      + card('c-over-t', `By ${level}`, `Click a row to drill down (sector → school → teacher).`,
-        table('over', cols, rows, { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a, footLabel: 'Total' }));
+    const RA = Calc.rollup(S.P, { from: S.from, to: S.to });
+    const A = RA.all, g = R.all;
+    const secs = [...RA.sectors.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const scoped = S.sector || S.school !== '';
+    const lv = [0, 1, 2, 3].map((i) => ratio(g.cert[i], g.teachers));
+
+    const hero = `<section class="hero" aria-label="Headline metrics">
+      ${heroCard('lp', 'Lesson-plan engagement', `${N(g.g15)} of ${N(g.teachers)} teachers got a grade 1–5 plan`, g, A, secs)}
+      ${heroCard('dc', 'DC coverage', `${N(g.dcT)} teachers recorded a lesson on the Digital Coach`, g, A, secs)}
+      ${heroCard('hitl', 'HITL coverage', `${N(g.hitlT)} teachers observed by a coach`, g, A, secs)}
+      ${heroCard('l3', 'Teacher Leader certified', `${N(g.cert[3])} teachers hold Level 3`, g, A, secs, true)}</section>`;
+
+    const vol = [[g.dc, 'DC observations'], [g.hitl, 'HITL observations'], [g.taught, 'Plans taught, seen in DC'], [g.made, 'Lesson quizzes made'],
+      [g.kidsL, 'Children quizzed'], [g.exOk, 'Exams generated']];
+    const volume = `<section class="volume" aria-label="Activity volume">${vol.map(([v, l]) => `<div><span class="vv">${N(v)}</span><span class="vl">${l}</span></div>`).join('')}</section>`;
+
+    const rungs = [['Got a grade 1–5 lesson plan', g.g15], ['Recorded a lesson (DC)', g.dcT], ['Made a lesson quiz', g.madeT], ['Used the exam generator', g.exT],
+      ['Observed by a coach (HITL)', g.hitlT], ['Taught a plan, seen in DC', g.teachersTaught], ['Had children take a lesson quiz', g.quizT]]
+      .map(([l, n]) => [l, n, ratio(n, g.teachers)]).sort((a, b) => (b[2] ?? 0) - (a[2] ?? 0));
+    const ladder = `<section class="card" id="c-ladder" style="flex:3 1 520px"><div class="card-h"><div><h2>Teacher reach ladder</h2><p class="note">${esc(scopeName())} · share of ${N(g.teachers)} primary teachers reached by each part of the programme · ${periodText()}</p></div><button class="dl" data-dl="c-ladder">Download image</button></div>
+      <div class="ladder"><div class="lrow"><div class="ll"><span>In the programme</span><span>${N(g.teachers)} teachers</span></div><div class="lbar"><div style="width:100%;background:var(--muted)"></div></div><span class="lpct">100%</span></div>
+      ${rungs.map(([l, n, p]) => `<div class="lrow"><div class="ll"><span>${l}</span><span>${N(n)} teachers</span></div><div class="lbar"><div style="width:${p ?? 0}%;background:${tierBg(p)}"></div></div><span class="lpct">${P1(p)}</span></div>`).join('')}</div>
+      <p class="note">Each rung is counted on its own, so this is a ladder of reach rather than a funnel.</p></section>`;
+
+    // Needs attention: generated from this period's figures.
+    const att = [];
+    const serW = Calc.series(S.P, sel(), 'week');
+    const fullW = serW.filter((x, i) => !(i === serW.length - 1 && x.to === S.data.today && x.to - x.from < 6));
+    if (fullW.length >= 3) {
+      let p = 0; fullW.forEach((x, i) => { if (x.dc > fullW[p].dc) p = i; });
+      const last = fullW[fullW.length - 1], drop = fullW[p].dc ? ((fullW[p].dc - last.dc) / fullW[p].dc) * 100 : 0;
+      if (p < fullW.length - 1 && drop >= 25) att.push({ v: drop >= 50 ? 40 : 65, focus: 'tab:dc', title: `DC recordings have fallen ${drop.toFixed(0)}% since the week of ${nice(fullW[p].from)}`, body: `From ${N(fullW[p].dc)} in the week of ${nice(fullW[p].from)} to ${N(last.dc)} in the week of ${nice(last.from)}.`, tag: 'Open DC observations →' });
+    }
+    if (!scoped) {
+      for (const k of ['hitl', 'dc', 'ex', 'lp']) {
+        const vs = secs.map(([n, s]) => [n, MET[k].f(s)]).filter((x) => x[1] !== null).sort((a, b) => a[1] - b[1]);
+        if (!vs.length) continue;
+        const [lowN, lowV] = vs[0], [hiN, hiV] = vs[vs.length - 1];
+        if (hiV < 60) att.push({ v: lowV, focus: `sector:${lowN}`, title: `${MET[k].label} is under ${Math.ceil(hiV / 5) * 5}% in every sector`, body: `All ICT is at ${P1(MET[k].f(A))}. ${lowN} is lowest at ${P1(lowV)}.`, tag: `Focus ${lowN} →` });
+        else if (lowV < 70) att.push({ v: lowV, focus: `sector:${lowN}`, title: `${lowN} trails on ${MET[k].label.replace('LP', 'lesson-plan').toLowerCase()}`, body: `${P1(lowV)} against ${P1(MET[k].f(A))} across ICT; ${hiN} leads at ${P1(hiV)}.`, tag: `Focus ${lowN} →` });
+      }
+      const best = secs.map(([n, s]) => [n, ((MET.lp.f(s) || 0) + (MET.dc.f(s) || 0)) / 2, s]).sort((a, b) => b[1] - a[1])[0];
+      if (best) att.push({ v: 85, focus: `sector:${best[0]}`, title: `${best[0]} leads on lesson plans and recordings`, body: `LP engagement ${P1(MET.lp.f(best[2]))} and DC coverage ${P1(MET.dc.f(best[2]))}.`, tag: `Focus ${best[0]} →` });
+    } else {
+      for (const k of ['hitl', 'dc', 'ex', 'lp']) {
+        const v = MET[k].f(g), a = MET[k].f(A);
+        if (v !== null && a !== null && v < a - 3) att.push({ v, focus: `tab:${k === 'ex' ? 'exams' : k}`, title: `${MET[k].label} is below the ICT average`, body: `${P1(v)} here against ${P1(a)} across ICT.`, tag: 'Open details →' });
+      }
+    }
+    let worst = 1; for (let i = 2; i < 4; i++) if ((lv[i - 1] ?? 0) - (lv[i] ?? 0) > (lv[worst - 1] ?? 0) - (lv[worst] ?? 0)) worst = i;
+    if (lv[worst] !== null) att.push({ v: lv[worst], focus: 'tab:training', title: `Certification drops ${(lv[worst - 1] - lv[worst]).toFixed(1)} points from Level ${worst - 1} to Level ${worst}`, body: `${P1(lv[worst - 1])} hold ${LEVELS[worst - 1].split(' · ')[1]}, ${P1(lv[worst])} reach ${LEVELS[worst].split(' · ')[1]}.`, tag: 'Open training →' });
+    att.sort((a, b) => a.v - b.v);
+    const attention = `<section class="card" id="c-att" style="flex:2 1 340px"><div class="card-h"><div><h2>Needs attention</h2><p class="note">Generated from this period's results${scoped ? ` for ${esc(scopeName())}` : ''}. Select one to focus.</p></div></div>
+      <div class="atts">${att.slice(0, 5).map((a) => { const b = band(a.v) || 'b2'; return `<button class="att" type="button" data-focus="${esc(a.focus)}"><span class="bd ${b}" aria-hidden="true">${TIER[b][0]}</span><span class="at"><b>${esc(a.title)}</b><span>${esc(a.body)}</span><em>${esc(a.tag)}</em></span></button>`; }).join('') || '<p class="note">Nothing stands out in this period.</p>'}</div></section>`;
+
+    // Heatmaps: the sectors, or a focused sector's schools.
+    let heat;
+    if (!S.sector) {
+      const secRows = secs.map(([n, s]) => Object.assign(s, { name: n, key: n, sub: `${s.schools} schools · ${N(s.teachers)} teachers` }));
+      const total = Object.assign({}, A, { name: 'All ICT', sub: `${N(A.schools)} schools · ${N(A.teachers)} teachers`, focus: 'clear' });
+      heat = heatmap('Sectors at a glance', `% of each sector's primary teachers · ${periodText()}. Select a sector to focus the page.`, heatRows(secRows, total, 'sector'), 'c-hm');
+    } else {
+      const RS = S.school !== '' ? Calc.rollup(S.P, { from: S.from, to: S.to, sector: S.sector }) : R;
+      const schRows = [...RS.schools.values()].sort((a, b) => S.data.schools[a.s].name.localeCompare(S.data.schools[b.s].name))
+        .map((s) => Object.assign(s, { name: S.data.schools[s.s].name, key: s.s, sub: `EMIS ${S.data.schools[s.s].emis} · ${N(s.teachers)} teachers` }));
+      const total = Object.assign({}, RS.all, { name: S.sector, sub: `${N(RS.all.schools)} schools · ${N(RS.all.teachers)} teachers`, focus: `sector:${S.sector}` });
+      heat = heatmap(`Schools in ${S.sector}`, `% of each school's primary teachers · ${periodText()}. Select a school to focus; its teachers are listed below.`, heatRows(schRows, total, 'school'), 'c-hm');
+    }
+
+    const rates = [['Lesson-plan engagement', MET.lp.f(g)], ['DC coverage', MET.dc.f(g)], ['HITL coverage', MET.hitl.f(g)], ['Exam generator use', MET.ex.f(g)], ['Teacher Leader (L3)', MET.l3.f(g)]];
+    const fname = S.school !== '' ? S.data.schools[+S.school].name : S.sector || 'All ICT';
+    const focus = `<aside class="focus" aria-label="Focus"><div class="focus-h"><div><span class="fk">${S.school !== '' ? 'School focus' : S.sector ? 'Sector focus' : 'Programme focus'}</span><h2>${esc(fname)}</h2>
+      <span class="fs">${scoped ? `${N(g.schools)} school${g.schools === 1 ? '' : 's'} · ${N(g.teachers)} primary teachers` : `${secs.length} sectors · ${N(A.schools)} schools · ${periodText()}`}</span></div>
+      ${scoped ? '<button class="clr" type="button" data-focus="clear">Clear</button>' : ''}</div>
+      <div class="frs">${rates.map(([l, v]) => `<div class="fr"><div><span>${l}</span><span>${P1(v)}</span></div><div class="fb"><div style="width:${v ?? 0}%;background:${v >= 70 ? 'var(--green)' : tierBg(v)}"></div></div></div>`).join('')}</div>
+      <div class="fc"><div><b>${N(g.schools)}</b><span>Schools</span></div><div><b>${N(g.teachers)}</b><span>Primary teachers</span></div><div><b>${N(g.kidsL)}</b><span>Children quizzed</span></div><div><b>${N(g.onProg)}</b><span>On NIETE training</span></div></div>
+      <button class="cta" type="button" data-focus="tab:${S.school !== '' ? 'teachers' : 'schools'}">${S.school !== '' ? 'Open its teachers →' : `Open ${esc(S.sector || 'all')} schools →`}</button></aside>`;
+
+    // Certification staircase: bars for the selection, dots for the six sectors.
+    const H = 240;
+    const steps = [0, 1, 2, 3].map((i) => {
+      const v = lv[i], prev = i ? lv[i - 1] : null, drop = prev !== null && v !== null ? prev - v : 0;
+      const dots = secs.map(([n, s], j) => {
+        const x = ratio(s.cert[i], s.teachers); if (x === null) return '';
+        const on = n === S.sector, sz = on ? 16 : 11;
+        return `<span class="step-dot ${on ? 'on' : ''}" title="${esc(n)}: ${P1(x)}" style="left:calc(${20 + j * 12}% - ${sz / 2}px);bottom:${(x / 100 * H - sz / 2).toFixed(1)}px;width:${sz}px;height:${sz}px"></span>`;
+      }).join('');
+      const dropB = drop >= 15 ? 'b1' : drop >= 8 ? 'b2' : 'b4';
+      return `<div class="step"><div class="step-plot"><div class="step-bar" style="height:${((v ?? 0) / 100 * H).toFixed(1)}px;background:${tierBg(v)}"></div>
+        <span class="step-val" style="bottom:${((S.school !== '' ? (v ?? 0) : Math.max(v ?? 0, ...secs.map(([, s]) => ratio(s.cert[i], s.teachers) ?? 0))) / 100 * H + 12).toFixed(1)}px">${P1(v)}</span>${S.school !== '' ? '' : dots}</div>
+        <div class="step-t"><span class="lv">Level ${i}</span><span class="nm">${LEVELS[i].split(' · ')[1]}</span><span class="ct">${N(g.cert[i])} teachers</span>
+        ${i ? `<span class="drop ${dropB}">−${drop.toFixed(1)} pts from Level ${i - 1}</span>` : ''}</div></div>`;
+    }).join('');
+    const stairs = `<section class="card" id="c-stairs"><div class="card-h"><div><h2>Certification staircase</h2><p class="note">${esc(scopeName())} · % of primary teachers holding each NIETE level certificate${S.school !== '' ? '' : '. Dots are the six sectors; the dark one is the focused sector'}.</p></div><div class="row"><span class="pill-t">All-time</span><button class="dl" data-dl="c-stairs">Download image</button></div></div>
+      <div class="xscroll"><div class="stairs">${steps}</div></div></section>`;
+
+    const { level, rows } = levelRows(R);
+    const drillTable = S.school !== '' ? card('c-over-t', 'Teachers', 'Click a teacher for the scorecard. Contains teacher names — internal use only.',
+      table('over', [nameCol(level), COL.g15, COL.taught, COL.dc, COL.hitl, COL.made, COL.exOk, COL.onProg, COL.cert1, COL.cert2, COL.cert3, COL.cert4], rows, { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: R.all })) : '';
+
+    return `${hero}${volume}<div class="flexrow">${ladder}${attention}</div>${momentum(Calc.series(S.P, sel(), S.gran))}
+      <div class="flexrow">${heat}${focus}</div>${stairs}${drillTable}`;
   }
 
   function viewLp(R) {
@@ -436,24 +647,27 @@
   function render() {
     if (!S.data) return;
     writeHash();
-    const pr = presets();
-    $('#presets').innerHTML = pr.map(([k, l]) => `<button data-preset="${k}" aria-pressed="${S.preset === k}">${l}</button>`).join('');
+    $('#nav').innerHTML = NAV.map(([t, items]) => `<div class="nav-g">${t ? `<span class="nav-t">${t}</span>` : ''}${items.map(([k, l]) => `<button type="button" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</div>`).join('');
+    $('#h1').textContent = TABS.find((t) => t[0] === S.tab)[1];
+    $('#crumbs').innerHTML = crumbs();
+    $('#presetSel').innerHTML = presets().map(([k, l]) => `<option value="${k}" ${S.preset === k ? 'selected' : ''}>${l}</option>`).join('');
     $('#custom').hidden = S.preset !== 'custom';
     $('#from').value = iso(S.from); $('#to').value = iso(S.to);
     $('#from').min = $('#to').min = iso(0); $('#from').max = $('#to').max = iso(S.data.today);
     const sectors = [...new Set(S.data.schools.map((s) => s.sector))].sort();
     $('#sector').innerHTML = `<option value="">All sectors</option>${sectors.map((s) => `<option ${S.sector === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}`;
     const schools = S.data.schools.map((s, i) => [i, s]).filter(([, s]) => !S.sector || s.sector === S.sector).sort((a, b) => a[1].name.localeCompare(b[1].name));
-    $('#school').innerHTML = `<option value="">All schools</option>${schools.map(([i, s]) => `<option value="${i}" ${S.school === String(i) ? 'selected' : ''}>${esc(s.name)} (${esc(s.emis)})</option>`).join('')}`;
-    $('#period').innerHTML = `Showing <b>${periodText()}</b>`;
-    $('#tabs').innerHTML = TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${l}</button>`).join('');
+    $('#school').innerHTML = `<option value="">All schools${S.sector ? ` in ${esc(S.sector)}` : ''} (${schools.length})</option>${schools.map(([i, s]) => `<option value="${i}" ${S.school === String(i) ? 'selected' : ''}>${esc(s.name)} (${esc(s.emis)})</option>`).join('')}`;
+    $('#period').innerHTML = `<b>${periodText()}</b>`;
+    $('#granTop').innerHTML = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']].map(([k, l]) => `<button type="button" data-gran="${k}" aria-pressed="${S.gran === k}">${l}</button>`).join('');
+    $('#present').textContent = document.body.classList.contains('present') ? 'Exit presentation' : 'Present';
     const R = Calc.rollup(S.P, sel());
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
     const warn = missing.length ? `<p class="note warn">Some data could not be loaded in the last refresh (${missing.join(', ')}); those figures show as blank or zero.</p>` : '';
     const views = { overview: viewOverview, lp: viewLp, dc: viewDc, hitl: viewHitl, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
-    $('#main').innerHTML = `<div class="grid">${crumbs()}${warn}${views[S.tab](R)}</div>`;
+    $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
     drawCharts($('#main'));
     if (focus !== null && $('#search')) { $('#search').focus(); $('#search').setSelectionRange(focus, focus); }
   }
@@ -476,10 +690,19 @@
     const b = e.target.closest('button, tr.click');
     if (!b) return;
     if (b.dataset.preset) { if (b.dataset.preset === 'custom') { S.preset = 'custom'; render(); } else setPreset(b.dataset.preset); }
-    else if (b.dataset.tab) { S.tab = b.dataset.tab; S.search = ''; render(); }
+    else if (b.dataset.tab) { S.tab = b.dataset.tab; S.search = ''; render(); window.scrollTo(0, 0); }
     else if (b.dataset.gran) { S.gran = b.dataset.gran; render(); }
     else if (b.dataset.dl) download(b.dataset.dl);
-    else if (b.dataset.crumb) { if (b.dataset.crumb === 'all') S.sector = ''; S.school = ''; render(); }
+    else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }
+    else if (b.dataset.focus) {
+      const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);
+      if (kind === 'clear') { S.sector = ''; S.school = ''; }
+      else if (kind === 'sector') { S.sector = S.sector === val && S.school === '' && b.closest('#c-hm, .hero') ? '' : val; S.school = ''; }
+      else if (kind === 'school') { S.school = S.school === val ? '' : val; if (S.school !== '') S.sector = S.data.schools[+val].sector; }
+      else if (kind === 'tab') { S.tab = val; S.search = ''; window.scrollTo(0, 0); }
+      render();
+    }
+    else if (b.id === 'present') { document.body.classList.toggle('present'); render(); }
     else if (b.dataset.sort) {
       const [id, k] = b.dataset.sort.split(':');
       const cur = S.sort[id];
@@ -491,7 +714,8 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('tr.click')) e.target.click(); });
   document.addEventListener('change', (e) => {
     const t = e.target;
-    if (t.id === 'sector') { S.sector = t.value; S.school = ''; render(); }
+    if (t.id === 'presetSel') { if (t.value === 'custom') { S.preset = 'custom'; render(); } else setPreset(t.value); }
+    else if (t.id === 'sector') { S.sector = t.value; S.school = ''; render(); }
     else if (t.id === 'school') { S.school = t.value; if (t.value !== '') S.sector = S.data.schools[+t.value].sector; render(); }
     else if (t.id === 'missing') { S.missing = t.value; render(); }
     else if (t.id === 'from' || t.id === 'to') {
@@ -535,7 +759,7 @@
       if (S.preset !== 'custom') { const p = presets().find((x) => x[0] === S.preset) || presets().find((x) => x[0] === 'all'); S.preset = p[0]; S.from = Math.max(p[2], 0); S.to = p[3]; }
       S.from = Math.max(0, Math.min(S.from, S.data.today)); S.to = Math.max(S.from, Math.min(S.to, S.data.today));
       const a = Calc.rollup(S.P, { from: 0, to: S.data.today }).all;
-      $('#headline').innerHTML = `<b>${N(a.teachers)}</b> primary teachers in <b>${N(a.schools)}</b> schools across <b>${new Set(S.data.schools.map((s) => s.sector)).size}</b> ICT sectors. Data from 1 Aug 2026 to ${niceY(S.data.today)}; updated ${esc(S.data.as_of)}.`;
+      $('#headline').innerHTML = `<b>${N(a.teachers)}</b> primary teachers in <b>${N(a.schools)}</b> schools across <b>${new Set(S.data.schools.map((s) => s.sector)).size}</b> ICT sectors · updated ${esc(S.data.as_of)}`;
       $('#rule').textContent = S.data.rule_version || '';
       render();
       status();
