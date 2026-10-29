@@ -57,7 +57,27 @@ async function readRpc(res) {
   return JSON.parse(text);
 }
 
+// The data service allows 20 queries a minute per person. Space queries out to stay under it, and wait and retry
+// when it still says RATE_LIMITED, so a long refresh never drops a part for being too quick.
+const MIN_GAP_MS = 3200;
+let lastQueryAt = 0;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function executeQuery(sql, question) {
+  for (let attempt = 1; ; attempt++) {
+    const wait = lastQueryAt + MIN_GAP_MS - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastQueryAt = Date.now();
+    try {
+      return await executeQueryOnce(sql, question);
+    } catch (e) {
+      if (!/RATE_LIMITED/.test(String(e.message || e)) || attempt >= 6) throw e;
+      log(`rate limited, waiting before retry ${attempt}`);
+      await sleep(15000 * attempt);
+    }
+  }
+}
+
+async function executeQueryOnce(sql, question) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream',
