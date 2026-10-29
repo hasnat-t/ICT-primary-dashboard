@@ -394,3 +394,7 @@ dialog.fb { max-width: min(40rem, calc(100vw - 24px)); }
 .ev-x { position: absolute; right: 8px; top: 8px; font: inherit; font-size: 12px; border: 1px solid var(--line); background: #FFF; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
 .cal-pick { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; display: grid; gap: 4px; background: #FFF; }
 .cal-pick label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+
+/* table tools */
+.t-tools { display: flex; justify-content: flex-end; margin: 0 0 6px; }
+.snapping .t-tools { display: none; }

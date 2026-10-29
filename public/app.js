@@ -107,10 +107,32 @@
     const body = sorted.map((r) => `<tr class="${opt.onRow ? 'click' : ''}" ${opt.onRow ? `tabindex="0" data-row="${id}:${opt.rowKey(r)}"` : ''}>${cols.map((c) => `<td class="${c.num ? 'n' : ''} ${c.k === 'name' ? 'name' : ''}">${c.fmt ? c.fmt(r) : esc(c.val(r))}</td>`).join('')}</tr>`).join('');
     const foot = opt.foot ? `<tfoot><tr>${cols.map((c, i) => `<td class="${c.num ? 'n' : ''}">${i === 0 ? esc(opt.footLabel || 'Total') : c.fmt ? c.fmt(opt.foot) : esc(c.val(opt.foot))}</td>`).join('')}</tr></tfoot>` : '';
     rowHandlers[id] = opt.onRow;
-    return `${opt.noLegend ? '' : legend()}<div class="scroll"><table class="t" id="tbl-${id}"><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="empty">Nothing to show for this selection.</td></tr>`}</tbody>${foot}</table></div>`;
+    tableData[id] = { cols, rows: sorted, foot: opt.foot, footLabel: opt.footLabel };
+    return `${opt.noLegend ? '' : legend()}<div class="t-tools"><button class="dl" type="button" data-csv="${id}" title="Download this table as a spreadsheet (CSV)">Download CSV</button></div><div class="scroll"><table class="t" id="tbl-${id}"><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length}" class="empty">Nothing to show for this selection.</td></tr>`}</tbody>${foot}</table></div>`;
   }
   const rowHandlers = {};
   const tableCols = {};
+  const tableData = {};
+
+  // A table as CSV: exactly the columns and rows on screen (current sort and filters), as the cells read.
+  function downloadCsv(id) {
+    const t = tableData[id];
+    if (!t) return;
+    const tmp = document.createElement('div');
+    const text = (html) => { tmp.innerHTML = String(html); return tmp.textContent.replace(/^[✓●▲!]\s*/, '').replace(/\s+/g, ' ').trim(); };
+    const cell = (c, r) => text(c.fmt ? c.fmt(r) : esc(c.val(r)));
+    const q = (v) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const head = t.cols.map((c) => q(c.label + (c.src ? ` (${c.src === 'dc' ? 'DC' : 'HITL'})` : '')));
+    const lines = [head.join(','), ...t.rows.map((r) => t.cols.map((c) => q(cell(c, r))).join(','))];
+    if (t.foot) lines.push(t.cols.map((c, i) => q(i === 0 ? t.footLabel || 'Total' : cell(c, t.foot))).join(','));
+    const card = document.getElementById(`tbl-${id}`)?.closest('section');
+    const title = (card && card.querySelector('h2') ? card.querySelector('h2').textContent : id).replace(/[^A-Za-z0-9 –-]+/g, ' ').replace(/\s+/g, '-').slice(0, 70);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = `${title}-${isoOf(S.from)}-to-${isoOf(S.to)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
 
   // The rows one level below the current selection: sectors, then a sector's schools, then a school's teachers.
   function levelRows(R) {
@@ -1668,17 +1690,55 @@
     if (focus !== null && $('#search')) { $('#search').focus(); $('#search').setSelectionRange(focus, focus); }
   }
 
+  // Save a section as a PNG. Scrolling tables and grids are opened up first, and the section widened to its full content,
+  // so nothing to the right or below a scroll area is cut off; everything is put back afterwards.
   async function download(id) {
     const el = document.getElementById(id);
     if (!el || !window.htmlToImage) return;
+    const undo = [], detached = [], added = [];
+    const set = (n, prop, val) => { undo.push([n, prop, n.style[prop]]); n.style[prop] = val; };
+    const btns = [...document.querySelectorAll(`[data-dl="${id}"]`)].map((x) => [x, x.textContent]);
+    btns.forEach(([x]) => { x.textContent = 'Preparing image…'; x.disabled = true; });
+    await new Promise((r) => setTimeout(r, 30));
     el.classList.add('snapping');
     try {
-      const url = await htmlToImage.toPng(el, { backgroundColor: getComputedStyle(document.body).backgroundColor, pixelRatio: 2 });
+      // 1. Long tables: take rows past 60 out of the page for the capture (the CSV has them all).
+      for (const tb of el.querySelectorAll('table.t tbody')) {
+        const rows = [...tb.rows];
+        if (rows.length <= 60) continue;
+        for (const r of rows.slice(60)) { detached.push([tb, r]); r.remove(); }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="${rows[0].cells.length}" class="empty">… and ${N(rows.length - 60)} more rows — use Download CSV for the full table.</td>`;
+        tb.appendChild(tr); added.push(tr);
+      }
+      // 2. Read every scroll area first, then open them all up in one go (no layout thrashing).
+      const open = [], sticky = [];
+      for (const n of el.querySelectorAll('.scroll, .xscroll, .m-body, [style*="overflow"], th')) {
+        const cs = getComputedStyle(n);
+        if (cs.position === 'sticky') sticky.push(n);
+        if (/(auto|scroll|hidden)/.test(`${cs.overflowX} ${cs.overflowY}`) && (n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1)) open.push(n);
+      }
+      const inner = [...el.querySelectorAll('table, .qg, .cal, .hh, .kpis, svg')].reduce((w, x) => Math.max(w, x.scrollWidth), 0);
+      for (const n of open) { set(n, 'overflow', 'visible'); set(n, 'maxHeight', 'none'); set(n, 'height', 'auto'); }
+      for (const n of sticky) set(n, 'position', 'static');
+      const want = Math.max(el.scrollWidth, inner + 48);
+      if (want > el.clientWidth + 1) { set(el, 'width', `${want}px`); set(el, 'maxWidth', 'none'); }
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      // 3. Browsers cap a canvas at ~16,000 px a side and ~250 M pixels: lower the sharpness for very large sections.
+      const W = el.scrollWidth, H = el.scrollHeight;
+      const ratio = Math.max(0.5, Math.min(2, 16000 / W, 16000 / H, Math.sqrt(240e6 / (W * H))));
+      const url = await htmlToImage.toPng(el, { backgroundColor: getComputedStyle(document.body).backgroundColor, pixelRatio: ratio, width: W, height: H });
       const a = document.createElement('a');
       const title = (el.querySelector('h2') || {}).textContent || 'section';
       a.download = `${title.replace(/[^A-Za-z0-9 –-]+/g, ' ').replace(/\s+/g, '-').slice(0, 80)}.png`;
       a.href = url; a.click();
-    } finally { el.classList.remove('snapping'); }
+    } finally {
+      for (const [n, prop, val] of undo.reverse()) n.style[prop] = val;
+      added.forEach((tr) => tr.remove());
+      for (const [tb, r] of detached) tb.appendChild(r);
+      el.classList.remove('snapping');
+      btns.forEach(([x, t]) => { x.textContent = t; x.disabled = false; });
+    }
   }
 
   // ---------- events ----------
@@ -1721,6 +1781,7 @@
     else if (b.dataset.tab) { S.tab = b.dataset.tab; S.search = ''; render(); window.scrollTo(0, 0); }
     else if (b.dataset.gran) { S.gran = b.dataset.gran; render(); }
     else if (b.dataset.dl) download(b.dataset.dl);
+    else if (b.dataset.csv) downloadCsv(b.dataset.csv);
     else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }
     else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
     else if (b.dataset.fkind) { S.fkind = b.dataset.fkind; render(); }
