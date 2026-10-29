@@ -303,6 +303,22 @@ function buildPilot(rows, ro) {
   return out;
 }
 
+// FICO v3 indicator sums per school, kind and week: [school index, 'D'|'H', week, '37 sum/count pairs'].
+function buildFicoInd(rows, ro) {
+  const out = [];
+  let miss = 0;
+  for (const r of rows) {
+    const si = ro.schoolIndex.get(r.school_id);
+    for (const p of records('fico_ind', r)) {
+      if (p.length !== 3 || p[2].split(',').length !== 37) throw new Error('fico_ind: malformed record');
+      if (si === undefined) { miss++; continue; }
+      out.push([si, p[0], +p[1], p[2]]);
+    }
+  }
+  if (miss) throw new Error(`fico_ind: ${miss} records for schools not in the roster`);
+  return out;
+}
+
 function buildTraining(rows, ro) {
   const out = [];
   const miss = { n: 0 };
@@ -325,4 +341,4 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, unquote, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, unquote, rosterSig, MIN_SCHOOLS };

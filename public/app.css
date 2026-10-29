@@ -343,3 +343,8 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .o2n { font-size: 14px; } .o2n b { display: inline-block; min-width: 26px; color: var(--muted, #6B7280); }
 .o2v { display: flex; gap: 8px; align-items: center; justify-content: flex-end; font-size: 13px; }
 @media (max-width: 720px) { .o2r { grid-template-columns: 1fr; gap: 4px; } .o2v { justify-content: flex-start; } }
+
+/* FICO indicator grids */
+.qg.fi { min-width: 760px; }
+.qg.fi .hm-c { height: 34px; }
+.fi-n { font-size: 13px; font-weight: 500; } .fi-n b { display: inline-block; min-width: 30px; }

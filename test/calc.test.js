@@ -228,3 +228,17 @@ test('pilot: DC vs provisional, evidence check, joint and cross-coach agreement'
   assert.deepStrictEqual([Q.prioJoint.n, Q.prioJoint.same], [1, 0]);
   assert.strictEqual(Q.ev[0].yes, 6);
 });
+
+test('FICO indicators: DC and HITL kept apart, weeks follow the period, sector filter', () => {
+  const data = sample();
+  const row = (a) => Array.from({ length: 37 }, (_, i) => (i === 10 ? a : '')).join(',');   // C1 only
+  data.fi = [[0, 'D', 0, row('6/2')], [0, 'H', 0, row('4/1')], [2, 'D', 0, row('8/2')], [0, 'D', 3, row('2/1')]];
+  data.today = 90;
+  const F = C.ficoIndStats(C.prepare(data), { from: 37, to: 50 });
+  const c1 = F.ind.find((x) => x.id === 'C1');
+  assert.deepStrictEqual([c1.dcN, c1.hitlN], [4, 1]);
+  assert.strictEqual(c1.dc, 87.5);                         // (6 + 8) / 4 scores / 4
+  assert.strictEqual(c1.hitl, 100);
+  assert.strictEqual(C.ficoIndStats(C.prepare(data), { from: 0, to: 90, sector: 'B' }).ind[10].dcN, 2);
+  assert.strictEqual(F.weeks.D.length, 1);                 // week 3 (days 58-64) is outside 37-50
+});

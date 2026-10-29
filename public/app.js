@@ -894,7 +894,57 @@
         chart(ser.map((g) => ({ label: bucketLabel(g), values: ['hlp', 'se', 'lpf'].map((s) => fpct(g.ficoD[s])) })),
           [{ name: 'Teaching practices', color: GREEN }, { name: 'Student engagement', color: NAVY }, { name: 'Lesson-plan fidelity', color: GREY }], 'line'), granSeg())
       + card('c-fico-t', `By ${level}`, 'Green edge = Digital Coach, grey edge = coach visits.', table('fico', [nameCol(level), COL.teachers, COL.dc, COL.hitl, ...ficoCols()], rows,
-        { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
+        { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }))
+      + ficoIndicators();
+  }
+
+  // FICO v3 indicator analytics: every indicator for DC and HITL, what stands out, and grids by sector and by week.
+  function ficoIndicators() {
+    const F = Calc.ficoIndStats(S.P, sel());
+    const head = `<div class="sec-h"><h2>FICO indicators</h2><p class="note">All 37 FICO indicators, FICO v3 only (observations from 8 Sep 2026), as the average indicator score ÷ 4. Digital Coach and HITL are never pooled. Lesson-plan fidelity (B) counts only lessons with a plan attached. Subject pedagogy F5–F7 count only where the subject applied, and are shown for DC only: HITL still scores them on nearly every lesson whatever the subject, so its figure would mostly be lessons in other subjects. Indicator data is weekly, so the period picks whole weeks · ${esc(scopeName())} · ${periodText()}.</p></div>`;
+    if (!F) return head + card('c-fi0', 'FICO indicators', 'Not available yet: the dashboard may still be refreshing after an update. This appears by itself when it finishes.', '');
+    if (!F.ind.some((x) => x.dcN || x.hitlN)) return head + card('c-fi0', 'FICO indicators', `No FICO v3 observations in ${periodText()} (v3 starts on 8 Sep 2026).`, '');
+    const nn = (n) => `<span class="dim">n=${N(n)}</span>`;
+    const scored = (k) => F.ind.filter((x) => (k === 'dc' ? x.dcN : x.hitlN) >= 50);
+    const low = (k) => scored(k).sort((a, b) => a[k] - b[k]).slice(0, 5);
+    const high = (k) => scored(k).sort((a, b) => b[k] - a[k]).slice(0, 3);
+    const gaps = F.ind.filter((x) => x.dcN >= 50 && x.hitlN >= 50).map((x) => ({ ...x, g: x.hitl - x.dc })).sort((a, b) => Math.abs(b.g) - Math.abs(a.g)).slice(0, 3);
+    const list = (arr, k) => arr.map((x) => `${x.id} ${esc(x.name)} (${P1(x[k])})`).join(', ');
+    const facts = `<ul class="facts">
+      ${low('dc').length ? `<li><b>Weakest on the Digital Coach</b>: ${list(low('dc'), 'dc')}.</li>` : ''}
+      ${low('hitl').length ? `<li><b>Weakest in HITL observations</b>: ${list(low('hitl'), 'hitl')}.</li>` : ''}
+      ${high('dc').length ? `<li><b>Strongest</b> (Digital Coach): ${list(high('dc'), 'dc')}.</li>` : ''}
+      ${gaps.length ? `<li><b>Where coaches and the Digital Coach differ most</b>: ${gaps.map((x) => `${x.id} ${esc(x.name)} (HITL ${x.g >= 0 ? '+' : ''}${x.g.toFixed(1)} points)`).join(', ')}.</li>` : ''}
+    </ul><p class="note">Ranked only where an indicator has at least 50 scores.</p>`;
+
+    const cols = [
+      { k: 'sec', label: 'Section', val: (r) => r.ord, fmt: (r) => esc(Calc.FICO_SEC[r.sec]) },
+      { k: 'name', label: 'Indicator', val: (r) => r.id, fmt: (r) => `<b>${r.id}</b> ${esc(r.name)}` },
+      { k: 'dc', label: 'Digital Coach', num: true, val: (r) => r.dc, fmt: (r) => (r.dcN ? `${sc(r.dc)} ${nn(r.dcN)}` : '<span class="dim">—</span>') },
+      { k: 'hitl', label: 'HITL', num: true, val: (r) => r.hitl, fmt: (r) => (r.hitlN ? `${sc(r.hitl)} ${nn(r.hitlN)}` : `<span class="dim">${/F[567]/.test(r.id) ? 'not shown' : '—'}</span>`) },
+      { k: 'gap', label: 'HITL − DC', num: true, title: 'Points by which HITL is above (+) or below (−) the Digital Coach', val: (r) => (r.dcN && r.hitlN ? r.hitl - r.dc : null),
+        fmt: (r) => (r.dcN && r.hitlN ? `${r.hitl - r.dc >= 0 ? '+' : ''}${(r.hitl - r.dc).toFixed(1)}` : '<span class="dim">—</span>') },
+    ];
+    const kind = S.fkind || 'D';
+    const seg = `<div class="seg" role="group" aria-label="Show">${[['D', 'Digital Coach'], ['H', 'HITL']].map(([k, l]) => `<button type="button" data-fkind="${k}" aria-pressed="${kind === k}">${l}</button>`).join('')}</div>`;
+    const heat = (rows, label) => {
+      if (!rows.length) return '<p class="note">No observations in this period.</p>';
+      const tpl = `grid-template-columns: minmax(230px, 1.6fr) repeat(${rows.length}, minmax(70px, 1fr))`;
+      const headRow = `<div class="qg-r qg-h" style="${tpl}"><span>Indicator</span>${rows.map((r) => `<span>${esc(label(r.key))}</span>`).join('')}</div>`;
+      const body = Calc.FICO_IND.map(([id, name], i) => `<div class="qg-r" style="${tpl}"><span class="qg-n fi-n"><b>${id}</b> ${esc(name)}</span>${rows.map((r) => {
+        const v = r.v[i];
+        if (v === null) return '<span class="hm-c na">—</span>';
+        const b = band(v);
+        return `<span class="hm-c ${b}${r.n[i] < 30 ? ' thin' : ''}" title="${esc(label(r.key))} · ${id}: ${P1(v)} · ${N(r.n[i])} scores"><span><i>${GLYPH[b]}</i>${Math.round(v)}%</span></span>`;
+      }).join('')}</div>`).join('');
+      return `<div class="xscroll"><div class="qg fi">${headRow}${body}</div></div>`;
+    };
+    const legendRow = legend().replace('<span><i class="zero"></i>None in this period</span>', '');
+    return head
+      + card('c-fi1', 'What stands out', '', facts)
+      + card('c-fi2', 'All 37 indicators', 'Each indicator\'s average score ÷ 4. n = scores. Sort by any column.', legendRow + table('fi2', cols, F.ind, { noLegend: true }))
+      + card('c-fi3', 'Indicators by sector', `Pick Digital Coach or HITL. Faded cells have fewer than 30 scores.`, `<div class="row">${seg}</div>${legendRow}${heat(F.sectors[kind], (k) => k)}`)
+      + card('c-fi4', 'Indicators week by week', `Weeks start on Monday; the first week starts on 8 Sep. Pick Digital Coach or HITL above.`, `<div class="row">${seg}</div>${heat(F.weeks[kind], (w) => `w/c ${nice(Math.max(F.weekStart(w), F.firstDay))}`)}`);
   }
 
   function viewQuiz(R) {
@@ -1329,6 +1379,7 @@
     else if (b.dataset.dl) download(b.dataset.dl);
     else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }
     else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
+    else if (b.dataset.fkind) { S.fkind = b.dataset.fkind; render(); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
     else if (b.dataset.focus) {
       const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);

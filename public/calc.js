@@ -89,7 +89,7 @@
     const modules = data.modules || MODULES;
     return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
       grades: (() => { const g = new Array(nT).fill(null); for (const r of data.tgr || []) g[r[0]] = r[1]; return g; })(),
-      parts: { pilot: !!data.pilot, observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
+      parts: { fico_ind: !!data.fi, pilot: !!data.pilot, observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {
@@ -603,5 +603,55 @@
     };
   }
 
-  return { PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  // FICO v3 indicators (from 8 Sep): per indicator, DC and HITL never pooled. Week w covers days 37+7w .. 43+7w.
+  const FICO_IND = [
+    ['B1', 'Instructional clarity & learning objectives'], ['B2', 'Lesson structure & sequence'], ['B3', 'Activities & tasks alignment'],
+    ['B4', 'Activation of prior knowledge'], ['B5', 'Meaningful & real-world connections'], ['B6', 'Differentiation / catering to learning levels'],
+    ['B7', 'Use of Taleemabad lesson plan'], ['B8', 'Use of prescribed resources'], ['B9', 'Time on task'], ['B10', 'Lesson closure & consolidation'],
+    ['C1', "Quality questioning (Bloom's)"], ['C2', 'Responsive re-explanation'], ['C3', 'Effective feedback'], ['C4', 'Equitable participation'],
+    ['C5', 'Student agency & voice'], ['C6', 'Classroom management & routines'], ['C7', 'Positive learning environment'],
+    ['C8', 'Modelling, scaffolding & problem-solving'], ['C9', 'Collaborative learning'], ['C10', 'Integration of Taleemabad technology'],
+    ['C11', 'Self & peer assessment'], ['C12', 'Classroom resources & space for collaboration'],
+    ['D1', 'Active participation rate'], ['D2', "Cognitive engagement (Bloom's)"], ['D3', 'Student-to-student interaction'],
+    ['D4', 'Student confidence & risk-taking'], ['D5', 'On-task during independent work'], ['D6', 'Student use of learning materials'],
+    ['D7', 'Inclusivity of engagement'],
+    ['F1', 'Content accuracy'], ['F2', 'Use of academic language'], ['F3', 'Anticipation of misconceptions'], ['F4', 'Depth of explanation'],
+    ['F5', 'Subject pedagogy: maths'], ['F6', 'Subject pedagogy: science'], ['F7', 'Subject pedagogy: literacy / language'], ['F8', 'Cross-curricular connections']];
+  const FICO_SEC = { B: 'Lesson-plan fidelity', C: 'Teaching practices', D: 'Student engagement', F: 'Subject knowledge' };
+  const FI_W0 = 37;
+  function ficoIndStats(P, opts) {
+    const { data } = P;
+    if (!data.fi) return null;
+    if (!P.fiParsed) P.fiParsed = data.fi.map(([s, k, w, raw]) => {
+      const sm = [], n = [];
+      raw.split(',').forEach((x, i) => { if (x) { const [a, b] = x.split('/'); sm[i] = +a; n[i] = +b; } else { sm[i] = 0; n[i] = 0; } });
+      return { s, k, w, sm, n };
+    });
+    const to = Math.min(opts.to, data.today);
+    const blank = () => FICO_IND.map(() => [0, 0]);
+    const tot = { D: blank(), H: blank() }, sec = { D: new Map(), H: new Map() }, wk = { D: new Map(), H: new Map() };
+    let weeks = new Set();
+    for (const r of P.fiParsed) {
+      const a = FI_W0 + 7 * r.w, b = a + 6;
+      if (b < opts.from || a > to) continue;
+      const S = data.schools[r.s];
+      if (opts.sector && S.sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && r.s !== +opts.school) continue;
+      weeks.add(r.w);
+      if (!sec[r.k].has(S.sector)) sec[r.k].set(S.sector, blank());
+      if (!wk[r.k].has(r.w)) wk[r.k].set(r.w, blank());
+      for (let i = 0; i < FICO_IND.length; i++) {
+        if (!r.n[i]) continue;
+        for (const t of [tot[r.k], sec[r.k].get(S.sector), wk[r.k].get(r.w)]) { t[i][0] += r.sm[i]; t[i][1] += r.n[i]; }
+      }
+    }
+    const pct = ([s, n]) => (n ? (100 * s) / (4 * n) : null);
+    const ind = FICO_IND.map(([id, name], i) => ({ id, name, sec: id[0], ord: i, dc: pct(tot.D[i]), dcN: tot.D[i][1], hitl: pct(tot.H[i]), hitlN: tot.H[i][1] }));
+    const grid = (m) => [...m.entries()].map(([k, arr]) => ({ key: k, v: arr.map(pct), n: arr.map((x) => x[1]) }));
+    weeks = [...weeks].sort((a, b) => a - b);
+    return { ind, sectors: { D: grid(sec.D).sort((a, b) => String(a.key).localeCompare(String(b.key))), H: grid(sec.H).sort((a, b) => String(a.key).localeCompare(String(b.key))) },
+      weeks: { D: grid(wk.D).sort((a, b) => a.key - b.key), H: grid(wk.H).sort((a, b) => a.key - b.key) }, weekStart: (w) => FI_W0 + 7 * w, firstDay: FI_W0 + 1 };
+  }
+
+  return { FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));
