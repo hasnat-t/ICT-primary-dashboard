@@ -1232,7 +1232,8 @@
       <h2>FICO section scores</h2>${ficoBlock(g)}
       <h2>Activity over time</h2>${chart([...by.values()].map((b) => ({ label: b.label, values: [b.plan, b.dc, b.hitl] })),
         [{ name: S.gran === 'day' ? 'Generated a plan' : 'Days with a plan generated', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
-      <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>` };
+      <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>
+      <h2 class="sec-in">HITL observations: score trend and debrief reports</h2>${hitlBlocks(ti)}` };
   }
   // ---------- coach card and a teacher's HITL reports ----------
   const addFico = (f, r) => Calc.addFico(f, r);
@@ -1293,18 +1294,24 @@
         ${table('m-ctch', tcols, rows, { sort: { k: 'last', dir: -1 }, onRow: (k) => modalOpen({ kind: 'hteacher', key: +k, coach: id }), rowKey: (x) => x.key })}</section>` };
   }
 
-  function hitlTeacherView(ti) {
-    const T = S.data.teachers[ti], scl = S.data.schools[T.s];
+  // A teacher's HITL score trend and debrief reports: shown from the coach card and on every teacher scorecard.
+  function hitlBlocks(ti) {
     const all = S.P.obs[ti].filter((o) => o[2] === 'H').sort((a, b) => a[1] - b[1]);
+    if (!all.length) return `<section class="card" id="m-hd"><div class="card-h"><h2>HITL debrief reports</h2></div><p class="note">No HITL observation of this teacher since 1 Aug 2026, so there is no debrief report yet.</p></section>`;
     const trend = all.length > 1 ? chart(all.map((o) => ({ label: nice(o[1]), values: [secPct(o, 6), secPct(o, 8), secPct(o, 10)] })),
       [{ name: 'Teaching practices', color: NAVY }, { name: 'Student engagement', color: GREEN }, { name: 'Lesson-plan fidelity', color: GREY }], 'line')
       : '<p class="note">One HITL observation so far, so there is no trend yet.</p>';
-    return { title: T.name, sub: `${scl.name} · ${scl.sector} · ${N(all.length)} HITL observation${all.length === 1 ? '' : 's'} since 1 Aug 2026`,
-      html: `<section class="card" id="m-ht"><div class="card-h"><h2>Score trend</h2><button class="dl" data-dl="m-ht">Download image</button></div>
+    return `<section class="card" id="m-ht"><div class="card-h"><h2>Score trend</h2><button class="dl" data-dl="m-ht">Download image</button></div>
         <p class="note">Each HITL observation's section scores, oldest to newest, whichever coach observed. Subject knowledge is left out because its scale changed on 8 Sep.</p>${trend}</section>
-        <section class="card" id="m-hd"><div class="card-h"><h2>Debrief reports</h2></div>
+        <section class="card" id="m-hd"><div class="card-h"><h2>HITL debrief reports</h2></div>
         <p class="note">Newest first: what the coach and the AI told the teacher. Read this before observing the teacher again. Words quoted from the classroom are left out (shown as “…”) so no child's words are published. Contains teacher and coach names — internal use only.</p>
-        <div id="deb-list" data-t="${ti}"><p class="note">Loading the reports…</p></div></section>` };
+        <div id="deb-list" data-t="${ti}"><p class="note">Loading the reports…</p></div></section>`;
+  }
+
+  function hitlTeacherView(ti) {
+    const T = S.data.teachers[ti], scl = S.data.schools[T.s];
+    const n = S.P.obs[ti].filter((o) => o[2] === 'H').length;
+    return { title: T.name, sub: `${scl.name} · ${scl.sector} · ${N(n)} HITL observation${n === 1 ? '' : 's'} since 1 Aug 2026`, html: hitlBlocks(ti) };
   }
 
   async function loadDebriefs(ti) {
@@ -1387,7 +1394,7 @@
     if (!m.open) m.showModal();
     $('#m-body').scrollTop = 0;
     drawCharts(m);
-    if (v.kind === 'hteacher') loadDebriefs(v.key);
+    if (v.kind === 'hteacher' || v.kind === 'teacher') loadDebriefs(v.key);
   }
 
 

@@ -348,3 +348,4 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .qg.fi { min-width: 760px; }
 .qg.fi .hm-c { height: 34px; }
 .fi-n { font-size: 13px; font-weight: 500; } .fi-n b { display: inline-block; min-width: 30px; }
+.sec-in { margin: 22px 0 10px; font-size: 18px; }
