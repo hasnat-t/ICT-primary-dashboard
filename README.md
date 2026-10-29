@@ -1,5 +1,7 @@
 # ICT Primary Dashboard
 
+> **New here (person or AI agent)? Read [`CLAUDE.md`](CLAUDE.md) first** — the full context: hosting, deployment, data rules, code map, every tab, the owner's decisions and open items. Health and fixes: [`MAINTENANCE.md`](MAINTENANCE.md).
+
 A live dashboard for NIETE covering **every ICT programme school and sector, primary teachers only**: lesson plans, Digital Coach and coach-visit observations, FICO section scores, children's quizzes and NIETE primary training, per sector, school and teacher.
 
 **Scope: primary teachers** (about 3,250 in 354 schools across 6 sectors, Oct 2026): verified teachers at ICT programme schools (`teacher-headcount.md` §1e: role teacher, not deleted, not a test account, joined on `users.school_id`, Durbeen out) whose Rumi `teacher_level` includes PRIMARY, so primary-only teachers and those who also teach middle/high. Teachers with no level recorded are left out. A "primary school" here is a school with at least one such teacher.
