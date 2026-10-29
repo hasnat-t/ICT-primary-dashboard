@@ -367,3 +367,9 @@ dialog.fb { max-width: min(40rem, calc(100vw - 24px)); }
 .fb-actions { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 40rem) { .fb-two { grid-template-columns: 1fr; } .fb-btn { right: 12px; bottom: 12px; padding: 10px 16px; } }
 @media print { .fb-btn { display: none; } }
+
+/* confidentiality banner */
+.confid { display: flex; gap: 12px; align-items: flex-start; background: #FBEAE5; border: 1px solid #EE9A86; color: #6E2414; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 14px; line-height: 1.5; }
+.confid b { color: #5A1A0C; }
+.confid-i { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #B4432E; color: #FFF; font-weight: 700; display: grid; place-items: center; font-size: 14px; margin-top: 1px; }
+@media (max-width: 40rem) { .confid { font-size: 13px; padding: 10px 12px; } }
