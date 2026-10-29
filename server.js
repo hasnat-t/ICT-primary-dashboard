@@ -14,7 +14,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const MCP_URL = process.env.MCP_URL || '';
 const MCP_USER = process.env.TALEEMABAD_USER || '';
 const MCP_TOKEN = process.env.TALEEMABAD_API_TOKEN || ''; // only needed if the data service turns on strict auth
-const RULE_VERSION = process.env.RULE_VERSION || 'v0.39.3';
+const RULE_VERSION = process.env.RULE_VERSION || 'v0.39.4';
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN || '';
 const PAGE_SIZE = Math.min(Math.max(Number(process.env.PAGE_SIZE) || 50, 10), 100);
 // Daily refresh times in Pakistan time, "HH:MM" comma-separated.
@@ -32,7 +32,8 @@ const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
 const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training'].map((n) => [n, loadSql(n)]));
 
-let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false };
+let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false, parts: {}, last_refresh: null };
+const STARTED_AT = new Date().toISOString();
 
 function log(...a) { console.log(new Date().toISOString(), ...a); }
 
@@ -193,10 +194,13 @@ async function refresh(reason) {
     ];
     const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'] };
     for (const [name, run] of parts) {
+      const p0 = Date.now();
       try {
         Object.assign(next, await run());
         log(`${name} ok`);
+        state.parts[name] = { ok: true, seconds: Math.round((Date.now() - p0) / 1000), at: new Date().toISOString(), last_ok: new Date().toISOString() };
       } catch (e) {
+        state.parts[name] = { ok: false, error: String(e.message || e).slice(0, 600), at: new Date().toISOString(), last_ok: (state.parts[name] || {}).last_ok || null };
         // Keep the previous values only when the roster is unchanged (teacher indexes must line up).
         for (const k of KEYS[name]) next[k] = carryPart(prev, k);
         next.errors.push(`${name}: ${e.message || e}`);
@@ -205,8 +209,11 @@ async function refresh(reason) {
     }
     log(`refresh done in ${Math.round((Date.now() - t0) / 1000)}s: ${ro.schools.length} schools, ${ro.teachers.length} teachers, `
       + `${(next.lp || []).length} LP days, ${(next.obs || []).length} observations, ${next.errors.length} errors`);
+    next.refreshed_at = new Date().toISOString();
     setData(next);
     state.last_error = next.errors.length ? next.errors.join('; ') : null;
+    state.last_refresh = { finished_at: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), errors: next.errors.length,
+      schools: ro.schools.length, teachers: ro.teachers.length };
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(CACHE_FILE, JSON.stringify(next));
     if (db.enabled()) {
@@ -290,6 +297,17 @@ const server = http.createServer((req, res) => {
     const q = Object.fromEntries(['from', 'to', 'sector', 'school'].map((k) => [k, url.searchParams.get(k) || '']));
     if ([q.from, q.to, q.school].some((v) => v && !/^\d{1,5}$/.test(v)) || q.sector.length > 60) return send(res, 400, '{"error":"bad query"}', TYPES['.json']);
     return send(res, 200, JSON.stringify({ as_of: state.as_of, ...egraSummary(state.egra, state.egraDraws, state.data, q) }), TYPES['.json'], { 'Cache-Control': 'no-cache' });
+  }
+  // Detailed, public health report for monitoring: per part ok / error / last success, data age, deployed version.
+  if (req.method === 'GET' && url.pathname === '/api/health') {
+    const ageH = state.data && state.data.refreshed_at ? (Date.now() - Date.parse(state.data.refreshed_at)) / 3600000 : null;
+    return send(res, 200, JSON.stringify({
+      ok: !!state.data && !state.last_error && ageH !== null && ageH < 26,
+      as_of: state.as_of, refreshing: state.refreshing, last_attempt: state.last_attempt, last_error: state.last_error,
+      last_refresh: state.last_refresh || null, data_age_hours: ageH === null ? null : +ageH.toFixed(2), parts: state.parts,
+      schedule_pkt: schedule(), version: (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 12) || null, started_at: STARTED_AT,
+      rule_version: RULE_VERSION,
+    }, null, 1), TYPES['.json'], { 'Cache-Control': 'no-cache' });
   }
   if (req.method === 'GET' && url.pathname === '/healthz') {
     return send(res, 200, JSON.stringify({ ok: true, teachers: state.data ? state.data.teachers.length : 0, as_of: state.as_of, last_error: state.last_error }), 'application/json');
