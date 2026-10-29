@@ -76,6 +76,7 @@ sql/            one governed query per part; _common.sql = shared CTEs (sp, prim
 public/index.html  page shell (sidebar, filters, drill-down <dialog>, feedback <dialog>)
 public/app.js   all views, tables, charts, drill-down modal, feedback form (big file, ~1,800 lines)
 public/calc.js  all maths from the payload (UMD; also used by tests and server-side checks)
+public/temu.js  TEMU, the 3D parrot guide (bottom right): tour, "what's on this page", Q&A. three.js r128 from cdnjs, loaded after the page; falls back to an emoji. All answers are written in PAGES / FAQ / TOUR (no AI, no API key). Drives the page only by clicking #nav [data-tab]. Remembers seen/hidden in localStorage key temu.v1. When a tab or card id changes, update TOUR selectors and PAGES text.
 public/app.css  styles (design from the owner's mock-up: sidebar, hero cards, tiers)
 public/admin.html  private feedback review page (/admin/feedback)
 config/coach-overrides.json  coach table display fixes (hide by role/id, rename) - see §6
@@ -164,7 +165,7 @@ node scripts/fixture.js && node server.js        # made-up data on http://localh
 npm test                                         # must end "fail 0"
 ```
 
-**Deploy gate (always):** both `public/app.js` and `public/calc.js` parse (`vm.Script`), `node --check` on server/unpack/egra/feedback, `npm test` has `fail 0`, a local fixture run serves `/healthz`, `/api/data`, `/api/egra`; look at the changed screen (Playwright is in `D:\ai booth\frontend\node_modules\playwright` on the owner's laptop). Then commit (end messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`), push to `main`, wait for `/api/health` `version` = your commit, and load the live page to check for errors.
+**Deploy gate (always):** `public/app.js`, `public/calc.js` and `public/temu.js` parse (`vm.Script`), `node --check` on server/unpack/egra/feedback, `npm test` has `fail 0`, a local fixture run serves `/healthz`, `/api/data`, `/api/egra`; look at the changed screen (Playwright is in `D:\ai booth\frontend\node_modules\playwright` on the owner's laptop). Then commit (end messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`), push to `main`, wait for `/api/health` `version` = your commit, and load the live page to check for errors.
 
 **Adding a data part:** write `sql/<name>.sql` (governed comment header, `{{COMMON}}`, pack per school, `ORDER BY school_id LIMIT {{LIMIT}} OFFSET {{OFFSET}}` placeholder — `runPaged` rewrites it to keyset), add a `build*` parser + test, add it to `SQL`, `QUESTIONS`, `parts` and `KEYS` in `server.js`, verify totals live against a governed query before deploying.
 

@@ -279,7 +279,7 @@ const schedule = () => REFRESH_TIMES_PKT.map((t) => `${String(t.h).padStart(2, '
 // index.html with each script and stylesheet stamped by a hash of its content, so browsers never run stale code.
 const hashOf = (f) => require('crypto').createHash('sha1').update(fs.readFileSync(path.join(PUBLIC_DIR, f))).digest('hex').slice(0, 10);
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8')
-  .replace('__V_CSS__', hashOf('app.css')).replace('__V_CALC__', hashOf('calc.js')).replace('__V_APP__', hashOf('app.js'));
+  .replace('__V_CSS__', hashOf('app.css')).replace('__V_CALC__', hashOf('calc.js')).replace('__V_APP__', hashOf('app.js')).replace('__V_TEMU__', hashOf('temu.js'));
 
 // Read a small JSON request body (feedback), refusing anything over the limit.
 function readJson(req, max = 16000) {
