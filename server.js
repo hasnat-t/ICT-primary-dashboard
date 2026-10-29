@@ -8,6 +8,7 @@ const zlib = require('zlib');
 const db = require('./db');
 const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
 const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
+const FB = require('./feedback');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -25,6 +26,9 @@ const REFRESH_TIMES_PKT = (process.env.REFRESH_TIMES_PKT || '07:13,14:13')
 if (!REFRESH_TIMES_PKT.length) throw new Error('REFRESH_TIMES_PKT has no valid HH:MM times');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const CACHE_FILE = path.join(DATA_DIR, 'data.json');
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';   // opens the feedback review page; set on Railway, never in code
+let feedbackStore = null;
+const feedbackLimit = FB.createLimiter();
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
@@ -273,8 +277,57 @@ const hashOf = (f) => require('crypto').createHash('sha1').update(fs.readFileSyn
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8')
   .replace('__V_CSS__', hashOf('app.css')).replace('__V_CALC__', hashOf('calc.js')).replace('__V_APP__', hashOf('app.js'));
 
+// Read a small JSON request body (feedback), refusing anything over the limit.
+function readJson(req, max = 16000) {
+  return new Promise((resolve) => {
+    let size = 0; const chunks = [];
+    req.on('data', (c) => { size += c.length; if (size > max) { req.destroy(); resolve(null); } else chunks.push(c); });
+    req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch (e) { resolve(null); } });
+    req.on('error', () => resolve(null));
+  });
+}
+
+async function handleFeedback(req, res, url) {
+  const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
+  if (!feedbackStore) return json(503, { error: 'Feedback is starting up, try again in a moment.' });
+  if (req.method === 'POST' && url.pathname === '/api/feedback') {
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    if (!feedbackLimit(ip)) return json(429, { error: 'Thanks — that is a lot of feedback for one hour. Please try again later.' });
+    const v = FB.validate(await readJson(req));
+    if (v.spam) return json(200, { ok: true });
+    if (v.error) return json(400, { error: v.error });
+    const saved = await feedbackStore.add(v.row);
+    log(`feedback #${saved.id} (${v.row.type})`);
+    return json(200, { ok: true, id: saved.id });
+  }
+  if (!url.pathname.startsWith('/api/admin/feedback')) return json(404, { error: 'not found' });
+  if (!ADMIN_TOKEN) return json(503, { error: 'The review page is not set up yet: add ADMIN_TOKEN on Railway.' });
+  if (!FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong password.' });
+  if (req.method === 'GET' && url.pathname === '/api/admin/feedback') {
+    const status = FB.STATUSES.includes(url.searchParams.get('status')) ? url.searchParams.get('status') : null;
+    const days = Math.min(Math.max(parseInt(url.searchParams.get('days') || '30', 10) || 30, 1), 3650);
+    return json(200, { items: await feedbackStore.list({ status, days }), types: FB.TYPES, statuses: FB.STATUSES });
+  }
+  const m = url.pathname.match(/^\/api\/admin\/feedback\/(\d{1,9})$/);
+  if (req.method === 'POST' && m) {
+    const b = (await readJson(req)) || {};
+    const status = FB.STATUSES.includes(b.status) ? b.status : undefined;
+    const note = typeof b.note === 'string' ? b.note.slice(0, 2000) : undefined;
+    const row = await feedbackStore.update(+m[1], { status, note });
+    return row ? json(200, { ok: true, item: row }) : json(404, { error: 'not found' });
+  }
+  return json(405, { error: 'method not allowed' });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/feedback' || url.pathname.startsWith('/api/admin/feedback')) {
+    handleFeedback(req, res, url).catch((e) => { log(`feedback error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
+    return;
+  }
+  if (req.method === 'GET' && (url.pathname === '/admin/feedback' || url.pathname === '/admin/feedback/')) {
+    return send(res, 200, fs.readFileSync(path.join(PUBLIC_DIR, 'admin.html')), TYPES['.html'], { 'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex' });
+  }
   if (req.method === 'GET' && url.pathname === '/api/status') {
     return send(res, 200, JSON.stringify({ as_of: state.as_of, last_attempt: state.last_attempt, last_error: state.last_error,
       refreshing: state.refreshing, schedule_pkt: schedule(), ready: !!state.gz }), 'application/json', { 'Cache-Control': 'no-store' });
@@ -348,6 +401,7 @@ try {
   } catch (e) {
     log(`Postgres unavailable, continuing without it: ${e.message || e}`);
   }
+  feedbackStore = FB.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'feedback.json') });
   server.listen(PORT, () => {
     log(`listening on ${PORT}`);
     refresh('startup');

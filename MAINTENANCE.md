@@ -15,6 +15,15 @@ This file is for whoever looks after the dashboard: a developer, or the daily Cl
   `/api/debrief` as aggregates or one teacher at a time.
 - Last good data is saved to Postgres (`DATABASE_URL`), so a restart starts with data.
 
+## User feedback
+
+- Every page has a **Feedback** button. Messages are stored in the Postgres table `feedback` (created automatically;
+  a local run without `DATABASE_URL` uses `data/feedback.json`). Only the message, its type, the tab and filters the
+  person was looking at, and an optional name and contact are kept — no IP address is stored.
+- Review page: `/admin/feedback`, opened with the password in the Railway variable `ADMIN_TOKEN`. Without that variable
+  the review endpoints stay closed. Statuses: new, approved, later, declined, done; notes and a CSV export.
+- Limits: 8 messages an hour per visitor, 500 a day in total, 3,000 characters a message, a hidden spam field.
+
 ## Checking health
 
 `GET /api/health` (public, no secrets):

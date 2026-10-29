@@ -1519,6 +1519,38 @@
   }
 
   // ---------- events ----------
+  // ---------- feedback ----------
+  // Anyone can send feedback; it goes to the server's feedback store, which only the admin review page reads.
+  (function feedback() {
+    const dlg = $('#fb'), form = $('#fb-form'), out = $('#fb-msg-out'), send = $('#fb-send');
+    if (!dlg) return;
+    const tabName = () => ((TABS.find((t) => t[0] === S.tab) || [S.tab, S.tab])[1]);
+    const context = () => (S.data ? `${tabName()} · ${scopeName()} · ${periodText()}` : '');
+    const close = () => { if (dlg.open) dlg.close(); };
+    $('#fb-open').addEventListener('click', () => {
+      out.textContent = ''; out.className = 'note'; send.disabled = false;
+      $('#fb-ctx').textContent = context() ? `Sent with what you're looking at: ${context()}.` : '';
+      dlg.showModal(); $('#fb-msg').focus();
+    });
+    $('#fb-x').addEventListener('click', close);
+    $('#fb-cancel').addEventListener('click', close);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(form);
+      const body = { type: f.get('type'), message: f.get('message'), name: f.get('name'), contact: f.get('contact'), website: f.get('website'), tab: tabName(), context: context() };
+      send.disabled = true; out.className = 'note'; out.textContent = 'Sending…';
+      try {
+        const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Could not send, please try again.');
+        out.textContent = 'Thank you — your feedback is in. Hasnat reviews it and decides what to work on next.';
+        form.reset(); setTimeout(close, 2200);
+      } catch (err) {
+        out.className = 'note warn'; out.textContent = err.message; send.disabled = false;
+      }
+    });
+  })();
+
   document.addEventListener('click', (e) => {
     const b = e.target.closest('button, tr.click');
     if (!b) return;

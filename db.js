@@ -30,4 +30,6 @@ async function saveCache(payload) {
     ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, saved_at = now()`, [JSON.stringify(payload)]);
 }
 
-module.exports = { init, enabled, loadCache, saveCache };
+const getPool = () => pool;
+
+module.exports = { init, enabled, loadCache, saveCache, getPool };

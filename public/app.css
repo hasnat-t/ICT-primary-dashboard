@@ -349,3 +349,21 @@ dialog.modal::backdrop { background: rgba(20, 22, 30, .55); }
 .qg.fi .hm-c { height: 34px; }
 .fi-n { font-size: 13px; font-weight: 500; } .fi-n b { display: inline-block; min-width: 30px; }
 .sec-in { margin: 22px 0 10px; font-size: 18px; }
+
+/* feedback */
+.fb-btn { position: fixed; right: 18px; bottom: 18px; z-index: 40; border: 0; border-radius: 999px; padding: 12px 20px; background: var(--navy); color: #FFF; font: inherit; font-weight: 600; font-size: 14px; box-shadow: var(--shadow); cursor: pointer; }
+.fb-btn:hover { filter: brightness(1.15); }
+dialog.fb { max-width: min(40rem, calc(100vw - 24px)); }
+.fb-body { display: flex; flex-direction: column; gap: 10px; padding: 18px 22px 22px; }
+.fb-types { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-types legend { font-weight: 600; margin-bottom: 8px; }
+.fb-types label { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; cursor: pointer; font-size: 14px; }
+.fb-types label:has(input:checked) { border-color: var(--navy); background: var(--line-2); font-weight: 600; }
+.fb-l { font-weight: 600; font-size: 14px; }
+.fb-body textarea { width: 100%; resize: vertical; font: inherit; }
+.fb-body .inp { width: 100%; box-sizing: border-box; }
+.fb-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fb-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.fb-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 40rem) { .fb-two { grid-template-columns: 1fr; } .fb-btn { right: 12px; bottom: 12px; padding: 10px 16px; } }
+@media print { .fb-btn { display: none; } }

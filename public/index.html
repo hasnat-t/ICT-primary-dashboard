@@ -62,5 +62,26 @@
   </main>
 </div>
 <dialog class="modal" id="modal"><div class="m-panel"><div class="m-head"><button class="back" id="m-back" type="button" hidden>‹ Back</button><div class="m-tt"><h3 id="m-title"></h3><p id="m-sub"></p></div><button class="x" id="m-x" aria-label="Close">×</button></div><div class="m-body" id="m-body"></div></div></dialog>
+<button class="fb-btn" id="fb-open" type="button" aria-haspopup="dialog">Feedback</button>
+<dialog class="modal fb" id="fb" aria-labelledby="fb-title"><form class="m-panel" id="fb-form" method="dialog">
+  <div class="m-head"><div class="m-tt"><h3 id="fb-title">Tell us what would make this dashboard better</h3><p>A change you'd like, something that's broken, or a number that looks wrong — Hasnat reviews every message.</p></div><button class="x" type="button" id="fb-x" aria-label="Close">×</button></div>
+  <div class="m-body fb-body" id="fb-body">
+    <fieldset class="fb-types"><legend>What is it about?</legend>
+      <label><input type="radio" name="type" value="change" checked> A change or a new view</label>
+      <label><input type="radio" name="type" value="design"> Design or ease of use</label>
+      <label><input type="radio" name="type" value="bug"> Something is broken</label>
+      <label><input type="radio" name="type" value="data"> Data looks wrong</label>
+      <label><input type="radio" name="type" value="other"> Something else</label>
+    </fieldset>
+    <label class="fb-l" for="fb-msg">Your message</label>
+    <textarea class="inp" id="fb-msg" name="message" rows="6" maxlength="3000" required placeholder="What would you like to see, or what went wrong? For a data question, say which number and what you expected."></textarea>
+    <p class="note" id="fb-ctx"></p>
+    <div class="fb-two"><div><label class="fb-l" for="fb-name">Your name <span class="dim">(optional)</span></label><input class="inp" id="fb-name" name="name" maxlength="80" autocomplete="name"></div>
+      <div><label class="fb-l" for="fb-contact">Email or phone <span class="dim">(optional, if you'd like a reply)</span></label><input class="inp" id="fb-contact" name="contact" maxlength="120" autocomplete="email"></div></div>
+    <input class="fb-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <p class="note" id="fb-msg-out" role="status"></p>
+    <div class="fb-actions"><button class="btn" type="button" id="fb-cancel">Cancel</button><button class="btn dark" type="submit" id="fb-send">Send feedback</button></div>
+  </div>
+</form></dialog>
 </body>
 </html>

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Feedback review · ICT Primary Dashboard</title>
+<link rel="icon" type="image/png" href="/assets/niete-logo.png">
+<style>
+  :root { --bg: #F4F2EC; --card: #FFF; --fg: #1C2230; --muted: #6B7280; --line: #E3E0D8; --navy: #1C2230; --green: #1F7A4C; --amber: #C4741C; --red: #B4432E; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { background: var(--navy); color: #FFF; padding: 18px 24px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; flex: 1; }
+  header a { color: #CFE3D7; }
+  main { max-width: 72rem; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 14px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  select, input, textarea, button { font: inherit; }
+  select, input[type=password] { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #FFF; }
+  button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: #FFF; cursor: pointer; }
+  button.dark { background: var(--navy); color: #FFF; border-color: var(--navy); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 8px; }
+  .day { font-weight: 700; margin-top: 10px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .pill { border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; background: #EEE; color: var(--fg); }
+  .t-bug { background: #F8D9D2; } .t-data { background: #F5D49A; } .t-change { background: #CFE3D7; } .t-design { background: #DCE3F2; }
+  .s-new { background: #1C2230; color: #FFF; } .s-approved { background: var(--green); color: #FFF; } .s-declined { background: #DDD; }
+  .s-later { background: #F5D49A; } .s-done { background: #A6DDBB; }
+  .msg { white-space: pre-wrap; font-size: 15px; }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .acts button[aria-pressed=true] { background: var(--navy); color: #FFF; }
+  textarea { width: 100%; min-height: 54px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .counts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .counts span { background: #FFF; border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
+  .err { color: var(--red); }
+  .login { max-width: 26rem; margin: 60px auto; }
+</style>
+</head>
+<body>
+<header><h1>Feedback review</h1><a href="/">Back to the dashboard</a> <button id="logout" hidden>Sign out</button></header>
+<main id="app">
+  <form class="card login" id="login">
+    <strong>Enter the review password</strong>
+    <p style="margin:0;color:var(--muted)">This page is only for the dashboard owner. The password is the ADMIN_TOKEN set on Railway.</p>
+    <input type="password" id="pw" autocomplete="current-password" required>
+    <button class="dark" type="submit">Open</button>
+    <span class="err" id="loginErr"></span>
+  </form>
+</main>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let token = '';
+  try { token = sessionStorage.getItem('fbToken') || ''; } catch (e) { /* storage blocked */ }
+  let types = {}, statuses = [], items = [];
+  const view = { status: '', days: '30' };
+  const LABEL = { new: 'New', approved: 'Approve', declined: 'Decline', later: 'Later', done: 'Done' };
+
+  async function api(path, opts = {}) {
+    const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'x-admin-token': token, ...(opts.headers || {}) } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.error || `Error ${r.status}`), { status: r.status });
+    return j;
+  }
+
+  async function load() {
+    const q = new URLSearchParams({ days: view.days }); if (view.status) q.set('status', view.status);
+    const j = await api(`/api/admin/feedback?${q}`);
+    types = j.types; statuses = j.statuses; items = j.items;
+    $('#logout').hidden = false;
+    render();
+  }
+
+  function render() {
+    const byStatus = statuses.map((s) => [s, items.filter((x) => x.status === s).length]);
+    const days = new Map();
+    for (const x of items) { const d = new Date(x.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); if (!days.has(d)) days.set(d, []); days.get(d).push(x); }
+    $('#app').innerHTML = `
+      <div class="bar">
+        <label>Show <select id="fStatus"><option value="">Everything</option>${statuses.map((s) => `<option value="${s}" ${view.status === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+        <label>from the last <select id="fDays">${[['1', 'day'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days'], ['3650', 'all time']].map(([v, l]) => `<option value="${v}" ${view.days === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <button id="csv">Download CSV</button><button id="reload">Refresh</button>
+      </div>
+      <div class="counts">${byStatus.map(([s, n]) => `<span><b>${n}</b> ${esc(s)}</span>`).join('')}<span><b>${items.length}</b> shown</span></div>
+      ${items.length ? [...days.entries()].map(([d, list]) => `<div class="day">${esc(d)} · ${list.length} message${list.length === 1 ? '' : 's'}</div>` + list.map(card).join('')).join('') : '<div class="card">No feedback here yet.</div>'}`;
+    $('#fStatus').onchange = (e) => { view.status = e.target.value; load().catch(fail); };
+    $('#fDays').onchange = (e) => { view.days = e.target.value; load().catch(fail); };
+    $('#reload').onclick = () => load().catch(fail);
+    $('#csv').onclick = csv;
+    document.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => setStatus(+b.dataset.id, b.dataset.set)));
+    document.querySelectorAll('textarea[data-id]').forEach((t) => (t.onchange = () => saveNote(+t.dataset.id, t.value)));
+  }
+
+  function card(x) {
+    const when = new Date(x.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="card">
+      <div class="meta"><span class="pill t-${esc(x.type)}">${esc(types[x.type] || x.type)}</span><span class="pill s-${esc(x.status)}">${esc(x.status)}</span>
+        <span>#${x.id} · ${when}</span>${x.tab ? `<span>· ${esc(x.tab)}</span>` : ''}${x.name ? `<span>· from <b>${esc(x.name)}</b></span>` : ''}${x.contact ? `<span>· ${esc(x.contact)}</span>` : ''}</div>
+      <div class="msg">${esc(x.message)}</div>
+      ${x.context ? `<div class="meta">Was looking at: ${esc(x.context)}</div>` : ''}
+      <div class="acts">${['approved', 'later', 'declined', 'done', 'new'].map((s) => `<button data-set="${s}" data-id="${x.id}" aria-pressed="${x.status === s}">${LABEL[s]}</button>`).join('')}</div>
+      <textarea data-id="${x.id}" placeholder="Your note (saved when you click away)">${esc(x.admin_note || '')}</textarea>
+    </div>`;
+  }
+
+  async function setStatus(id, status) { await api(`/api/admin/feedback/${id}`, { method: 'POST', body: JSON.stringify({ status }) }).catch(fail); await load().catch(fail); }
+  async function saveNote(id, note) { await api(`/api/admin/feedback/${id}`, { method: 'POST', body: JSON.stringify({ note }) }).catch(fail); }
+
+  function csv() {
+    const cols = ['id', 'created_at', 'type', 'status', 'tab', 'context', 'name', 'contact', 'message', 'admin_note'];
+    const q = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const text = [cols.join(','), ...items.map((x) => cols.map((c) => q(x[c])).join(','))].join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv' }));
+    a.download = `dashboard-feedback-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  }
+
+  function fail(e) {
+    if (e.status === 401) { token = ''; try { sessionStorage.removeItem('fbToken'); } catch (x) { /* ignore */ } location.reload(); return; }
+    alert(e.message);
+  }
+
+  $('#login').onsubmit = async (e) => {
+    e.preventDefault();
+    token = $('#pw').value;
+    try { await load(); try { sessionStorage.setItem('fbToken', token); } catch (x) { /* ignore */ } }
+    catch (err) { $('#loginErr').textContent = err.message; token = ''; }
+  };
+  $('#logout').onclick = () => { try { sessionStorage.removeItem('fbToken'); } catch (x) { /* ignore */ } location.reload(); };
+  if (token) load().catch(() => { token = ''; });
+})();
+</script>
+</body>
+</html>
