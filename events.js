@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const TYPES = {
+  national: 'National / public holiday',
   assessment: 'Student assessments / exams',
   sports: 'Sports week',
   winter: 'Winter holidays',
@@ -14,6 +15,27 @@ const TYPES = {
   other: 'Other',
 };
 const SCOPES = ['schools', 'sector', 'all'];
+
+// Federal public holidays (Cabinet Division), built in and read-only. Verified 2026-10-29:
+// 2026 circular of 19 Jan 2026 (public holidays 2026) and the Cabinet Division notification of 21 Aug 2026 that set
+// Eid Milad-un-Nabi (12 Rabi-ul-Awwal 1448) to Wed 26 Aug (the circular had 25 Aug). 2027: only the fixed-date holidays;
+// the 2027 circular is not out yet, and Islamic holidays (Eids, Ashura, Milad) are added only once notified after
+// moon sighting. Local Islamabad closures (District Magistrate) are not here - coaches add those.
+const NATIONAL = [
+  ['2026-08-14', '2026-08-14', 'Independence Day', 'Cabinet Division 2026 circular'],
+  ['2026-08-26', '2026-08-26', 'Eid Milad-un-Nabi (12 Rabi-ul-Awwal)', 'Cabinet Division notification of 21 Aug 2026 (moved from 25 Aug)'],
+  ['2026-11-09', '2026-11-09', 'Allama Iqbal Day', 'Cabinet Division 2026 circular'],
+  ['2026-12-25', '2026-12-25', 'Quaid-e-Azam Day / Christmas', 'Cabinet Division 2026 circular'],
+  ['2026-12-26', '2026-12-26', 'Day after Christmas (Christians only)', 'Cabinet Division 2026 circular - holiday for Christians only; schools open', 'optional'],
+  ['2027-02-05', '2027-02-05', 'Kashmir Solidarity Day', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+  ['2027-03-23', '2027-03-23', 'Pakistan Day', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+  ['2027-05-01', '2027-05-01', 'Labour Day', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+  ['2027-05-28', '2027-05-28', 'Youm-e-Takbeer', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+  ['2027-08-14', '2027-08-14', 'Independence Day', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+  ['2027-11-09', '2027-11-09', 'Allama Iqbal Day', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+  ['2027-12-25', '2027-12-25', 'Quaid-e-Azam Day / Christmas', 'Fixed date - confirm with the 2027 Cabinet Division circular'],
+].map(([from, to, name, source, optional], i) => ({ id: `n${i + 1}`, official: true, optional: !!optional, created_at: null, scope: optional ? 'none' : 'all',
+  sector: null, schools: [], from, to, type: 'national', reason: name, note: source, coach: 'Federal government' }));
 const MAX_DAYS = 120;
 
 const SCHEMA = `
@@ -40,7 +62,7 @@ function validate(b, known) {
   const clip = (v, n) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '');
   const coach = clip(b.coach, 80);
   if (coach.length < 2) return { error: 'Please choose or type your name.' };
-  const type = TYPES[b.type] ? b.type : null;
+  const type = TYPES[b.type] && b.type !== 'national' ? b.type : null;   // national holidays are built in
   if (!type) return { error: 'Please choose a reason.' };
   const reason = clip(b.reason, 160);
   if (type === 'other' && reason.length < 3) return { error: 'Please write the reason.' };
@@ -106,4 +128,4 @@ function createStore({ pool, file }) {
   };
 }
 
-module.exports = { TYPES, SCOPES, MAX_DAYS, validate, createStore };
+module.exports = { TYPES, SCOPES, MAX_DAYS, NATIONAL, validate, createStore };

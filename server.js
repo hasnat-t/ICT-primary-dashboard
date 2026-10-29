@@ -327,7 +327,7 @@ async function handleFeedback(req, res, url) {
 async function handleEvents(req, res, url) {
   const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
   if (!eventStore) return json(503, { error: 'The calendar is starting up, try again in a moment.' });
-  if (req.method === 'GET' && url.pathname === '/api/events') return json(200, { items: await eventStore.list(), types: EV.TYPES, writable: !!(CALENDAR_TOKEN || ADMIN_TOKEN) });
+  if (req.method === 'GET' && url.pathname === '/api/events') return json(200, { items: [...EV.NATIONAL, ...(await eventStore.list())].sort((a, b) => a.from.localeCompare(b.from)), types: EV.TYPES, writable: !!(CALENDAR_TOKEN || ADMIN_TOKEN) });
   if (!CALENDAR_TOKEN && !ADMIN_TOKEN) return json(503, { error: 'Adding to the calendar is not set up yet: add CALENDAR_TOKEN on Railway.' });
   if (!FB.isAdmin(req, CALENDAR_TOKEN) && !FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong coach passcode.' });
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();

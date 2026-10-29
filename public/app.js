@@ -1008,21 +1008,21 @@
 
   // ---------- school calendar ----------
   // Coaches record exams, sports weeks, holidays, events and closures; managers read engagement against them.
-  const CAL_COLOR = { assessment: '#5B6B85', sports: '#1F7A4C', winter: '#3E7CB1', summer: '#E0A43A', event: '#8E5BB5', closed: '#B4432E', other: '#8A8F98' };
+  const CAL_COLOR = { national: '#1C2230', assessment: '#5B6B85', sports: '#1F7A4C', winter: '#3E7CB1', summer: '#E0A43A', event: '#8E5BB5', closed: '#B4432E', other: '#8A8F98' };
   S.events = null; S.eventTypes = {};
   async function loadEvents() {
     try { const j = await (await fetch('/api/events', { cache: 'no-store' })).json(); S.events = j.items || []; S.eventTypes = j.types || {}; S.eventsWritable = !!j.writable; }
     catch (e) { S.events = S.events || []; }
   }
   const isoOf = (d) => Calc.dayToDate(S.data.window_start, d);
-  const evLabel = (e) => (e.type === 'other' ? e.reason || 'Other' : S.eventTypes[e.type] || e.type);
+  const evLabel = (e) => ((e.type === 'other' || e.type === 'national') ? e.reason || S.eventTypes[e.type] || 'Other' : S.eventTypes[e.type] || e.type);
   const evHits = (e, si) => { const sc = S.data.schools[si]; return e.scope === 'all' || (e.scope === 'sector' && e.sector === sc.sector) || (e.scope === 'schools' && e.schools.includes(String(sc.emis))); };
   const evInScope = (e) => {
     if (S.school !== '' && S.school !== null && S.school !== undefined && S.school !== 'all') return evHits(e, +S.school);
     if (S.sector) return e.scope === 'all' || (e.scope === 'sector' && e.sector === S.sector) || (e.scope === 'schools' && S.data.schools.some((sc) => sc.sector === S.sector && e.schools.includes(String(sc.emis))));
     return true;
   };
-  const evWho = (e) => (e.scope === 'all' ? 'All ICT schools' : e.scope === 'sector' ? `All ${e.sector} schools`
+  const evWho = (e) => (e.optional ? 'Christians only — schools open' : e.scope === 'all' ? (e.official ? 'Public holiday, all schools' : 'All ICT schools') : e.scope === 'sector' ? `All ${e.sector} schools`
     : e.schools.length === 1 ? (S.data.schools.find((sc) => String(sc.emis) === e.schools[0]) || { name: `EMIS ${e.schools[0]}` }).name : `${N(e.schools.length)} schools`);
   const evSchools = (e) => S.data.schools.reduce((n, sc, si) => n + (evHits(e, si) ? 1 : 0), 0);
   const niceIso = (iso) => { const d = new Date(`${iso}T00:00:00Z`); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
@@ -1030,8 +1030,8 @@
 
   function evRow(e) {
     return `<div class="ev" style="--c:${CAL_COLOR[e.type] || '#888'}"><div class="ev-h"><span class="ev-dot"></span><b>${esc(evLabel(e))}</b><span class="dim">${esc(evDates(e))}</span></div>
-      <div class="ev-b">${esc(evWho(e))} · added by ${esc(e.coach)}${e.note ? ` · ${esc(e.note)}` : ''}</div>
-      ${S.eventsWritable ? `<button class="ev-x" type="button" data-caldel="${e.id}" title="Remove this entry (coach passcode)">Remove</button>` : ''}</div>`;
+      <div class="ev-b">${esc(evWho(e))} · ${e.official ? 'official' : `added by ${esc(e.coach)}`}${e.note ? ` · ${esc(e.note)}` : ''}</div>
+      ${S.eventsWritable && !e.official ? `<button class="ev-x" type="button" data-caldel="${e.id}" title="Remove this entry (coach passcode)">Remove</button>` : ''}</div>`;
   }
 
   function viewCalendar() {
@@ -1118,7 +1118,7 @@
       <div class="m-body fb-body">
         <div class="fb-two"><div><label class="fb-l" for="cal-coach">Your name</label><input class="inp" id="cal-coach" list="cal-coaches" maxlength="80" required autocomplete="name"><datalist id="cal-coaches">${coaches.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
           <div><label class="fb-l" for="cal-pass">Coach passcode</label><input class="inp" id="cal-pass" type="password" required value="${esc(calToken)}" autocomplete="current-password"></div></div>
-        <fieldset class="fb-types"><legend>Reason</legend>${Object.entries(S.eventTypes).map(([k, l], i) => `<label><input type="radio" name="type" value="${k}" ${i === 0 ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <fieldset class="fb-types"><legend>Reason</legend>${Object.entries(S.eventTypes).filter(([k]) => k !== 'national').map(([k, l], i) => `<label><input type="radio" name="type" value="${k}" ${i === 0 ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
         <div id="cal-other" hidden><label class="fb-l" for="cal-reason">What is the reason?</label><input class="inp" id="cal-reason" maxlength="160"></div>
         <div class="fb-two"><div><label class="fb-l" for="cal-from">From</label><input class="inp" type="date" id="cal-from" value="${todayIso}" required></div>
           <div><label class="fb-l" for="cal-to">To</label><input class="inp" type="date" id="cal-to" value="${todayIso}" required></div></div>

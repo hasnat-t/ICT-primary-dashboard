@@ -18,6 +18,10 @@ test('school calendar: validation and store', async () => {
   assert.ok(EV.validate({ ...base, scope: 'sector', sector: 'Nowhere' }, known).error);
   assert.strictEqual(EV.validate({ ...base, scope: 'sector', sector: 'Urban-I' }, known).row.sector, 'Urban-I');
   assert.ok(EV.validate({ ...base, coach: '' }, known).error);
+  assert.ok(EV.validate({ ...base, type: 'national' }, known).error);      // built in, not addable
+  const milad = EV.NATIONAL.find((e) => /Milad/.test(e.reason));
+  assert.deepStrictEqual([milad.from, milad.to, milad.scope], ['2026-08-26', '2026-08-26', 'all']);
+  assert.strictEqual(EV.NATIONAL.find((e) => e.optional).scope, 'none');   // Christians-only day closes no school
 
   const store = EV.createStore({ pool: null, file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ev-')), 'events.json') });
   const a = await store.add(ok.row);

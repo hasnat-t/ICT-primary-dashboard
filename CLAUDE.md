@@ -175,6 +175,8 @@ npm test                                         # must end "fail 0"
 
 ## 10. Open items / ideas
 
+- **National holidays in the school calendar** are a built-in list (`NATIONAL` in `events.js`), verified 2026-10-29 from the Cabinet Division 2026 circular and its 21 Aug 2026 notification (Eid Milad-un-Nabi on 26 Aug). 2027 has only the fixed-date holidays. **Update it** when the Cabinet Division issues the 2027 circular (usually late December) and each time an Islamic holiday (Eid-ul-Fitr, Eid-ul-Adha, Ashura, Milad) is notified after moon sighting. Never guess Islamic dates.
+
 - TEMU data-analyst chatbot (deferred, see §6).
 - Pilot study: provisional levels are not stored as levels (only answers + priority) — ask the impact team where the app keeps sealed provisional levels to enable the provisional-vs-final comparison.
 - /observe2 on WhatsApp: no FDE or board-format paper seen from WhatsApp yet — confirm with product.
