@@ -20,7 +20,7 @@
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers']]],
-    ['Insights', [['trends', 'Analytics']]],
+    ['Insights', [['spotlight', 'Leading & support'], ['trends', 'Analytics']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -931,6 +931,80 @@
     drawCharts(box);
   }
 
+  // ---------- leading the way / where support is most needed ----------
+  // Two measures, never blended: using the tools (activity) and classroom practice (FICO, DC or HITL kept apart).
+  const SPOT_N = { school: 10, teacher: 15 };
+  const SPOT_MIN = { school: 3, schoolObs: 5, teacherObs: 2 };
+  function viewSpotlight(R) {
+    const lens = S.slens || 'tools';
+    const share = (a, b) => (b ? (100 * a) / b : 0);
+    const practice = (f, min) => (f.hlp[2] >= min && f.se[2] >= min ? (fpct(f.hlp) + fpct(f.se)) / 2 : null);
+    const LENS = {
+      tools: { label: 'Using the tools', short: 'using the tools', note: `<b>Schools</b>: the average of four shares of primary teachers — generated a grade 1–5 lesson plan, recorded a DC lesson, had children take a lesson quiz, generated an exam paper (schools with at least ${SPOT_MIN.school} primary teachers). <b>Teachers</b>: how many of those four tools they used, then how much (plans + DC lessons + quiz sittings + exams).` },
+      dc: { label: 'Classroom practice (Digital Coach)', short: 'classroom practice (Digital Coach)', note: `Average of the Teaching practices and Student engagement FICO scores from Digital Coach lessons. Schools need at least ${SPOT_MIN.schoolObs} scored lessons, teachers at least ${SPOT_MIN.teacherObs}.` },
+      hitl: { label: 'Classroom practice (HITL)', short: 'classroom practice (HITL)', note: `Average of the Teaching practices and Student engagement FICO scores from coaches' HITL observations. Schools need at least ${SPOT_MIN.schoolObs} scored observations, teachers at least ${SPOT_MIN.teacherObs}. Never mixed with Digital Coach scores.` },
+    };
+    const schools = [...R.schools.values()].map((g) => {
+      const Sx = S.data.schools[g.s];
+      const parts = [share(g.g15, g.teachers), share(g.dcT, g.teachers), share(g.quizLT, g.teachers), share(g.exT, g.teachers)];
+      const score = lens === 'tools' ? (g.teachers >= SPOT_MIN.school ? parts.reduce((a, b) => a + b, 0) / 4 : null)
+        : practice(lens === 'dc' ? g.ficoD : g.ficoH, SPOT_MIN.schoolObs);
+      return { key: g.s, name: Sx.name, sector: Sx.sector, teachers: g.teachers, score, parts, n: lens === 'dc' ? g.ficoD.hlp[2] : lens === 'hitl' ? g.ficoH.hlp[2] : g.teachers };
+    }).filter((x) => x.score !== null);
+    const teachers = R.teachers.map((t) => {
+      const tools = (t.g15 ? 1 : 0) + (t.dc ? 1 : 0) + (t.sitL ? 1 : 0) + (t.exOk ? 1 : 0);
+      const volume = t.plans + t.dc + t.sitL + t.exOk;
+      const score = lens === 'tools' ? tools + Math.min(volume, 9999) / 10000 : practice(lens === 'dc' ? t.ficoD : t.ficoH, SPOT_MIN.teacherObs);
+      return { key: t.i, name: t.name, school: S.data.schools[t.s].name, sector: S.data.schools[t.s].sector, tools, volume, score, t,
+        n: lens === 'dc' ? t.ficoD.hlp[2] : lens === 'hitl' ? t.ficoH.hlp[2] : volume };
+    }).filter((x) => x.score !== null);
+    const top = (arr, k) => arr.slice().sort((a, b) => b.score - a.score || b.n - a.n).slice(0, k);
+    const low = (arr, k) => arr.slice().sort((a, b) => a.score - b.score || b.n - a.n).slice(0, k);
+
+    const scoreCell = (r) => (lens === 'tools' ? sc(r.score) : sc(r.score));
+    const schoolCols = [
+      { k: 'rank', label: '#', num: true, val: (r) => r.rank, fmt: (r) => N(r.rank) },
+      { k: 'name', label: 'School', val: (r) => r.name, fmt: (r) => esc(r.name) },
+      { k: 'sector', label: 'Sector', val: (r) => r.sector, fmt: (r) => esc(r.sector) },
+      { k: 'teachers', label: 'Primary teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'score', label: lens === 'tools' ? 'Tool use score' : 'Practice score', num: true, val: (r) => r.score, fmt: scoreCell },
+      ...(lens === 'tools' ? [['Lesson plans', 0], ['DC', 1], ['Quizzes', 2], ['Exams', 3]].map(([l, i]) => ({ k: `p${i}`, label: l, num: true, title: '% of primary teachers', val: (r) => r.parts[i], fmt: (r) => P1(r.parts[i]) }))
+        : [{ k: 'n', label: lens === 'dc' ? 'DC lessons scored' : 'HITL observations scored', num: true, val: (r) => r.n, fmt: (r) => N(r.n) }]),
+    ];
+    const teacherCols = [
+      { k: 'rank', label: '#', num: true, val: (r) => r.rank, fmt: (r) => N(r.rank) },
+      { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => esc(r.name) },
+      { k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => esc(r.school) },
+      { k: 'sector', label: 'Sector', val: (r) => r.sector, fmt: (r) => esc(r.sector) },
+      ...(lens === 'tools' ? [
+        { k: 'tools', label: 'Tools used (of 4)', num: true, val: (r) => r.tools, fmt: (r) => `${N(r.tools)} / 4` },
+        { k: 'plans', label: 'Plans', num: true, val: (r) => r.t.plans, fmt: (r) => N(r.t.plans) },
+        { k: 'dc', label: 'DC lessons', num: true, val: (r) => r.t.dc, fmt: (r) => N(r.t.dc) },
+        { k: 'quiz', label: 'Quiz sittings', num: true, val: (r) => r.t.sitL, fmt: (r) => N(r.t.sitL) },
+        { k: 'ex', label: 'Exams', num: true, val: (r) => r.t.exOk, fmt: (r) => N(r.t.exOk) },
+      ] : [
+        { k: 'score', label: 'Practice score', num: true, val: (r) => r.score, fmt: scoreCell },
+        { k: 'n', label: lens === 'dc' ? 'DC lessons scored' : 'HITL observations scored', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      ]),
+    ];
+    const ranked = (arr) => arr.map((x, i) => Object.assign(x, { rank: i + 1 }));
+    const tbl = (id, cols, rows, level) => table(id, cols, ranked(rows), { noLegend: true, onRow: level === 'school' ? (k) => modalOpen({ kind: 'school', key: +k }) : (k) => openTeacher(+k), rowKey: (r) => r.key });
+    const zero = lens === 'tools' ? teachers.filter((x) => x.tools === 0).length : 0;
+    const seg = `<div class="seg" role="group" aria-label="Measure">${Object.entries(LENS).map(([k, v]) => `<button type="button" data-slens="${k}" aria-pressed="${lens === k}">${v.label}</button>`).join('')}</div>`;
+    const caveat = 'Rankings show where to celebrate and where to send support first — they are not a judgement of any teacher or school. Click a row for the full picture. Contains names — internal use only.';
+    return card('c-sp0', `Leading the way and where support is most needed · ${esc(scopeName())} · ${periodText()}`, `${LENS[lens].note} ${caveat}`,
+      `<div class="row">${seg}</div><p class="note">${N(schools.length)} schools and ${N(teachers.length)} teachers have enough data to be ranked on this measure.</p>`)
+      + `${card('c-sp1', 'Schools leading the way', `Top ${SPOT_N.school} on ${esc(LENS[lens].short)}.`, tbl('sp1', schoolCols, top(schools, SPOT_N.school), 'school'))}`
+      + `${card('c-sp2', 'Schools where support is most needed', `The ${SPOT_N.school} lowest on ${esc(LENS[lens].short)}.`, tbl('sp2', schoolCols, low(schools, SPOT_N.school), 'school'))}`
+      + card('c-sp3', 'Teachers leading the way', `Top ${SPOT_N.teacher} on ${esc(LENS[lens].short)}.`, tbl('sp3', teacherCols, top(teachers, SPOT_N.teacher), 'teacher'))
+      + card('c-sp4', 'Teachers who would benefit most from support', lens === 'tools' && zero > SPOT_N.teacher
+        ? `${N(zero)} teachers used none of the four tools in this period; ${SPOT_N.teacher} of them are shown, those in the largest schools first. Filter the Teachers tab to see them all.`
+        : `The ${SPOT_N.teacher} lowest on ${esc(LENS[lens].short)}.`,
+        tbl('sp4', teacherCols, lens === 'tools' && zero > SPOT_N.teacher
+          ? teachers.filter((x) => x.tools === 0).sort((a, b) => (R.schools.get(b.t.s).teachers - R.schools.get(a.t.s).teachers) || a.school.localeCompare(b.school)).slice(0, SPOT_N.teacher)
+          : low(teachers, SPOT_N.teacher), 'teacher'));
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
@@ -1423,7 +1497,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
@@ -1455,6 +1529,7 @@
     else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }
     else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
     else if (b.dataset.fkind) { S.fkind = b.dataset.fkind; render(); }
+    else if (b.dataset.slens) { S.slens = b.dataset.slens; render(); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
     else if (b.dataset.focus) {
       const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);
