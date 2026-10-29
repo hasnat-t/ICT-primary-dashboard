@@ -17,6 +17,7 @@
     ['', [['overview', 'Overview']]],
     ['Teaching', [['lp', 'Lesson plans'], ['quiz', 'Quizzes'], ['exams', 'Exam generator']]],
     ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
+    ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers']]],
     ['Insights', [['trends', 'Analytics']]],
@@ -863,6 +864,73 @@
     return head + progress + q1 + q2 + q3 + q4 + flow;
   }
 
+  // ---------- learning assessment (EGRA / EGMA child test) ----------
+  // The server keeps the per-test records and sends masked aggregates only; groups under five children show "fewer than 5".
+  function viewEgra() {
+    const o = sel();
+    const q = new URLSearchParams({ from: String(o.from), to: String(o.to), sector: o.sector || '', school: o.school === undefined || o.school === null ? '' : String(o.school) }).toString();
+    setTimeout(() => loadEgra(q), 0);
+    return card('c-eg0', `Learning assessment · ${esc(scopeName())} · ${periodText()}`,
+      'Coaches visit a school, the app draws children at random from a class, and each child takes a short reading and maths test on the coach\'s phone: <b>Urdu reading (EGRA), English reading (EGRA) and maths (EGMA)</b>. Running in the portal since 22 Oct 2026 as a small pilot. Counts and shares only — no child is ever listed, and any group of fewer than 5 children shows "fewer than 5" with no figures. <b>The benchmarks are the results page\'s proposed ones, not ratified, and every score is the AI\'s or the phone\'s — no coach has checked a mark yet.</b>',
+      `<div id="egra-root" data-q="${esc(q)}"><p class="note">Loading…</p></div>`);
+  }
+
+  async function loadEgra(q) {
+    const box = $('#egra-root');
+    if (!box || box.dataset.q !== q) return;
+    let E;
+    try { E = await (await fetch(`/api/egra?${q}`)).json(); } catch (e) { E = null; }
+    if (!box.isConnected || box.dataset.q !== q) return;
+    if (!E || !E.ready) { box.innerHTML = '<p class="note">Not available yet: the dashboard may still be refreshing after an update. Try again shortly.</p>'; return; }
+    const A = E.all;
+    const leftOut = E.excluded ? ` ${N(E.excluded)} test${E.excluded === 1 ? ' was' : 's were'} run from test accounts or at the practice school in this period and ${E.excluded === 1 ? 'is' : 'are'} left out.` : '';
+    if (!A.children) { box.innerHTML = `<p class="note">0 children counted in ${periodText()}.${leftOut || ' Testing started on 22 Oct 2026.'}</p>`; return; }
+    if (A.masked) { box.innerHTML = `<p class="note">Fewer than 5 children were tested in this selection, so no figures are shown. Widen the period, sector or school.${leftOut}</p>`; return; }
+    const pc = (a, b) => (b ? P1(ratio(a, b)) : '—');
+    const BAND = [['Non-reader (0)', 'var(--t1)'], ['Beginning (under 20)', 'var(--t2)'], ['Developing (20–39)', 'var(--t3)'], ['Fluent (40+)', 'var(--t4)']];
+    const reading = (L, name) => `<div><span class="lbl">${name}</span>
+      ${L.scored ? splitBar(BAND.map(([l, c], i) => [l, L.bands[i], c]).filter((x) => x[1]), L.scored) : '<p class="note">No passage scored yet.</p>'}
+      <div class="kpis">${kpi('Median words a minute', L.median === null ? '—' : L.median.toFixed(0), `${N(L.scored)} passages scored`)}${kpi('Read with understanding', pc(L.compMet, L.compScored), `80%+ of questions right · ${N(L.compScored)} scored`)}${kpi('Could not read a word', pc(L.bands[0], L.scored), 'of passages scored')}</div></div>`;
+    const sample = Object.entries(E.sample || {}).sort((a, b) => b[0].localeCompare(a[0]))[0];
+    const sm = sample ? sample[1] : null, drawn = sm ? Object.values(sm).reduce((s, v) => s + v, 0) : 0;
+    const head = `<div class="kpis">${kpi('Children tested', N(A.children), `${N(A.completed)} finished every part`)}${kpi('Schools', N(E.schools))}
+      ${sm ? kpi(`Sample for ${esc(sample[0])}`, N(drawn), `drawn at random · ${N(sm.tested || 0)} tested · ${N(sm.absent || 0)} absent · ${N(sm.refused || 0)} refused`) : ''}
+      ${kpi('Another voice heard', N(A.voice), 'tests where someone else spoke during a reading; that score may include help')}</div>
+      ${leftOut ? `<p class="note">${leftOut.trim()}</p>` : ''}`;
+
+    const days = E.days.length ? chart(E.days.map((x) => ({ label: nice(x.d), values: [typeof x.children === 'number' ? x.children : null] })), [{ name: 'Children tested', color: NAVY }])
+      + (E.days.some((x) => typeof x.children !== 'number') ? '<p class="note">Days with fewer than 5 children are left blank.</p>' : '') : '';
+
+    const taskRows = A.tasks.filter((t) => t.scored);
+    const tcols = [
+      { k: 'area', label: 'Subject', val: (r) => r.area, fmt: (r) => esc(r.area) },
+      { k: 'name', label: 'Skill', val: (r) => r.label, fmt: (r) => esc(r.label) },
+      { k: 'v', label: 'Result', num: true, val: (r) => (r.rate ? r.median : r.pct), fmt: (r) => (r.rate ? `${r.median === null ? '—' : r.median.toFixed(0)} <span class="dim">median a minute</span>` : sc(r.pct)) },
+      { k: 'n', label: 'Children scored', num: true, val: (r) => r.scored, fmt: (r) => N(r.scored) },
+    ];
+    const gcols = (what) => [
+      { k: 'name', label: what, val: (r) => r.key, fmt: (r) => esc(r.key) },
+      { k: 'children', label: 'Children', num: true, val: (r) => (r.masked ? -1 : r.children), fmt: (r) => (r.masked ? '<span class="dim">fewer than 5</span>' : N(r.children)) },
+      { k: 'urf', label: 'Urdu: fluent', num: true, title: '40+ correct words a minute', val: (r) => (r.masked || !r.ur.scored ? null : r.ur.bands[3] / r.ur.scored), fmt: (r) => (r.masked ? '' : pc(r.ur.bands[3], r.ur.scored)) },
+      { k: 'urc', label: 'Urdu: reads with understanding', num: true, val: (r) => (r.masked || !r.ur.compScored ? null : r.ur.compMet / r.ur.compScored), fmt: (r) => (r.masked ? '' : pc(r.ur.compMet, r.ur.compScored)) },
+      { k: 'enf', label: 'English: fluent', num: true, val: (r) => (r.masked || !r.en.scored ? null : r.en.bands[3] / r.en.scored), fmt: (r) => (r.masked ? '' : pc(r.en.bands[3], r.en.scored)) },
+      { k: 'enc', label: 'English: reads with understanding', num: true, val: (r) => (r.masked || !r.en.compScored ? null : r.en.compMet / r.en.compScored), fmt: (r) => (r.masked ? '' : pc(r.en.compMet, r.en.compScored)) },
+      { k: 'ma', label: 'Maths: met every benchmark', num: true, val: (r) => (r.masked || !r.maths.scored ? null : r.maths.met / r.maths.scored), fmt: (r) => (r.masked ? '' : pc(r.maths.met, r.maths.scored)) },
+    ];
+    box.innerHTML = head
+      + `<section class="card" id="c-eg1"><div class="card-h"><h2>Reading</h2><button class="dl" data-dl="c-eg1">Download image</button></div>
+        <p class="note">Passage reading is judged by correct words a minute: non-reader 0, beginning under 20, developing 20 to under 40, fluent 40 or more. "Read with understanding" = at least 80% of the questions about the passage right. A recording still waiting for the AI scorer is left out, never counted as 0.</p>
+        <div class="grid">${reading(A.ur, 'Urdu')}${reading(A.en, 'English')}</div></section>`
+      + `<section class="card" id="c-eg2"><div class="card-h"><h2>Maths</h2></div>
+        <div class="kpis">${kpi('Met the benchmark on every maths task', pc(A.maths.met, A.maths.scored), `75% right on each task scored · ${N(A.maths.scored)} children`)}${kpi('Number fluency', A.maths.fluencyMedian === null ? '—' : `${A.maths.fluencyMedian.toFixed(0)} a minute`, `median · ${N(A.maths.fluencyScored)} children`)}</div></section>`
+      + `<section class="card" id="c-eg3"><div class="card-h"><h2>Skills</h2></div><p class="note">Average share of answers right on each part of the test (words a minute for the timed parts). Sort by any column.</p>
+        ${legend().replace('<span><i class="zero"></i>None in this period</span>', '')}${table('eg3', tcols, taskRows, { noLegend: true })}</section>`
+      + `<section class="card" id="c-eg4"><div class="card-h"><h2>By grade</h2></div>${table('eg4', gcols('Grade'), E.grades, { noLegend: true })}</section>
+        <section class="card" id="c-eg5"><div class="card-h"><h2>By sector</h2></div>${table('eg5', gcols('Sector'), E.sectors, { noLegend: true })}</section>`
+      + `<section class="card" id="c-eg6"><div class="card-h"><h2>Children tested each day</h2></div>${days}</section>`;
+    drawCharts(box);
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
@@ -1348,7 +1416,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;

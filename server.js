@@ -7,6 +7,7 @@ const path = require('path');
 const zlib = require('zlib');
 const db = require('./db');
 const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
+const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -29,7 +30,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'training'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false };
 
@@ -91,6 +92,8 @@ const QUESTIONS = {
   lp_detail: 'scheduled refresh: ICT Primary Teachers dashboard, lesson plans generated per primary teacher by day, hour and curriculum lesson, and lessons taught in DC, since 1 Aug 2026',
   lp_lessons: 'scheduled refresh: ICT Primary Teachers dashboard, curriculum lesson catalogue (lesson, grade, subject, title)',
   quiz_scores: 'scheduled refresh: ICT Primary Teachers dashboard, children\'s finished lesson-quiz scores per primary teacher, day, grade and subject since 1 Aug 2026 (aggregates only, provisional)',
+  egra: 'scheduled refresh: ICT Primary Teachers dashboard, learning assessment (EGRA / EGMA) tests at programme schools - kept on the server, page shows masked counts only',
+  egra_draws: 'scheduled refresh: ICT Primary Teachers dashboard, learning assessment random sample per programme school (drawn, tested, absent, refused) - counts only',
   fico_ind: 'scheduled refresh: ICT Primary Teachers dashboard, FICO v3 indicator scores per school, DC vs HITL, by week since 8 Sep 2026',
   pilot: 'scheduled refresh: ICT Primary Teachers dashboard, FICO /observe2 pilot field forms - provisional, DC and final levels, evidence check marks, priorities (study design of 7 Oct 2026)',
   observe2: 'scheduled refresh: ICT Primary Teachers dashboard, /observe2 (fico17) coach visits of primary teachers since 1 Aug 2026 - levels, priorities, children\'s thinking',
@@ -156,6 +159,8 @@ async function refresh(reason) {
       ['exam_detail', async () => ({ exd: buildExamDetail(await runPaged('exam_detail'), ro) })],
       ['teacher_grades', async () => ({ tgr: buildTeacherGrades(await runPaged('teacher_grades'), ro) })],
       ['coaches', async () => ({ coaches: buildCoaches(await executeQuery(SQL.coaches, QUESTIONS.coaches)) })],
+      ['egra', async () => ({ egra: buildEgra(await runPaged('egra'), ro) })],
+      ['egra_draws', async () => ({ egraDraws: buildEgraDraws(await runPaged('egra_draws'), ro) })],
       ['fico_ind', async () => ({ fi: buildFicoInd(await runPaged('fico_ind'), ro) })],
       ['pilot', async () => ({ pilot: buildPilot(await executeQuery(SQL.pilot, QUESTIONS.pilot), ro) })],
       ['observe2', async () => ({ o2: buildObserve2(await runPaged('observe2'), ro) })],
@@ -166,7 +171,7 @@ async function refresh(reason) {
       }],
       ['training', async () => ({ training: buildTraining(await runPaged('training'), ro) })],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], training: ['training'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'] };
     for (const [name, run] of parts) {
       try {
         Object.assign(next, await run());
@@ -199,9 +204,11 @@ async function refresh(reason) {
 
 // The debrief text (~9 MB) stays on the server and is served one teacher at a time by /api/debrief.
 function setData(data) {
-  const { deb, ...pub } = data;
+  const { deb, egra, egraDraws, ...pub } = data;   // children's tests and debrief text never go out whole
   state.data = data;
   state.deb = deb || null;
+  state.egra = egra || null;
+  state.egraDraws = egraDraws || null;
   state.as_of = data.as_of;
   state.gz = zlib.gzipSync(JSON.stringify(pub));
 }
@@ -257,6 +264,12 @@ const server = http.createServer((req, res) => {
     if (!/^\d{1,6}$/.test(t || '')) return send(res, 400, '{"error":"bad teacher"}', TYPES['.json']);
     const body = JSON.stringify({ as_of: state.as_of, ready: !!state.deb, items: (state.deb && state.deb[t]) || [] });
     return send(res, 200, body, TYPES['.json'], { 'Cache-Control': 'no-cache' });
+  }
+  if (req.method === 'GET' && url.pathname === '/api/egra') {
+    if (!state.egra) return send(res, 200, JSON.stringify({ ready: false }), TYPES['.json'], { 'Cache-Control': 'no-cache' });
+    const q = Object.fromEntries(['from', 'to', 'sector', 'school'].map((k) => [k, url.searchParams.get(k) || '']));
+    if ([q.from, q.to, q.school].some((v) => v && !/^\d{1,5}$/.test(v)) || q.sector.length > 60) return send(res, 400, '{"error":"bad query"}', TYPES['.json']);
+    return send(res, 200, JSON.stringify({ as_of: state.as_of, ...egraSummary(state.egra, state.egraDraws, state.data, q) }), TYPES['.json'], { 'Cache-Control': 'no-cache' });
   }
   if (req.method === 'GET' && url.pathname === '/healthz') {
     return send(res, 200, JSON.stringify({ ok: true, teachers: state.data ? state.data.teachers.length : 0, as_of: state.as_of, last_error: state.last_error }), 'application/json');

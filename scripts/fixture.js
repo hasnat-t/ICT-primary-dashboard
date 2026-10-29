@@ -61,6 +61,14 @@ const tgr = teachers.map((_, i) => [i, rnd() < 0.15 ? null : rnd() < 0.8 ? Strin
 const o2 = [];
 for (const r of obs) if (r[2] === 'H' && r[1] >= 70 && rnd() < 0.25) o2.push([r[0], r[1], r[14], r[3], Array.from({ length: 17 }, () => pick(['1', '2', '2', '3', '3', '3', '4', 'n'])).join(''),
   pick(['C7', 'C7', 'D5', 'plan', 'C1']), rnd() < 0.5 ? ['D1'] : [], rnd() < 0.4 ? [pick(['recall', 'recall', 'new', 'why'])] : [], 40 + Math.round(rnd() * 40), null, null]);
+const egra = [];
+for (let k = 0; k < 90; k++) {
+  const si = Math.floor(rnd() * 30), ur = rnd() < 0.1 ? 0 : Math.round(rnd() * 70), en = rnd() < 0.2 ? 0 : Math.round(rnd() * 50);
+  const it = (of) => [Math.floor(rnd() * (of + 1)), of];
+  egra.push({ si, sector: schools[si].sector, d: 86 + (k % 3), g: 2 + (k % 4), done: rnd() < 0.9, counted: rnd() < 0.85, child: 'k' + k, ur, en, voice: rnd() < 0.3,
+    t: [it(5), it(5), it(4), [ur, null], it(4), it(5), it(5), it(4), [en, null], it(3), it(8), it(2), it(4), it(2), it(2), it(2), [Math.round(rnd() * 20), null]] });
+}
+const egraDraws = { 0: { 'ICT-2026-Q4|pending': 30, 'ICT-2026-Q4|tested': 8, 'ICT-2026-Q4|absent': 2 }, 1: { 'ICT-2026-Q4|pending': 25, 'ICT-2026-Q4|tested': 5 } };
 const fi = [];
 for (let si = 0; si < schools.length; si++) for (const k of ['D', 'H']) for (let w = 0; w < 8; w++) {
   if (rnd() < (k === 'D' ? 0.3 : 0.6)) continue;
@@ -84,7 +92,7 @@ for (const r of obs) if (r[2] === 'H') (deb[r[0]] = deb[r[0]] || []).push({ d: r
   rec: ['Plan two open-ended questions before the lesson.', 'Use Think-Pair-Share once.'], fo: { t: 'Increase open-ended questioning', r: 'Moves student thinking beyond recall.', y: 'Write two why-questions on the board.' } });
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
   coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: i < 5 ? `Head ${i + 1}` : `Coach ${i + 1}`, role: i < 5 ? 'principal' : 'coach', hide: i < 5 })),
-  fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
+  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);
