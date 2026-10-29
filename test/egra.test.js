@@ -27,7 +27,8 @@ test('egra: unpack, masking under five children, proposed benchmarks', () => {
   assert.deepStrictEqual([s.all.ur.compScored, s.all.ur.compMet], [4, 2]);   // 0/4, 4/4, 3/4 (75% < 80%), 4/4
   assert.deepStrictEqual([s.all.maths.scored, s.all.maths.met], [4, 3]);     // c4 2/8 below 75%
   assert.ok(s.grades.every((g) => g.masked));                                 // every grade has fewer than 5 children
-  assert.deepStrictEqual(s.schools.map((x) => [x.key, x.children]), [[0, 6]]);   // school with 6 tested children shown
+  assert.deepStrictEqual(s.schoolRows.map((x) => [x.key, x.children]), [[0, 6]]);   // school with 6 tested children shown
+  assert.strictEqual(s.schools, 1);                                           // the count of schools stays a number
   assert.strictEqual(s.grades[0].children, 'fewer than 5');
   assert.strictEqual(E.egraSummary(all, {}, null, { from: 88, to: 88 }).all.masked, true);   // 3 children that day
 });

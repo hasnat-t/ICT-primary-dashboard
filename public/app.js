@@ -1288,7 +1288,7 @@
       urF: share(eg.ur.bands[3], eg.ur.scored), urC: share(eg.ur.compMet, eg.ur.compScored), ma: share(eg.maths.met, eg.maths.scored),
       lp: g ? share(g.g15, g.teachers) : null, dcP: sp(g, 'hlp', 'ficoD'), hitlP: sp(g, 'hlp', 'ficoH'), dcE: sp(g, 'se', 'ficoD') });
     const sectors = E.sectors.filter((x) => !x.masked).map((x) => rowOf(x.key, x.key, x, T.sectors.get(x.key)));
-    const schools = (E.schools || []).map((x) => rowOf(x.key, S.data.schools[x.key].name, x, T.schools.get(x.key)));
+    const schools = (E.schoolRows || []).map((x) => rowOf(x.key, S.data.schools[x.key].name, x, T.schools.get(x.key)));
     const cols = (what) => [
       { k: 'name', label: what, val: (r) => r.name, fmt: (r) => esc(r.name) },
       { k: 'children', label: 'Children tested', num: true, val: (r) => r.children, fmt: (r) => N(r.children) },
