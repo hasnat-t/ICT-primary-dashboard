@@ -19,7 +19,7 @@
     ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Training']]],
-    ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers']]],
+    ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar']]],
     ['Insights', [['spotlight', 'Leading & support'], ['trends', 'Analytics']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
@@ -1006,6 +1006,166 @@
           : low(teachers, SPOT_N.teacher), 'teacher'));
   }
 
+  // ---------- school calendar ----------
+  // Coaches record exams, sports weeks, holidays, events and closures; managers read engagement against them.
+  const CAL_COLOR = { assessment: '#5B6B85', sports: '#1F7A4C', winter: '#3E7CB1', summer: '#E0A43A', event: '#8E5BB5', closed: '#B4432E', other: '#8A8F98' };
+  S.events = null; S.eventTypes = {};
+  async function loadEvents() {
+    try { const j = await (await fetch('/api/events', { cache: 'no-store' })).json(); S.events = j.items || []; S.eventTypes = j.types || {}; S.eventsWritable = !!j.writable; }
+    catch (e) { S.events = S.events || []; }
+  }
+  const isoOf = (d) => Calc.dayToDate(S.data.window_start, d);
+  const evLabel = (e) => (e.type === 'other' ? e.reason || 'Other' : S.eventTypes[e.type] || e.type);
+  const evHits = (e, si) => { const sc = S.data.schools[si]; return e.scope === 'all' || (e.scope === 'sector' && e.sector === sc.sector) || (e.scope === 'schools' && e.schools.includes(String(sc.emis))); };
+  const evInScope = (e) => {
+    if (S.school !== '' && S.school !== null && S.school !== undefined && S.school !== 'all') return evHits(e, +S.school);
+    if (S.sector) return e.scope === 'all' || (e.scope === 'sector' && e.sector === S.sector) || (e.scope === 'schools' && S.data.schools.some((sc) => sc.sector === S.sector && e.schools.includes(String(sc.emis))));
+    return true;
+  };
+  const evWho = (e) => (e.scope === 'all' ? 'All ICT schools' : e.scope === 'sector' ? `All ${e.sector} schools`
+    : e.schools.length === 1 ? (S.data.schools.find((sc) => String(sc.emis) === e.schools[0]) || { name: `EMIS ${e.schools[0]}` }).name : `${N(e.schools.length)} schools`);
+  const evSchools = (e) => S.data.schools.reduce((n, sc, si) => n + (evHits(e, si) ? 1 : 0), 0);
+  const niceIso = (iso) => { const d = new Date(`${iso}T00:00:00Z`); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const evDates = (e) => (e.from === e.to ? niceIso(e.from) : `${niceIso(e.from)} – ${niceIso(e.to)}`);
+
+  function evRow(e) {
+    return `<div class="ev" style="--c:${CAL_COLOR[e.type] || '#888'}"><div class="ev-h"><span class="ev-dot"></span><b>${esc(evLabel(e))}</b><span class="dim">${esc(evDates(e))}</span></div>
+      <div class="ev-b">${esc(evWho(e))} · added by ${esc(e.coach)}${e.note ? ` · ${esc(e.note)}` : ''}</div>
+      ${S.eventsWritable ? `<button class="ev-x" type="button" data-caldel="${e.id}" title="Remove this entry (coach passcode)">Remove</button>` : ''}</div>`;
+  }
+
+  function viewCalendar() {
+    if (!S.events) { loadEvents().then(render); return card('c-cal0', 'School calendar', '', '<p class="note">Loading the calendar…</p>'); }
+    const todayIso = isoOf(S.data.today);
+    const month = S.calMonth || todayIso.slice(0, 7);
+    const [y, m] = month.split('-').map(Number);
+    const first = new Date(Date.UTC(y, m - 1, 1)), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const lead = (first.getUTCDay() + 6) % 7;
+    const mk = (yy, mm) => `${yy}-${String(mm).padStart(2, '0')}`;
+    const prev = m === 1 ? mk(y - 1, 12) : mk(y, m - 1), next = m === 12 ? mk(y + 1, 1) : mk(y, m + 1);
+    const evs = S.events.filter(evInScope);
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push('<div class="cal-d out"></div>');
+    for (let d = 1; d <= days; d++) {
+      const iso = `${month}-${String(d).padStart(2, '0')}`;
+      const on = evs.filter((e) => e.from <= iso && e.to >= iso);
+      const dow = (lead + d - 1) % 7;
+      cells.push(`<div class="cal-d${iso === todayIso ? ' today' : ''}${dow >= 5 ? ' wkend' : ''}"><span class="cal-n">${d}</span>${on.slice(0, 3).map((e) => `<span class="cal-e" style="--c:${CAL_COLOR[e.type] || '#888'}" title="${esc(evLabel(e))} · ${esc(evWho(e))}">${esc(evLabel(e))}<small>${esc(evWho(e))}</small></span>`).join('')}${on.length > 3 ? `<span class="cal-more">+${on.length - 3} more</span>` : ''}</div>`);
+    }
+    const grid = `<div class="cal-nav"><button class="btn" type="button" data-calm="${prev}">‹ ${MONTHS[(m + 10) % 12]}</button><h3>${MONTHS[m - 1]} ${y}</h3><button class="btn" type="button" data-calm="${next}">${MONTHS[m % 12]} ›</button></div>
+      <div class="xscroll"><div class="cal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => `<div class="cal-w">${w}</div>`).join('')}${cells.join('')}</div></div>
+      <div class="legend">${Object.entries(S.eventTypes).map(([k, l]) => `<span><i style="background:${CAL_COLOR[k]}"></i>${esc(l)}</span>`).join('')}</div>`;
+
+    // engagement vs calendar for the month's days that have data
+    const dayIdx = [];
+    for (let d = 1; d <= days; d++) { const di = Calc.dateToDay(S.data.window_start, `${month}-${String(d).padStart(2, '0')}`); if (di >= 0 && di <= S.data.today) dayIdx.push(di); }
+    let chartHtml = '<p class="note">No dashboard data for this month.</p>';
+    if (dayIdx.length) {
+      const scopeT = [], scopeS = [];
+      S.data.teachers.forEach((T, ti) => { const sc = S.data.schools[T.s]; if (S.sector && sc.sector !== S.sector) return; if (S.school !== '' && S.school !== null && S.school !== undefined && S.school !== 'all' && T.s !== +S.school) return; scopeT.push(ti); });
+      S.data.schools.forEach((sc, si) => { if (S.sector && sc.sector !== S.sector) return; if (S.school !== '' && S.school !== null && S.school !== undefined && S.school !== 'all' && si !== +S.school) return; scopeS.push(si); });
+      const active = new Map(dayIdx.map((d) => [d, new Set()]));
+      for (const ti of scopeT) {
+        for (const r of S.P.lp[ti]) if (active.has(r[1]) && (r[2] || r[3])) active.get(r[1]).add(ti);
+        for (const r of S.P.obs[ti]) if (active.has(r[1])) active.get(r[1]).add(ti);
+      }
+      const affected = (di) => { const iso = isoOf(di); const on = evs.filter((e) => e.from <= iso && e.to >= iso); return scopeS.filter((si) => on.some((e) => evHits(e, si))).length; };
+      chartHtml = chart(dayIdx.map((d) => ({ label: nice(d), values: [ratio(active.get(d).size, scopeT.length), ratio(affected(d), scopeS.length)] })),
+        [{ name: '% of teachers active (used a lesson plan or had a lesson observed)', color: C1 }, { name: '% of schools with a calendar entry', color: '#B4432E' }], 'line');
+    }
+
+    const now = evs.filter((e) => e.from <= todayIso && e.to >= todayIso);
+    const soon = evs.filter((e) => e.from > todayIso).slice(0, 12);
+    const past = evs.filter((e) => e.to < todayIso).slice(-12).reverse();
+    const add = S.eventsWritable ? '<button class="btn dark" type="button" data-caladd>+ Add to calendar</button>' : '<span class="note">Adding is not switched on yet (needs the coach passcode set on Railway).</span>';
+    return card('c-cal0', `School calendar · ${esc(scopeName())}`, 'Coaches record when schools are busy or closed — student assessments, sports week, winter or summer holidays, events, unusual closures — so a dip in engagement has its reason beside it. Anyone can read the calendar; adding or removing an entry needs the coach passcode.', `<div class="row">${add}</div>`)
+      + card('c-cal1', 'Month view', '', grid)
+      + card('c-cal2', 'Engagement against the calendar', `Each day of ${MONTHS[m - 1]} ${y}: the share of primary teachers who were active, beside the share of schools with a calendar entry. Weekends and holidays are expected to dip.`, chartHtml)
+      + `<div class="cards2">${card('c-cal3', 'Happening now', `${N(now.length)} entr${now.length === 1 ? 'y' : 'ies'} today`, now.length ? now.map(evRow).join('') : '<p class="note">Nothing recorded for today.</p>')}
+        ${card('c-cal4', 'Coming up', '', soon.length ? soon.map(evRow).join('') : '<p class="note">Nothing coming up.</p>')}</div>`
+      + card('c-cal5', 'Recent', 'The latest entries that have ended.', past.length ? past.map(evRow).join('') : '<p class="note">None yet.</p>');
+  }
+
+  function schoolCalendarCard(si) {
+    if (!S.events) return '';
+    const list = S.events.filter((e) => evHits(e, si)).slice().sort((a, b) => b.from.localeCompare(a.from)).slice(0, 15);
+    return `<section class="card" id="m-cal"><div class="card-h"><h2>School calendar</h2></div>${list.length ? list.map(evRow).join('') : '<p class="note">No calendar entries for this school.</p>'}</section>`;
+  }
+
+  let calToken = '';
+  try { calToken = localStorage.getItem('calToken') || ''; } catch (e) { /* storage blocked */ }
+  const remember = (t) => { calToken = t; try { localStorage.setItem('calToken', t); } catch (e) { /* ignore */ } };
+  async function calendarRemove(id) {
+    const e = (S.events || []).find((x) => x.id === id);
+    if (!e || !confirm(`Remove "${evLabel(e)}" (${evDates(e)}, ${evWho(e)})?`)) return;
+    const t = calToken || prompt('Coach passcode');
+    if (!t) return;
+    const r = await fetch(`/api/events/${id}/delete`, { method: 'POST', headers: { 'x-admin-token': t } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(j.error || 'Could not remove.'); if (r.status === 401) remember(''); return; }
+    remember(t); await loadEvents(); render();
+  }
+
+  function calendarForm() {
+    let dlg = $('#cal-dlg');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.className = 'modal fb'; dlg.id = 'cal-dlg'; document.body.appendChild(dlg); }
+    const todayIso = isoOf(S.data.today);
+    const sectors = [...new Set(S.data.schools.map((s) => s.sector))].sort();
+    const coaches = [...new Set((S.data.coaches || []).filter((c) => !c.hide && c.name).map((c) => c.name))].sort();
+    const schoolList = S.data.schools.map((s, si) => ({ si, emis: String(s.emis), name: s.name, sector: s.sector })).sort((a, b) => a.name.localeCompare(b.name));
+    dlg.innerHTML = `<form class="m-panel" id="cal-form">
+      <div class="m-head"><div class="m-tt"><h3>Add to the school calendar</h3><p>Record why schools are busy or closed, so leaders can read engagement in context.</p></div><button class="x" type="button" id="cal-x" aria-label="Close">×</button></div>
+      <div class="m-body fb-body">
+        <div class="fb-two"><div><label class="fb-l" for="cal-coach">Your name</label><input class="inp" id="cal-coach" list="cal-coaches" maxlength="80" required autocomplete="name"><datalist id="cal-coaches">${coaches.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
+          <div><label class="fb-l" for="cal-pass">Coach passcode</label><input class="inp" id="cal-pass" type="password" required value="${esc(calToken)}" autocomplete="current-password"></div></div>
+        <fieldset class="fb-types"><legend>Reason</legend>${Object.entries(S.eventTypes).map(([k, l], i) => `<label><input type="radio" name="type" value="${k}" ${i === 0 ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
+        <div id="cal-other" hidden><label class="fb-l" for="cal-reason">What is the reason?</label><input class="inp" id="cal-reason" maxlength="160"></div>
+        <div class="fb-two"><div><label class="fb-l" for="cal-from">From</label><input class="inp" type="date" id="cal-from" value="${todayIso}" required></div>
+          <div><label class="fb-l" for="cal-to">To</label><input class="inp" type="date" id="cal-to" value="${todayIso}" required></div></div>
+        <fieldset class="fb-types"><legend>Which schools?</legend>
+          <label><input type="radio" name="scope" value="schools" checked> One or more schools</label>
+          <label><input type="radio" name="scope" value="sector"> A whole sector</label>
+          <label><input type="radio" name="scope" value="all"> All ICT schools</label></fieldset>
+        <div id="cal-sch"><div class="fb-two"><select class="sel" id="cal-ssec"><option value="">All sectors</option>${sectors.map((s) => `<option ${S.sector === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+          <input class="inp" id="cal-find" placeholder="Search school or EMIS"></div>
+          <div class="cal-pick" id="cal-pick"></div><p class="note" id="cal-count">0 schools chosen</p></div>
+        <div id="cal-sec" hidden><select class="sel" id="cal-sector">${sectors.map((s) => `<option ${S.sector === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
+        <label class="fb-l" for="cal-note">Note <span class="dim">(optional)</span></label><textarea class="inp" id="cal-note" rows="2" maxlength="600" placeholder="e.g. first-term exams for grades 3–5"></textarea>
+        <p class="note" id="cal-out" role="status"></p>
+        <div class="fb-actions"><button class="btn" type="button" id="cal-cancel">Cancel</button><button class="btn dark" type="submit" id="cal-save">Add to calendar</button></div>
+      </div></form>`;
+    const chosen = new Set(S.school !== '' && S.school !== null && S.school !== undefined && S.school !== 'all' ? [String(S.data.schools[+S.school].emis)] : []);
+    const pick = () => {
+      const sec = $('#cal-ssec').value, q = $('#cal-find').value.toLowerCase();
+      const rows = schoolList.filter((s) => (!sec || s.sector === sec) && (!q || s.name.toLowerCase().includes(q) || s.emis.includes(q))).slice(0, 200);
+      $('#cal-pick').innerHTML = rows.map((s) => `<label><input type="checkbox" value="${esc(s.emis)}" ${chosen.has(s.emis) ? 'checked' : ''}> ${esc(s.name)} <span class="dim">${esc(s.sector)}</span></label>`).join('') || '<p class="note">No school matches.</p>';
+      $('#cal-count').textContent = `${chosen.size} school${chosen.size === 1 ? '' : 's'} chosen`;
+    };
+    pick();
+    $('#cal-ssec').onchange = pick; $('#cal-find').oninput = pick;
+    $('#cal-pick').onchange = (e) => { if (e.target.checked) chosen.add(e.target.value); else chosen.delete(e.target.value); $('#cal-count').textContent = `${chosen.size} school${chosen.size === 1 ? '' : 's'} chosen`; };
+    dlg.querySelectorAll('input[name=type]').forEach((r) => (r.onchange = () => { $('#cal-other').hidden = dlg.querySelector('input[name=type]:checked').value !== 'other'; }));
+    dlg.querySelectorAll('input[name=scope]').forEach((r) => (r.onchange = () => { const v = dlg.querySelector('input[name=scope]:checked').value; $('#cal-sch').hidden = v !== 'schools'; $('#cal-sec').hidden = v !== 'sector'; }));
+    const close = () => dlg.close();
+    $('#cal-x').onclick = close; $('#cal-cancel').onclick = close;
+    $('#cal-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const scope = dlg.querySelector('input[name=scope]:checked').value;
+      const body = { coach: $('#cal-coach').value, type: dlg.querySelector('input[name=type]:checked').value, reason: $('#cal-reason').value,
+        from: $('#cal-from').value, to: $('#cal-to').value, scope, sector: $('#cal-sector').value, schools: [...chosen], note: $('#cal-note').value };
+      const out = $('#cal-out'); out.className = 'note'; out.textContent = 'Saving…'; $('#cal-save').disabled = true;
+      try {
+        const r = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': $('#cal-pass').value }, body: JSON.stringify(body) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Could not save.');
+        remember($('#cal-pass').value);
+        out.textContent = 'Added — thank you.';
+        await loadEvents(); render(); setTimeout(close, 900);
+      } catch (err) { out.className = 'note warn'; out.textContent = err.message; $('#cal-save').disabled = false; }
+    };
+    dlg.showModal();
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
@@ -1453,7 +1613,8 @@
       sub = `EMIS ${sc.emis}${MS.length > 1 ? '' : ` · ${sc.sector}`} · ${N(R.all.teachers)} primary teachers · ${periodText()}`;
       html = `<section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
         <p class="note">Click a teacher for the scorecard. Contains teacher names — internal use only.</p>
-        ${table('m-tch', modalCols(v.cols, 'teacher'), rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`;
+        ${table('m-tch', modalCols(v.cols, 'teacher'), rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`
+        + schoolCalendarCard(v.key);
     } else if (v.kind === 'coach') {
       ({ title, sub, html } = coachView(v.key));
     } else if (v.kind === 'hteacher') {
@@ -1498,7 +1659,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
@@ -1563,6 +1724,9 @@
     else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
     else if (b.dataset.fkind) { S.fkind = b.dataset.fkind; render(); }
     else if (b.dataset.slens) { S.slens = b.dataset.slens; render(); }
+    else if (b.dataset.calm) { S.calMonth = b.dataset.calm; render(); }
+    else if (b.dataset.caladd !== undefined) { calendarForm(); }
+    else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
     else if (b.dataset.focus) {
       const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);
@@ -1634,6 +1798,7 @@
       $('#rule').textContent = S.data.rule_version || '';
       render();
       status();
+      loadEvents();
     } catch (e) {
       console.error(e);
       $('#main').innerHTML = '<div class="loading">Could not load the data. Retrying…</div>';

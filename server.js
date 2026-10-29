@@ -9,6 +9,7 @@ const db = require('./db');
 const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
 const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 const FB = require('./feedback');
+const EV = require('./events');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -28,6 +29,9 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const CACHE_FILE = path.join(DATA_DIR, 'data.json');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';   // opens the feedback review page; set on Railway, never in code
 let feedbackStore = null;
+let eventStore = null;
+const CALENDAR_TOKEN = process.env.CALENDAR_TOKEN || '';   // coach passcode for the school calendar; set on Railway
+const eventLimit = FB.createLimiter();
 const feedbackLimit = FB.createLimiter();
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -319,8 +323,34 @@ async function handleFeedback(req, res, url) {
   return json(405, { error: 'method not allowed' });
 }
 
+// School calendar: public read; add / remove with the coach passcode or the admin password.
+async function handleEvents(req, res, url) {
+  const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
+  if (!eventStore) return json(503, { error: 'The calendar is starting up, try again in a moment.' });
+  if (req.method === 'GET' && url.pathname === '/api/events') return json(200, { items: await eventStore.list(), types: EV.TYPES, writable: !!(CALENDAR_TOKEN || ADMIN_TOKEN) });
+  if (!CALENDAR_TOKEN && !ADMIN_TOKEN) return json(503, { error: 'Adding to the calendar is not set up yet: add CALENDAR_TOKEN on Railway.' });
+  if (!FB.isAdmin(req, CALENDAR_TOKEN) && !FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong coach passcode.' });
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  if (!eventLimit(ip)) return json(429, { error: 'Too many changes in an hour; please try again later.' });
+  if (req.method === 'POST' && url.pathname === '/api/events') {
+    const known = state.data ? { emis: new Set(state.data.schools.map((s) => String(s.emis))), sectors: new Set(state.data.schools.map((s) => s.sector)) } : null;
+    const v = EV.validate(await readJson(req), known);
+    if (v.error) return json(400, { error: v.error });
+    const item = await eventStore.add(v.row);
+    log(`calendar entry #${item.id} (${item.type}, ${item.scope}) by ${item.coach}`);
+    return json(200, { ok: true, item });
+  }
+  const m = url.pathname.match(/^\/api\/events\/(\d{1,9})\/delete$/);
+  if (req.method === 'POST' && m) return (await eventStore.remove(+m[1])) ? json(200, { ok: true }) : json(404, { error: 'not found' });
+  return json(405, { error: 'method not allowed' });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/events' || url.pathname.startsWith('/api/events/')) {
+    handleEvents(req, res, url).catch((e) => { log(`calendar error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
+    return;
+  }
   if (url.pathname === '/api/feedback' || url.pathname.startsWith('/api/admin/feedback')) {
     handleFeedback(req, res, url).catch((e) => { log(`feedback error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
     return;
@@ -402,6 +432,7 @@ try {
     log(`Postgres unavailable, continuing without it: ${e.message || e}`);
   }
   feedbackStore = FB.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'feedback.json') });
+  eventStore = EV.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'events.json') });
   server.listen(PORT, () => {
     log(`listening on ${PORT}`);
     refresh('startup');

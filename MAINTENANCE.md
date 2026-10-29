@@ -24,6 +24,13 @@ This file is for whoever looks after the dashboard: a developer, or the daily Cl
   the review endpoints stay closed. Statuses: new, approved, later, declined, done; notes and a CSV export.
 - Limits: 8 messages an hour per visitor, 500 a day in total, 3,000 characters a message, a hidden spam field.
 
+## School calendar
+
+- Tab **School calendar** (Directory). Coaches add entries (reason, dates, one or more schools / a sector / all ICT,
+  note) with the coach passcode in the Railway variable `CALENDAR_TOKEN` (the admin password `ADMIN_TOKEN` also works).
+  Stored in the Postgres table `school_events` (local runs: `data/events.json`); removal is a soft delete.
+  Anyone can read entries at `GET /api/events`.
+
 ## Checking health
 
 `GET /api/health` (public, no secrets):
