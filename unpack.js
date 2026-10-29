@@ -48,10 +48,10 @@ function buildLp(rows, ro) {
   const miss = { n: 0 };
   for (const r of rows) {
     for (const p of records('lp', r)) {
-      if (p.length !== 7) throw new Error('lp: malformed record');
+      if (p.length !== 8) throw new Error('lp: malformed record');
       const ti = teacherOf(ro, r.school_id, p[0], miss);
       if (ti === undefined) continue;
-      out.push([ti, +p[1], +p[2], +p[3], +p[4], +p[5], +p[6]]);   // teacher, day, g15, g612, plans, taught, answered
+      out.push([ti, +p[1], +p[2], +p[3], +p[4], +p[5], +p[6], +p[7]]);   // teacher, day, g15 (used), g612, plans generated, taught, answered, opened in app
     }
   }
   if (miss.n) throw new Error(`lp: ${miss.n} records for teachers not in the roster`);

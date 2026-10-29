@@ -118,7 +118,7 @@ A failed part keeps its previous data only if the roster signature is unchanged;
 
 - **Overview** — hero cards, volume strip, adoption ladder, "needs attention", momentum, sector heatmap, focus card, staircase.
 - **Teaching**
-  - **Lesson plans** — "LP engagement" (teachers who generated a grade 1–5 plan ÷ primary teachers), plans generated,
+  - **Lesson plans** — "LP engagement" (teachers who **used** a grade 1–5 plan — generated it with Rumi **or opened it in the teacher app** — ÷ primary teachers; governed lp_users traces), plans generated (lesson_plans rows only), plans opened in the app,
     plans taught (= DC observations with a recently generated Rumi plan attached, `selected_recent`; provisional), lesson analytics (subjects, weekdays/hours heat grid, most-taught lessons).
   - **Quizzes** — quizzes made, children (lesson vs video quizzes kept apart), **children's quiz scores** grade × subject grid (provisional; ticket TKT-20261027-c75041). Grade ranges like "Grades 3–5 (exact grade not recorded)" come from transcript quizzes.
   - **Exam generator** — requested / generated / failed / never finished, analytics by subject, grade, source, surface, weekday/hour, chapters; **FDE board papers (grade 5)** card (detected from the paper's `_layout`; all portal so far — none seen from WhatsApp).

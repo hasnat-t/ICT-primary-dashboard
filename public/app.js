@@ -133,8 +133,9 @@
   const COL = {
     schools: { k: 'schools', label: 'Schools', num: true, levels: ['sector'], val: (r) => r.schools, fmt: (r) => N(r.schools) },
     teachers: { k: 'teachers', label: 'Primary teachers', num: true, levels: ['sector', 'school'], val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
-    g15: { k: 'g15', label: 'Generated a grade 1–5 plan', num: true, title: 'Teachers who generated a grade 1–5 lesson plan with Rumi (picked from the curriculum menu or typed a topic; sent on WhatsApp or opened in the teacher app) in the period', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
-    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who generated a grade 1–5 lesson plan ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
+    g15: { k: 'g15', label: 'Used a grade 1–5 plan', num: true, title: 'Teachers who used a grade 1–5 lesson plan in the period: generated one with Rumi (WhatsApp or portal) or opened one in the teacher app', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
+    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who used a grade 1–5 lesson plan (generated or opened in the teacher app) ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
+    opened: { k: 'opened', label: 'Plans opened in the app', num: true, title: 'Grade 1–5 lesson plans opened in the teacher app (reading a plan there counts as using lesson plans, but is not generating one)', val: (r) => r.opened, fmt: (r) => N(r.opened) },
     plans: { k: 'plans', label: 'Plans generated', num: true, title: 'Grade 1–5 lesson plans Rumi generated for the teacher (lesson_plans rows; plans opened only in the teacher app between 12 and 13 Oct are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
     taught: { k: 'taught', label: 'Plans taught', num: true, title: 'Provisional: DC observations in which the teacher attached one of her recent Rumi lesson plans (the plan she generated was taught and recorded)', val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
     tTaught: { k: 'tTaught', label: 'Teachers who taught one', num: true, levels: ['sector', 'school'], val: (r) => r.teachersTaught, fmt: (r) => N(r.teachersTaught) },
@@ -385,7 +386,7 @@
     const lv = [0, 1, 2, 3].map((i) => ratio(g.cert[i], g.teachers));
 
     const hero = `<section class="hero" aria-label="Headline metrics">
-      ${heroCard('lp', 'Lesson-plan engagement', `${N(g.g15)} of ${N(g.teachers)} teachers generated a grade 1–5 lesson plan`, g, A, secs)}
+      ${heroCard('lp', 'Lesson-plan engagement', `${N(g.g15)} of ${N(g.teachers)} teachers used a grade 1–5 lesson plan`, g, A, secs)}
       ${heroCard('dc', 'DC coverage', `${N(g.dcT)} teachers recorded a lesson on the Digital Coach`, g, A, secs)}
       ${heroCard('hitl', 'HITL coverage', `${N(g.hitlT)} teachers observed by a coach`, g, A, secs)}
       ${heroCard('l3', 'Teacher Leader certified', `${N(g.cert[3])} teachers hold Level 3`, g, A, secs, true)}</section>`;
@@ -394,7 +395,7 @@
       [g.kidsL, 'Children quizzed'], [g.exOk, 'Exams generated']];
     const volume = `<section class="volume" aria-label="Activity volume">${vol.map(([v, l]) => `<div><span class="vv">${N(v)}</span><span class="vl">${l}</span></div>`).join('')}</section>`;
 
-    const rungs = [['Generated a grade 1–5 lesson plan', g.g15], ['Recorded a lesson (DC)', g.dcT], ['Made a lesson quiz', g.madeT], ['Used the exam generator', g.exT],
+    const rungs = [['Used a grade 1–5 lesson plan', g.g15], ['Recorded a lesson (DC)', g.dcT], ['Made a lesson quiz', g.madeT], ['Used the exam generator', g.exT],
       ['Observed by a coach (HITL)', g.hitlT], ['Taught a plan, seen in DC', g.teachersTaught], ['Children took one of their lesson quizzes', g.quizLT]]
       .map(([l, n]) => [l, n, ratio(n, g.teachers)]).sort((a, b) => (b[2] ?? 0) - (a[2] ?? 0));
     const ladder = `<section class="card" id="c-ladder" style="flex:3 1 520px"><div class="card-h"><div><h2>Teacher reach ladder</h2><p class="note">${esc(scopeName())} · share of ${N(g.teachers)} primary teachers reached by each part of the programme · ${periodText()}</p></div><button class="dl" data-dl="c-ladder">Download image</button></div>
@@ -550,13 +551,13 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-lp', `Lesson plans · ${scopeName()} · ${periodText()}`,
-      'A plan is generated when the teacher asks Rumi for one (picks a lesson from the curriculum menu or types a topic) and it is sent on WhatsApp or opened in the teacher app. LP engagement % = primary teachers who generated at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she generated the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher generating a Rumi plan.',
+      'A teacher <b>uses</b> a lesson plan by generating one with Rumi (picking a curriculum lesson or typing a topic, on WhatsApp or the portal) or by <b>opening</b> one in the teacher app. LP engagement % = primary teachers who used at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans generated</b> counts only plans Rumi generated for the teacher; <b>Plans opened in the app</b> counts plans read there. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she generated the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher generating a Rumi plan.',
       `<div class="kpis">${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers`)}
         ${kpi('Plans generated', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `${P1(ratio(a.taught, a.dc))} of DC observations`)}
         ${kpi('Teachers who taught one', N(a.teachersTaught))}${kpi('Any plan incl. grade 6–12', N(a.lpAny), 'teachers')}</div>`)
       + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.plans, g.taught] })),
         [{ name: 'Plans generated', color: GREEN }, { name: 'Plans taught, seen in DC', color: NAVY }]), granSeg())
-      + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.usage, COL.plans, COL.taught, COL.tTaught], rows,
+      + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.usage, COL.plans, COL.opened, COL.taught, COL.tTaught], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
 
@@ -940,7 +941,7 @@
     const share = (a, b) => (b ? (100 * a) / b : 0);
     const practice = (f, min) => (f.hlp[2] >= min && f.se[2] >= min ? (fpct(f.hlp) + fpct(f.se)) / 2 : null);
     const LENS = {
-      tools: { label: 'Using the tools', short: 'using the tools', note: `<b>Schools</b>: the average of four shares of primary teachers — generated a grade 1–5 lesson plan, recorded a DC lesson, had children take a lesson quiz, generated an exam paper (schools with at least ${SPOT_MIN.school} primary teachers). <b>Teachers</b>: how many of those four tools they used, then how much (plans + DC lessons + quiz sittings + exams).` },
+      tools: { label: 'Using the tools', short: 'using the tools', note: `<b>Schools</b>: the average of four shares of primary teachers — used a grade 1–5 lesson plan, recorded a DC lesson, had children take a lesson quiz, generated an exam paper (schools with at least ${SPOT_MIN.school} primary teachers). <b>Teachers</b>: how many of those four tools they used, then how much (plans + DC lessons + quiz sittings + exams).` },
       dc: { label: 'Classroom practice (Digital Coach)', short: 'classroom practice (Digital Coach)', note: `Average of the Teaching practices and Student engagement FICO scores from Digital Coach lessons. Schools need at least ${SPOT_MIN.schoolObs} scored lessons, teachers at least ${SPOT_MIN.teacherObs}.` },
       hitl: { label: 'Classroom practice (HITL)', short: 'classroom practice (HITL)', note: `Average of the Teaching practices and Student engagement FICO scores from coaches' HITL observations. Schools need at least ${SPOT_MIN.schoolObs} scored observations, teachers at least ${SPOT_MIN.teacherObs}. Never mixed with Digital Coach scores.` },
     };
@@ -1263,7 +1264,7 @@
     const rows = R.teachers.filter((t) => (!q || t.name.toLowerCase().includes(q) || S.data.schools[t.s].name.toLowerCase().includes(q)) && (!miss || miss(t)))
       .map((t) => Object.assign(Calc.asGroup(t), { t, name: t.name, key: t.i, school: S.data.schools[t.s].name, sector: S.data.schools[t.s].sector }));
     const cols = [nameCol('teacher'), { k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => `${esc(r.school)} <span class="dim">${esc(r.sector)}</span>` },
-      COL.g15, COL.plans, COL.taught, COL.dc, ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'dc-tsk3'), COL.hitl, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.mods, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
+      COL.g15, COL.plans, COL.opened, COL.taught, COL.dc, ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'dc-tsk3'), COL.hitl, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.mods, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
     const tools = `<div class="row"><input class="inp" type="search" id="search" placeholder="Search teacher or school" value="${esc(S.search)}">
       <select class="sel" id="missing" aria-label="Show">${MISSING.map(([k, l]) => `<option value="${k}" ${S.missing === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
     return card('c-tch', `Teachers · ${scopeName()} · ${periodText()}`, `${N(rows.length)} of ${N(R.teachers.length)} primary teachers. Click a teacher for the scorecard. Contains teacher names — internal use only.`,
@@ -1299,13 +1300,13 @@
     for (const r of S.P.lp[ti]) if (r[1] >= S.from && r[1] <= S.to && by.has(keyOf(r[1]))) by.get(keyOf(r[1])).plan += r[2] || r[3] ? 1 : 0;
     for (const r of S.P.obs[ti]) if (r[1] >= S.from && r[1] <= S.to && by.has(keyOf(r[1]))) by.get(keyOf(r[1]))[r[2] === 'D' ? 'dc' : 'hitl']++;
     return { title: T.name, sub: `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`, html: `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
-      <div class="kpis">${kpi('Days a plan was generated', N(t.lpDays))}${kpi('Plans generated', N(t.plans), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
+      <div class="kpis">${kpi('Days a plan was used', N(t.lpDays), 'generated or opened')}${kpi('Plans generated', N(t.plans), 'grade 1–5, with Rumi')}${kpi('Plans opened in the app', N(t.opened), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
       ${kpi('DC observations', N(t.dc), 'lessons recorded')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`)}
       ${kpi('Quizzes made', N(t.made))}${kpi('Exam generator', N(t.exOk), `papers · ${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
       ${kpi('NIETE training', t.onProg ? 'On programme' : 'Not assigned', `${N(g.mods)} of 171 modules · certificates: ${t.certs ? t.certs.split('').map((l) => LEVELS[+l - 1]).join(', ') : 'none'}`)}</div>
       <h2>FICO section scores</h2>${ficoBlock(g)}
       <h2>Activity over time</h2>${chart([...by.values()].map((b) => ({ label: b.label, values: [b.plan, b.dc, b.hitl] })),
-        [{ name: S.gran === 'day' ? 'Generated a plan' : 'Days with a plan generated', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
+        [{ name: S.gran === 'day' ? 'Used a plan' : 'Days a plan was used', color: SOFT }, { name: 'DC observations', color: GREEN }, { name: 'HITL observations', color: NAVY }])}
       <p class="note">Contains teacher names — internal use only.${kidsNote()}</p></section>
       <h2 class="sec-in">HITL observations: score trend and debrief reports</h2>${hitlBlocks(ti)}` };
   }
@@ -1428,7 +1429,7 @@
   }
   function miniKpis(g) {
     return `<div class="kpis">${kpi('Primary teachers', N(g.teachers), `${N(g.schools)} school${g.schools === 1 ? '' : 's'}`)}
-      ${kpiP('LP engagement', ratio(g.g15, g.teachers), `${N(g.g15)} generated a plan`)}${kpiP('DC coverage', ratio(g.dcT, g.teachers), `${N(g.dcT)} recorded`)}
+      ${kpiP('LP engagement', ratio(g.g15, g.teachers), `${N(g.g15)} used a plan`)}${kpiP('DC coverage', ratio(g.dcT, g.teachers), `${N(g.dcT)} recorded`)}
       ${kpiP('HITL coverage', ratio(g.hitlT, g.teachers), `${N(g.hitlT)} observed`)}${kpiP('Exam generator', ratio(g.exT, g.teachers), `${N(g.exT)} teachers`)}</div>`;
   }
   function renderModal() {

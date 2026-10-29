@@ -70,7 +70,7 @@
   const pct = (f) => (f[1] ? (100 * f[0]) / f[1] : null);
 
   function blankTeacher() {
-    return { g15: false, g612: false, lpDays: 0, plans: 0, taught: 0, saidTaught: 0, answered: 0,
+    return { g15: false, g612: false, lpDays: 0, plans: 0, opened: 0, taught: 0, saidTaught: 0, answered: 0,
       dc: 0, hitl: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, fde: 0, fdeReq: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0 };
   }
@@ -108,7 +108,7 @@
       if (r[2]) t.g15 = true;
       if (r[3]) t.g612 = true;
       if (r[2] || r[3]) t.lpDays++;
-      t.plans += r[4]; t.saidTaught += r[5]; t.answered += r[6];
+      t.plans += r[4]; t.saidTaught += r[5]; t.answered += r[6]; t.opened += r[7] || 0;
     }
     for (const r of P.obs[ti]) {
       if (r[1] < from || r[1] > to) continue;
@@ -139,7 +139,7 @@
   }
 
   function blankGroup() {
-    return { teachers: 0, g15: 0, lpAny: 0, plans: 0, taught: 0, answered: 0, teachersTaught: 0,
+    return { teachers: 0, g15: 0, lpAny: 0, plans: 0, opened: 0, openedT: 0, generatedT: 0, taught: 0, answered: 0, teachersTaught: 0,
       dc: 0, dcT: 0, hitl: 0, hitlT: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, quizLT: 0, kidsL: null, kidsV: null,
       exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0, fde: 0, fdeReq: 0, fdeT: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0, qT: 0,
@@ -149,7 +149,7 @@
     g.teachers++;
     if (t.g15) g.g15++;
     if (t.g15 || t.g612) g.lpAny++;
-    g.plans += t.plans; g.taught += t.taught; g.answered += t.answered; if (t.taught) g.teachersTaught++;
+    g.plans += t.plans; g.opened += t.opened; if (t.opened) g.openedT++; if (t.plans) g.generatedT++; g.taught += t.taught; g.answered += t.answered; if (t.taught) g.teachersTaught++;
     g.dc += t.dc; if (t.dc) g.dcT++;
     g.hitl += t.hitl; if (t.hitl) g.hitlT++; g.hitlC += t.hitlC; g.hitlP += t.hitlP; g.hitlA += t.hitlA;
     mergeFico(g.ficoD, t.ficoD); mergeFico(g.ficoH, t.ficoH); g.odd += t.odd;
