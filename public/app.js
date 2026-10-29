@@ -1074,9 +1074,10 @@
         [{ name: '% of teachers active (used a lesson plan or had a lesson observed)', color: C1 }, { name: '% of schools with a calendar entry', color: '#B4432E' }], 'line');
     }
 
-    const now = evs.filter((e) => e.from <= todayIso && e.to >= todayIso);
-    const soon = evs.filter((e) => e.from > todayIso).slice(0, 12);
-    const past = evs.filter((e) => e.to < todayIso).slice(-12).reverse();
+    const own = evs.filter((e) => !e.official);   // national holidays stay on the month view and chart, not in these lists
+    const now = own.filter((e) => e.from <= todayIso && e.to >= todayIso);
+    const soon = own.filter((e) => e.from > todayIso).slice(0, 12);
+    const past = own.filter((e) => e.to < todayIso).slice(-12).reverse();
     const add = S.eventsWritable ? '<button class="btn dark" type="button" data-caladd>+ Add to calendar</button>' : '<span class="note">Adding is not switched on yet (needs the coach passcode set on Railway).</span>';
     return card('c-cal0', `School calendar · ${esc(scopeName())}`, 'Coaches record when schools are busy or closed — student assessments, sports week, winter or summer holidays, events, unusual closures — so a dip in engagement has its reason beside it. Anyone can read the calendar; adding or removing an entry needs the coach passcode.', `<div class="row">${add}</div>`)
       + card('c-cal1', 'Month view', '', grid)
