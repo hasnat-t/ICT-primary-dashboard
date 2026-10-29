@@ -398,3 +398,34 @@ dialog.fb { max-width: min(40rem, calc(100vw - 24px)); }
 /* table tools */
 .t-tools { display: flex; justify-content: flex-end; margin: 0 0 6px; }
 .snapping .t-tools { display: none; }
+
+/* change vs previous period */
+.dlt { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 0 5px; border-radius: 6px; margin-left: 4px; vertical-align: middle; white-space: nowrap; }
+.dlt.up { color: #1F7A4C; background: #E3F2EA; } .dlt.dn { color: #B4432E; background: #FBEAE5; } .dlt.flat { color: var(--muted); background: var(--line-2); }
+td .dlt { margin-left: 6px; }
+
+/* how we count */
+.gl { margin: 0; display: grid; gap: 14px; }
+.gl-i { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; gap: 6px 18px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.gl-i:last-child { border-bottom: 0; padding-bottom: 0; }
+.gl dt { font-weight: 700; }
+.gl dd { margin: 0; line-height: 1.55; }
+.gl-src { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.g-tag { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-left: 4px; vertical-align: middle; }
+.g-tag.gov { background: #E3F2EA; color: #1F7A4C; } .g-tag.prov { background: #FFF1D6; color: #8A5A00; }
+@media (max-width: 40rem) { .gl-i { grid-template-columns: 1fr; } }
+
+/* monthly report */
+.rep-tools { justify-content: space-between; margin-bottom: 12px; }
+.rep-l { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.rep-l li { line-height: 1.4; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #FFF !important; }
+  .side, .filters, .top-btns, .fb-btn, .dl, .t-tools, .rep-tools, .seg, #crumbs, .foot, .confid { display: none !important; }
+  .main { padding: 0 !important; }
+  .card { break-inside: avoid; box-shadow: none !important; border: 1px solid #DDD; }
+  .cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .scroll, .xscroll { max-height: none !important; overflow: visible !important; }
+  .top h1 { font-size: 22px; }
+}

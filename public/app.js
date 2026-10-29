@@ -20,7 +20,7 @@
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar']]],
-    ['Insights', [['spotlight', 'Leading & support'], ['trends', 'Analytics']]],
+    ['Insights', [['report', 'Monthly report'], ['spotlight', 'Leading & support'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -83,6 +83,27 @@
   const sc = (p, extra = '') => (p === null || p === undefined || !isFinite(p) ? '<span class="dim">—</span>' : `<span class="sc ${band(p)}" title="${bandName(p)}"><i aria-hidden="true">${GLYPH[band(p)]}</i>${P1(p)}</span>${extra}`);
   const legend = () => `<div class="legend bands">${BANDS.map((b) => `<span><i class="${b[1]}">${GLYPH[b[1]]}</i><b>${b[2]}</b> <span class="dim">${b[3]}</span></span>`).join('')}<span><i class="zero"></i>None in this period</span></div>`;
   const cov = (p) => (p === null ? '<span class="dim">—</span>' : `<span class="cov">${sc(p)}<span class="b"><span class="${band(p)}" style="width:${Math.min(100, Math.max(0, p))}%"></span></span></span>`);
+  // ---- change vs the previous period of the same length (S.prevR; null when it would start before 1 Aug) ----
+  const prevOf = (r) => {
+    if (!S.prevR) return null;
+    if (r.t) return S.prevT.get(r.t.i) ? Calc.asGroup(S.prevT.get(r.t.i)) : null;
+    if (typeof r.key === 'string' && S.prevR.sectors.has(r.key)) return S.prevR.sectors.get(r.key);
+    if (r.s !== undefined && S.prevR.schools.has(r.s)) return S.prevR.schools.get(r.s);
+    return r === S.curAll ? S.prevR.all : null;
+  };
+  const dPts = (cur, prev) => {   // percentage-point change
+    if (cur === null || cur === undefined || prev === null || prev === undefined) return '';
+    const d = cur - prev; if (Math.abs(d) < 0.05) return '<span class="dlt flat" title="Same as the previous period">±0</span>';
+    return `<span class="dlt ${d > 0 ? 'up' : 'dn'}" title="${d > 0 ? 'Up' : 'Down'} ${Math.abs(d).toFixed(1)} percentage points vs ${esc(S.prevLabel)}">${d > 0 ? '▲' : '▼'}${Math.abs(d).toFixed(1)}</span>`;
+  };
+  const dPct = (cur, prev) => {   // relative change of a count
+    if (!S.prevR || prev === null || prev === undefined || cur === null || cur === undefined) return '';
+    if (!prev) return cur ? '<span class="dlt up" title="None in the previous period">new</span>' : '';
+    const d = (100 * (cur - prev)) / prev; if (Math.abs(d) < 0.5) return '<span class="dlt flat">±0%</span>';
+    return `<span class="dlt ${d > 0 ? 'up' : 'dn'}" title="${d > 0 ? '+' : ''}${d.toFixed(0)}% vs ${esc(S.prevLabel)}">${d > 0 ? '▲' : '▼'}${Math.abs(d).toFixed(0)}%</span>`;
+  };
+  const covD = (r, f) => { const p = prevOf(r); return cov(f(r)) + (p && !r.t ? ` ${dPts(f(r), f(p))}` : ''); };
+  const vsLine = (txt) => (S.prevR && txt ? `${txt} <span class="dim">vs ${esc(S.prevLabel)}</span>` : '');
   // A teacher's own count: zero is highlighted, since it is the thing to follow up.
   const cnt = (r, v) => (r.t && !v ? '<span class="zero">0</span>' : N(v));
   const kidsNote = () => (S.data && Calc.childBucket(S.data.window_start, S.data.today, S.from, S.to) ? ''
@@ -119,7 +140,7 @@
     const t = tableData[id];
     if (!t) return;
     const tmp = document.createElement('div');
-    const text = (html) => { tmp.innerHTML = String(html); return tmp.textContent.replace(/^[✓●▲!]\s*/, '').replace(/\s+/g, ' ').trim(); };
+    const text = (html) => { tmp.innerHTML = String(html); tmp.querySelectorAll('.dlt').forEach((x) => x.remove()); return tmp.textContent.replace(/^[✓●▲!]\s*/, '').replace(/\s+/g, ' ').trim(); };
     const cell = (c, r) => text(c.fmt ? c.fmt(r) : esc(c.val(r)));
     const q = (v) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
     const head = t.cols.map((c) => q(c.label + (c.src ? ` (${c.src === 'dc' ? 'DC' : 'HITL'})` : '')));
@@ -156,17 +177,17 @@
     schools: { k: 'schools', label: 'Schools', num: true, levels: ['sector'], val: (r) => r.schools, fmt: (r) => N(r.schools) },
     teachers: { k: 'teachers', label: 'Primary teachers', num: true, levels: ['sector', 'school'], val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
     g15: { k: 'g15', label: 'Used a grade 1–5 plan', num: true, title: 'Teachers who used a grade 1–5 lesson plan in the period: generated one with Rumi (WhatsApp or portal) or opened one in the teacher app', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
-    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who used a grade 1–5 lesson plan (generated or opened in the teacher app) ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => cov(ratio(r.g15, r.teachers)) },
+    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who used a grade 1–5 lesson plan (generated or opened in the teacher app) ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => covD(r, (g) => ratio(g.g15, g.teachers)) },
     opened: { k: 'opened', label: 'Plans opened in the app', num: true, title: 'Grade 1–5 lesson plans opened in the teacher app (reading a plan there counts as using lesson plans, but is not generating one)', val: (r) => r.opened, fmt: (r) => N(r.opened) },
     plans: { k: 'plans', label: 'Plans generated', num: true, title: 'Grade 1–5 lesson plans Rumi generated for the teacher (lesson_plans rows; plans opened only in the teacher app between 12 and 13 Oct are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
     taught: { k: 'taught', label: 'Plans taught', num: true, title: 'Provisional: DC observations in which the teacher attached one of her recent Rumi lesson plans (the plan she generated was taught and recorded)', val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
     tTaught: { k: 'tTaught', label: 'Teachers who taught one', num: true, levels: ['sector', 'school'], val: (r) => r.teachersTaught, fmt: (r) => N(r.teachersTaught) },
     dc: { k: 'dc', label: 'Lessons recorded', src: 'dc', num: true, title: 'Digital Coach self-recordings whose scores came back', val: (r) => r.dc, fmt: (r) => cnt(r, r.dc) },
     dcT: { k: 'dcT', label: 'Teachers recorded', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => r.dcT, fmt: (r) => N(r.dcT) },
-    dcPct: { k: 'dcPct', label: '% of teachers', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.dcT, r.teachers), fmt: (r) => cov(ratio(r.dcT, r.teachers)) },
+    dcPct: { k: 'dcPct', label: '% of teachers', src: 'dc', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.dcT, r.teachers), fmt: (r) => covD(r, (g) => ratio(g.dcT, g.teachers)) },
     hitl: { k: 'hitl', label: 'HITL observations', src: 'hitl', num: true, title: 'HITL coach visits conducted (scored; not cancelled, abandoned, failed or test)', val: (r) => r.hitl, fmt: (r) => cnt(r, r.hitl) },
     hitlT: { k: 'hitlT', label: 'Teachers observed', title: 'Different teachers with at least one HITL observation in the period (each counted once)', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => r.hitlT, fmt: (r) => N(r.hitlT) },
-    hitlPct: { k: 'hitlPct', label: '% observed', title: 'Teachers with at least one HITL observation ÷ primary teachers', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.hitlT, r.teachers), fmt: (r) => cov(ratio(r.hitlT, r.teachers)) },
+    hitlPct: { k: 'hitlPct', label: '% observed', title: 'Teachers with at least one HITL observation ÷ primary teachers', src: 'hitl', num: true, levels: ['sector', 'school'], val: (r) => ratio(r.hitlT, r.teachers), fmt: (r) => covD(r, (g) => ratio(g.hitlT, g.teachers)) },
     hitlC: { k: 'hitlC', label: 'Debriefed', src: 'hitl', num: true, title: 'Complete: the teacher got the debrief', val: (r) => r.hitlC, fmt: (r) => N(r.hitlC) },
     hitlP: { k: 'hitlP', label: 'Debrief pending', src: 'hitl', num: true, title: 'Reviewed by the coach, debrief not yet sent', val: (r) => r.hitlP, fmt: (r) => N(r.hitlP) },
     hitlA: { k: 'hitlA', label: 'Awaiting review', src: 'hitl', num: true, val: (r) => r.hitlA, fmt: (r) => N(r.hitlA) },
@@ -182,7 +203,7 @@
     fdeT: { k: 'fdeT', label: 'Teachers with an FDE paper', num: true, levels: ['sector', 'school'], val: (r) => r.fdeT, fmt: (r) => N(r.fdeT) },
     exReq: { k: 'exReq', label: 'Papers requested', num: true, val: (r) => r.exReq, fmt: (r) => N(r.exReq) },
     exT: { k: 'exT', label: 'Teachers with a paper', num: true, levels: ['sector', 'school'], val: (r) => r.exT, fmt: (r) => N(r.exT) },
-    exPct: { k: 'exPct', label: '% of teachers', num: true, levels: ['sector', 'school'], title: 'Teachers who generated at least one exam paper ÷ primary teachers', val: (r) => ratio(r.exT, r.teachers), fmt: (r) => cov(ratio(r.exT, r.teachers)) },
+    exPct: { k: 'exPct', label: '% of teachers', num: true, levels: ['sector', 'school'], title: 'Teachers who generated at least one exam paper ÷ primary teachers', val: (r) => ratio(r.exT, r.teachers), fmt: (r) => covD(r, (g) => ratio(g.exT, g.teachers)) },
     exFail: { k: 'exFail', label: 'Failed', num: true, title: 'The generator failed; the teacher was told and can ask again', val: (r) => r.exFail, fmt: (r) => N(r.exFail) },
     exStuck: { k: 'exStuck', label: 'Never finished', num: true, title: 'Still generating more than an hour after the request', val: (r) => r.exStuck, fmt: (r) => N(r.exStuck) },
     exEdit: { k: 'exEdit', label: 'Edited by teacher', num: true, title: 'Papers the teacher edited afterwards (removed questions, changed marks or wording)', val: (r) => r.exEdit, fmt: (r) => N(r.exEdit) },
@@ -306,6 +327,8 @@
     const scoped = S.sector || S.school !== '';
     const all = f(A);
     const diff = v !== null && all !== null ? v - all : null;
+    const pv = S.prevR ? f(S.prevR.all) : null;   // same scope, previous period
+    const chg = !allTime && pv !== null && v !== null ? `<span class="cmp">${dPts(v, pv)} vs ${esc(S.prevLabel)}</span>` : '';
     const cmp = scoped && diff !== null
       ? `<span class="cmp ${diff >= 0 ? 'up' : 'dn'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(1)} pts vs All ICT (${P1(all)})</span>`
       : `<span class="cmp">Sectors range ${P1(Math.min(...vals))} – ${P1(Math.max(...vals))}</span>`;
@@ -317,7 +340,7 @@
     const tick = all !== null ? `<div class="tk" style="left:calc(${pos(all).toFixed(2)}% - 1px)" title="All ICT ${P1(all)}"></div>` : '';
     return `<article class="hcard"><div class="hcard-h"><span class="hcard-l">${esc(label)}</span>${allTime ? '<span class="pill-t">All-time</span>' : ''}</div>
       <div class="hcard-v"><span class="big">${P1(v)}</span>${tierPill(v)}</div><span class="hnote">${note}</span>
-      <div class="strip" role="img" aria-label="Sector spread; the grey tick is All ICT"><div class="ln"></div>${tick}${dots}</div>${cmp}</article>`;
+      <div class="strip" role="img" aria-label="Sector spread; the grey tick is All ICT"><div class="ln"></div>${tick}${dots}</div>${chg}${cmp}</article>`;
   }
 
   // The last bucket of a series is faded when it is still in progress.
@@ -574,7 +597,7 @@
     const ser = seriesNow();
     return card('c-lp', `Lesson plans · ${scopeName()} · ${periodText()}`,
       'A teacher <b>uses</b> a lesson plan by generating one with Rumi (picking a curriculum lesson or typing a topic, on WhatsApp or the portal) or by <b>opening</b> one in the teacher app. LP engagement % = primary teachers who used at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans generated</b> counts only plans Rumi generated for the teacher; <b>Plans opened in the app</b> counts plans read there. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she generated the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher generating a Rumi plan.',
-      `<div class="kpis">${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers`)}
+      `<div class="kpis">${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers ${S.prevR ? dPts(ratio(a.g15, a.teachers), ratio(S.prevR.all.g15, S.prevR.all.teachers)) : ''}`)}
         ${kpi('Plans generated', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `${P1(ratio(a.taught, a.dc))} of DC observations`)}
         ${kpi('Teachers who taught one', N(a.teachersTaught))}${kpi('Any plan incl. grade 6–12', N(a.lpAny), 'teachers')}</div>`)
       + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.plans, g.taught] })),
@@ -587,7 +610,7 @@
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-dc', `DC observations · ${scopeName()} · ${periodText()}`, 'A teacher records her own lesson and the Digital Coach scores it. Counted when the scores came back. Never added to coach visits.',
-      `<div class="kpis">${kpi('Lessons recorded', N(a.dc), '')}${kpi('Teachers who recorded', N(a.dcT), `${P1(ratio(a.dcT, a.teachers))} of ${N(a.teachers)}`)}
+      `<div class="kpis">${kpi('Lessons recorded', N(a.dc), vsLine(S.prevR ? dPct(a.dc, S.prevR.all.dc) : ''))}${kpi('Teachers who recorded', N(a.dcT), `${P1(ratio(a.dcT, a.teachers))} of ${N(a.teachers)} ${S.prevR ? dPts(ratio(a.dcT, a.teachers), ratio(S.prevR.all.dcT, S.prevR.all.teachers)) : ''}`)}
         ${kpi('Per recording teacher', a.dcT ? (a.dc / a.dcT).toFixed(1) : '—', 'lessons')}${kpi('Never recorded', N(a.teachers - a.dcT), 'teachers in this period')}</div>`)
       + card('c-dc-trend', 'DC observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.dc, g.teachersDc] })),
         [{ name: 'Lessons recorded', color: GREEN }, { name: 'Teachers who recorded', color: NAVY }]), granSeg())
@@ -950,7 +973,8 @@
         ${legend().replace('<span><i class="zero"></i>None in this period</span>', '')}${table('eg3', tcols, taskRows, { noLegend: true })}</section>`
       + `<section class="card" id="c-eg4"><div class="card-h"><h2>By grade</h2></div>${table('eg4', gcols('Grade'), E.grades, { noLegend: true })}</section>
         <section class="card" id="c-eg5"><div class="card-h"><h2>By sector</h2></div>${table('eg5', gcols('Sector'), E.sectors, { noLegend: true })}</section>`
-      + `<section class="card" id="c-eg6"><div class="card-h"><h2>Children tested each day</h2></div>${days}</section>`;
+      + `<section class="card" id="c-eg6"><div class="card-h"><h2>Children tested each day</h2></div>${days}</section>`
+      + learningVsTeaching(E);
     drawCharts(box);
   }
 
@@ -1189,11 +1213,206 @@
     dlg.showModal();
   }
 
+  // ---------- how we count (glossary) ----------
+  // G = governed by the Taleemabad data rules; P = provisional (owner-defined or ungoverned, may change).
+  const GLOSSARY = [
+    ['Who is counted', [
+      ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
+      ['Sector', 'G', 'The school’s region in the Rumi data: B.K, Nilore, Sihala, Tarnol, Urban-I, Urban-II.', 'schools.region'],
+      ['Merged accounts', 'G', 'When a teacher’s phone number was moved to a new account, activity on the old account is credited to the new one.', 'leader_roster_audit'],
+      ['Period', '', 'Days are Pakistan days. Data starts on 1 Aug 2026. Weekly views run Monday to Sunday.', ''],
+      ['Change vs previous period', '', 'Small green ▲ / red ▼ marks compare the selected period with the period of the same length just before it — percentage points for shares, per cent for counts. Not shown for “Since 1 Aug” (there is no earlier period).', ''],
+    ]],
+    ['Lesson plans', [
+      ['Used a grade 1–5 plan / LP engagement %', 'G', 'A teacher used a lesson plan if they generated one with Rumi (WhatsApp or portal) or opened one in the teacher app. LP engagement % = teachers who used at least one grade 1–5 plan in the period ÷ primary teachers.', 'lesson_plans, niete_lp_opens (viewer) · lp-query-rules §0, §6'],
+      ['Plans generated', 'G', 'Grade 1–5 plans Rumi generated for the teacher.', 'lesson_plans · lp-query-rules §1'],
+      ['Plans opened in the app', 'G', 'Grade 1–5 plans read in the teacher app. Using a plan this way counts as engagement but not as generating one.', 'niete_lp_opens (source viewer, k5/fln)'],
+      ['Plans taught', 'P', 'Digital Coach recordings where the teacher attached one of their recently generated Rumi plans — they generated the plan, taught it and recorded the lesson. The system does not say which plan, so this counts lessons.', 'coaching_sessions (lesson_plan_link_method = selected_recent) · owner definition'],
+    ]],
+    ['Observations', [
+      ['DC observation', 'G', 'A Digital Coach self-recording whose scores came back. Never added to coach visits.', 'coaching_sessions (observation_type empty) · coaching-query-rules §1'],
+      ['HITL observation', 'G', 'A coach’s in-person observation (/observe) that was held: scored, not cancelled, abandoned, failed or a test, and not the coach observing themselves. /observe2 visits are counted separately.', 'coaching_sessions (leader_observation) · coaching-query-rules §1'],
+      ['Teachers observed', 'G', 'Different teachers with at least one observation in the period, each counted once.', ''],
+      ['Debriefed / debrief pending / awaiting review', 'G', 'Stages of a HITL observation: debriefed = the debrief was done; pending = reviewed, debrief not done; awaiting review = the coach has not finished reviewing.', 'debrief_status, status'],
+      ['Changed scores / feedback only / unchanged', 'G', 'How the coach treated the AI’s pre-filled HITL form: rescored at least one indicator, rewrote only the written feedback, or submitted it as it was.', 'observer_edit_summary · coaching-query-rules §2d'],
+      ['Lesson subject (DC)', 'G', 'The subject the Digital Coach heard in the recording, grouped into the primary subjects. HITL observations are not split by subject (only ~1 in 10 records one).', 'analysis_data.subject'],
+      ['Lesson grade', 'P', 'Taken from the Rumi plan the teacher attached, else a clear grade typed in an attached plan, else the grades the teacher teaches on the class roster (a teacher on two grades counts in both).', 'lesson_plan_structured, class_teachers · coaching-query-rules §1g + owner choice'],
+      ['/observe2 pilot', 'P', 'The impact team’s experiment: coaches score 17 indicators themselves (fico17). Never added to HITL or FICO figures. The pilot-study section reads the pilot’s field forms, which are not yet in the data rules.', 'observe2 in analysis_data, observation_field_forms'],
+    ]],
+    ['FICO scores', [
+      ['Section score', 'G', 'Score ÷ maximum for a FICO section (lesson-plan fidelity, subject knowledge, teaching practices, student engagement), pooled over sessions. DC and HITL are never pooled.', 'analysis_data.domains · fico-scores-rules §2c'],
+      ['FICO v2 / v3 subject knowledge', 'G', 'From 8 Sep 2026 subject items count only when they apply (v3), so subject knowledge before and after that date is shown separately and must not be compared.', 'fico-scores-rules (v3)'],
+      ['Lesson-plan fidelity', 'G', 'Counted only for lessons with a plan attached — lessons without a plan are scored higher by the system, which would inflate it.', 'has_lesson_plan'],
+      ['Indicator score', 'G', 'The average 1–4 score of one indicator ÷ 4, FICO v3 only (from 8 Sep). Subject pedagogy (F5–F7) only where the subject applied, and Digital Coach only.', 'domains.*.indicators · fico-scores-rules §2c'],
+      ['Performance bands', '', 'Exemplary 80% and above, Proficient 70–79.9%, Developing 60–69.9%, Needs support below 60%.', ''],
+    ]],
+    ['Children', [
+      ['Children (quizzes)', 'G', 'Distinct children who sat a quiz through the teacher’s share link. Exact only for a day, a Monday-to-Sunday week, a month or the whole period. Counts only — no child is ever listed.', 'quiz-query-rules'],
+      ['Quiz score', 'P', 'Correct answers ÷ questions answered on finished lesson quizzes, with mastery bands. Awaiting a governed rule.', 'ticket TKT-20261027-c75041'],
+      ['Learning assessment (EGRA / EGMA)', 'G', 'Children drawn at random take a reading and maths test on the coach’s phone. A child counts once a part is on record. Tests from test accounts or the practice school are left out. Groups of fewer than 5 children show “fewer than 5”.', 'child_test_sessions, child_test_blocks · learning-assessment-rules'],
+      ['Reading bands and comprehension', 'G', 'Correct words a minute: non-reader 0, beginning under 20, developing 20–39, fluent 40+. Reads with understanding = 80%+ of passage questions right. Maths benchmark = 75% right on every maths task. Benchmarks are proposed, not ratified; scores are AI-scored, no coach check yet.', 'learning-assessment-rules §4'],
+      ['Another voice heard', 'G', 'The scorer heard someone else during a reading, so that score may include help.', 'ai_marks.detail.second_voice'],
+    ]],
+    ['Exams and training', [
+      ['Exams generated', 'G', 'Exam requests whose paper came out (WhatsApp: stored and sent; portal: ready to download). Requested = generated + failed + never finished.', 'assessment_requests, assessment_papers · exam-paper-rules §2–§3e'],
+      ['FDE board papers', 'P', 'Exams made in the grade 5 FDE board format, read from the paper’s own layout.', 'assessment_papers.exam_json._layout'],
+      ['NIETE primary training', 'G', 'The niete_primary programme, all time: on the programme, modules finished, and Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader).', 'training rules'],
+    ]],
+    ['Other features', [
+      ['Leading & support', '', 'Rankings on “using the tools” (share of teachers using lesson plans, DC, quizzes, exams) or classroom practice (DC or HITL FICO teaching practices + student engagement), with minimum samples. Where to celebrate and where to send support — not a judgement.', ''],
+      ['School calendar', '', 'Exams, sports weeks, holidays, events and closures entered by coaches, plus federal public holidays from the Cabinet Division notifications.', ''],
+      ['Feedback', '', 'Messages sent with the Feedback button go to the dashboard owner, who decides what to work on.', ''],
+    ]],
+  ];
+  function viewGlossary() {
+    const q = (S.gq || '').toLowerCase();
+    const tag = (t) => (t === 'G' ? '<span class="g-tag gov" title="Governed by the Taleemabad data rules">Governed</span>' : t === 'P' ? '<span class="g-tag prov" title="Owner-defined or not yet in the data rules; may change">Provisional</span>' : '');
+    const sections = GLOSSARY.map(([title, items]) => {
+      const shown = items.filter(([n, , d, src]) => !q || `${n} ${d} ${src}`.toLowerCase().includes(q));
+      if (!shown.length) return '';
+      return card(`c-g-${title.replace(/\W+/g, '')}`, title, '', `<dl class="gl">${shown.map(([n, t, d, src]) => `<div class="gl-i"><dt>${esc(n)} ${tag(t)}</dt><dd>${esc(d)}${src ? `<span class="gl-src">Source: ${esc(src)}</span>` : ''}</dd></div>`).join('')}</dl>`);
+    }).join('');
+    return card('c-g0', 'How we count', `What every number on this dashboard means and where it comes from. <b>Governed</b> = defined by the Taleemabad data rules (currently ${esc(S.data.rule_version || '')}). <b>Provisional</b> = set by the programme or not yet in the rules, so it may change.`,
+      `<div class="row"><input class="inp" type="search" id="gsearch" placeholder="Search a word, e.g. engagement, FICO, quiz" value="${esc(S.gq || '')}"></div>`)
+      + (sections || card('c-g-none', 'No match', `Nothing matches “${esc(S.gq)}”.`, ''));
+  }
+
+  // Children's learning beside the teaching in the same sectors / schools. Teaching measures use all data since 1 Aug
+  // (the assessment is recent and small); schools appear only with at least five tested children.
+  function learningVsTeaching(E) {
+    const T = Calc.rollup(S.P, { ...sel(), from: 0, to: S.data.today });
+    const sp = (g, k, f) => (g && g[f][k][2] ? fpct(g[f][k]) : null);
+    const share = (a, b) => (b ? (100 * a) / b : null);
+    const pc = (v) => (v === null || v === undefined ? '<span class="dim">—</span>' : P1(v));
+    const rowOf = (key, name, eg, g) => ({ key, name, children: eg.children,
+      urF: share(eg.ur.bands[3], eg.ur.scored), urC: share(eg.ur.compMet, eg.ur.compScored), ma: share(eg.maths.met, eg.maths.scored),
+      lp: g ? share(g.g15, g.teachers) : null, dcP: sp(g, 'hlp', 'ficoD'), hitlP: sp(g, 'hlp', 'ficoH'), dcE: sp(g, 'se', 'ficoD') });
+    const sectors = E.sectors.filter((x) => !x.masked).map((x) => rowOf(x.key, x.key, x, T.sectors.get(x.key)));
+    const schools = (E.schools || []).map((x) => rowOf(x.key, S.data.schools[x.key].name, x, T.schools.get(x.key)));
+    const cols = (what) => [
+      { k: 'name', label: what, val: (r) => r.name, fmt: (r) => esc(r.name) },
+      { k: 'children', label: 'Children tested', num: true, val: (r) => r.children, fmt: (r) => N(r.children) },
+      { k: 'urF', label: 'Urdu: fluent', num: true, title: '40+ correct words a minute', val: (r) => r.urF, fmt: (r) => pc(r.urF) },
+      { k: 'urC', label: 'Urdu: reads with understanding', num: true, val: (r) => r.urC, fmt: (r) => pc(r.urC) },
+      { k: 'ma', label: 'Maths: every benchmark', num: true, val: (r) => r.ma, fmt: (r) => pc(r.ma) },
+      { k: 'lp', label: 'LP engagement', num: true, title: 'Since 1 Aug', val: (r) => r.lp, fmt: (r) => cov(r.lp) },
+      { k: 'dcP', label: 'Teaching practices (DC)', num: true, val: (r) => r.dcP, fmt: (r) => sc(r.dcP) },
+      { k: 'hitlP', label: 'Teaching practices (HITL)', num: true, val: (r) => r.hitlP, fmt: (r) => sc(r.hitlP) },
+      { k: 'dcE', label: 'Student engagement (DC)', num: true, val: (r) => r.dcE, fmt: (r) => sc(r.dcE) },
+    ];
+    // Pearson correlation across schools, only when there are enough of them to say anything
+    const corr = (xs, ys) => {
+      const p = xs.map((x, i) => [x, ys[i]]).filter(([x, y]) => x !== null && y !== null);
+      if (p.length < 8) return null;
+      const mx = p.reduce((s2, [x]) => s2 + x, 0) / p.length, my = p.reduce((s2, [, y]) => s2 + y, 0) / p.length;
+      let sxy = 0, sxx = 0, syy = 0; for (const [x, y] of p) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; syy += (y - my) ** 2; }
+      return sxx && syy ? { r: sxy / Math.sqrt(sxx * syy), n: p.length } : null;
+    };
+    const words = (c) => (Math.abs(c.r) < 0.2 ? 'no clear link' : `${Math.abs(c.r) < 0.4 ? 'a weak' : Math.abs(c.r) < 0.6 ? 'a moderate' : 'a strong'} ${c.r > 0 ? 'positive' : 'negative'} link`);
+    const pairs = [['HITL teaching practices', 'hitlP'], ['DC teaching practices', 'dcP'], ['LP engagement', 'lp']]
+      .map(([l, k]) => [l, corr(schools.map((x) => x.urF), schools.map((x) => x[k]))]).filter(([, c]) => c);
+    const corrText = pairs.length ? `<ul class="facts">${pairs.map(([l, c]) => `<li>Urdu fluency and ${esc(l)}: ${words(c)} across ${N(c.n)} schools (r = ${c.r.toFixed(2)}).</li>`).join('')}</ul>`
+      : `<p class="note">${schools.length < 8 ? `Only ${N(schools.length)} school${schools.length === 1 ? ' has' : 's have'} 5 or more tested children so far — too few to say whether better teaching goes with better reading. This fills in as testing continues.` : 'Not enough scored results yet to compare.'}</p>`;
+    return `<div class="sec-h"><h2>Children's learning beside teaching</h2><p class="note">Reading and maths results next to the same sectors' and schools' lesson-plan use and FICO practice scores (teaching measures since 1 Aug). This shows whether they move together, not that one causes the other. Schools appear only once at least 5 of their children are tested.</p></div>`
+      + card('c-eg7', 'By sector', '', table('eg7', cols('Sector'), sectors, { noLegend: true }))
+      + card('c-eg8', 'By school (5+ children tested)', `${N(schools.length)} schools so far.`, corrText + (schools.length ? table('eg8', cols('School'), schools, { noLegend: true, sort: { k: 'children', dir: -1 }, onRow: (k) => modalOpen({ kind: 'school', key: +k }), rowKey: (r) => r.key }) : ''));
+  }
+
+  // ---------- monthly report ----------
+  // One printable page per month for leadership meetings: the month's headline figures with the change on the
+  // previous month, sectors, FICO, leading / support schools, calendar entries and the learning assessment.
+  function viewReport() {
+    const st = S.data.window_start, today = S.data.today;
+    const months = [];
+    for (let d = 0; d <= today; d++) { const k = isoOf(d).slice(0, 7); if (!months.includes(k)) months.push(k); }
+    const cur = isoOf(today).slice(0, 7);
+    const month = S.repMonth && months.includes(S.repMonth) ? S.repMonth : (months.length > 1 ? months[months.length - 2] : cur);
+    const [y, m] = month.split('-').map(Number);
+    const from = Math.max(0, Calc.dateToDay(st, `${month}-01`));
+    const to = Math.min(today, Calc.dateToDay(st, new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)));
+    const pm = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+    const pFrom = Calc.dateToDay(st, `${pm}-01`), pTo = from - 1;
+    const scope = { sector: S.sector || undefined, school: S.school === '' ? undefined : S.school };
+    const R = Calc.rollup(S.P, { ...scope, from, to });
+    const P = pFrom >= 0 && pTo >= pFrom ? Calc.rollup(S.P, { ...scope, from: pFrom, to: pTo }) : null;
+    const a = R.all, b = P ? P.all : null;
+    const share = (x, n) => (n ? (100 * x) / n : null);
+    const partial = month === cur ? ` (to ${nice(today)}, month not finished)` : '';
+    const mName = `${MONTHS[m - 1]} ${y}`, pName = P ? `${MONTHS[(m + 10) % 12]} ${m === 1 ? y - 1 : y}` : '';
+    const chgP = (cv, pv) => (b ? `${dPts(cv, pv).replace('vs ' + esc(S.prevLabel), '')} <span class="dim">vs ${esc(pName)}</span>` : '');
+    const chgN = (cv, pv) => {
+      if (!b) return '';
+      if (!pv) return cv ? '<span class="dlt up">new</span>' : '';
+      const d = (100 * (cv - pv)) / pv;
+      return `<span class="dlt ${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '▲' : '▼'}${Math.abs(d).toFixed(0)}%</span> <span class="dim">vs ${esc(pName)}</span>`;
+    };
+    const kp = (k, cv, pv, sub) => kpi(k, P1(cv), `${sub} ${chgP(cv, pv)}`);
+    const kn = (k, cv, pv, sub) => kpi(k, N(cv), `${sub} ${chgN(cv, pv)}`);
+    const head = `<div class="kpis">
+      ${kp('LP engagement', share(a.g15, a.teachers), b ? share(b.g15, b.teachers) : null, `${N(a.g15)} of ${N(a.teachers)} teachers`)}
+      ${kp('DC coverage', share(a.dcT, a.teachers), b ? share(b.dcT, b.teachers) : null, `${N(a.dcT)} teachers`)}
+      ${kp('HITL coverage', share(a.hitlT, a.teachers), b ? share(b.hitlT, b.teachers) : null, `${N(a.hitlT)} teachers`)}
+      ${kp('Exam generator', share(a.exT, a.teachers), b ? share(b.exT, b.teachers) : null, `${N(a.exT)} teachers`)}
+      ${kn('Plans generated', a.plans, b ? b.plans : null, 'grade 1–5')}${kn('DC lessons', a.dc, b ? b.dc : null, 'recorded')}
+      ${kn('HITL observations', a.hitl, b ? b.hitl : null, `${N(a.hitlC)} debriefed`)}${kn('Exams generated', a.exOk, b ? b.exOk : null, '')}</div>`;
+
+    const prevSec = (k) => (P ? P.sectors.get(k) : null);
+    const secRows = [...R.sectors.entries()].map(([k, g]) => ({ key: k, g, p: prevSec(k) }));
+    const sp = (g, s, f) => (g && g[f][s][2] ? fpct(g[f][s]) : null);
+    const cell = (cv, pv) => `${cov(cv)}${pv !== null && pv !== undefined && cv !== null ? ` ${dPts(cv, pv)}` : ''}`;
+    const secCols = [
+      { k: 'name', label: 'Sector', val: (r) => r.key, fmt: (r) => esc(r.key) },
+      { k: 't', label: 'Primary teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
+      { k: 'lp', label: 'LP engagement', num: true, val: (r) => share(r.g.g15, r.g.teachers), fmt: (r) => cell(share(r.g.g15, r.g.teachers), r.p ? share(r.p.g15, r.p.teachers) : null) },
+      { k: 'dc', label: 'DC coverage', num: true, val: (r) => share(r.g.dcT, r.g.teachers), fmt: (r) => cell(share(r.g.dcT, r.g.teachers), r.p ? share(r.p.dcT, r.p.teachers) : null) },
+      { k: 'hitl', label: 'HITL coverage', num: true, val: (r) => share(r.g.hitlT, r.g.teachers), fmt: (r) => cell(share(r.g.hitlT, r.g.teachers), r.p ? share(r.p.hitlT, r.p.teachers) : null) },
+      { k: 'dcp', label: 'Teaching practices (DC)', num: true, val: (r) => sp(r.g, 'hlp', 'ficoD'), fmt: (r) => sc(sp(r.g, 'hlp', 'ficoD')) },
+      { k: 'hp', label: 'Teaching practices (HITL)', num: true, val: (r) => sp(r.g, 'hlp', 'ficoH'), fmt: (r) => sc(sp(r.g, 'hlp', 'ficoH')) },
+    ];
+    const fico = ficoBlock(a);
+
+    const schools = [...R.schools.values()].filter((g) => g.teachers >= 3).map((g) => ({ key: g.s, name: S.data.schools[g.s].name, sector: S.data.schools[g.s].sector,
+      score: (share(g.g15, g.teachers) + share(g.dcT, g.teachers) + share(g.quizLT, g.teachers) + share(g.exT, g.teachers)) / 4 }));
+    const lst = (arr) => `<ol class="rep-l">${arr.map((x) => `<li>${esc(x.name)} <span class="dim">${esc(x.sector)}</span> ${sc(x.score)}</li>`).join('')}</ol>`;
+    const lead = schools.slice().sort((p1, p2) => p2.score - p1.score).slice(0, 5), need = schools.slice().sort((p1, p2) => p1.score - p2.score).slice(0, 5);
+
+    const mFrom = isoOf(from), mTo = isoOf(to);
+    const evs = (S.events || []).filter((e) => !e.optional && e.from <= mTo && e.to >= mFrom && evInScope(e));
+    const cal = evs.length ? `<ul class="facts">${evs.map((e) => `<li><b>${esc(evLabel(e))}</b> · ${esc(evDates(e))} · ${esc(evWho(e))}${e.note && !e.official ? ` — ${esc(e.note)}` : ''}</li>`).join('')}</ul>` : '<p class="note">No calendar entries this month.</p>';
+    if (!S.events) loadEvents().then(() => { if (S.tab === 'report') render(); });
+
+    const q = new URLSearchParams({ from: String(from), to: String(to), sector: S.sector || '', school: S.school === '' ? '' : String(S.school) }).toString();
+    setTimeout(async () => {
+      const box = $('#rep-egra');
+      if (!box || box.dataset.q !== q) return;
+      try {
+        const E = await (await fetch(`/api/egra?${q}`)).json();
+        if (!box.isConnected || box.dataset.q !== q) return;
+        const A2 = E.all;
+        box.innerHTML = !E.ready || !A2 || !A2.children ? '<p class="note">No children tested in this month.</p>'
+          : A2.masked ? '<p class="note">Fewer than 5 children tested in this selection.</p>'
+            : `<div class="kpis">${kpi('Children tested', N(A2.children), `${N(E.schools)} schools`)}${kpi('Urdu: fluent', P1(share(A2.ur.bands[3], A2.ur.scored)), `${N(A2.ur.scored)} scored`)}${kpi('Urdu: reads with understanding', P1(share(A2.ur.compMet, A2.ur.compScored)))}${kpi('English: reads with understanding', P1(share(A2.en.compMet, A2.en.compScored)))}${kpi('Maths: every benchmark', P1(share(A2.maths.met, A2.maths.scored)))}</div><p class="note">Proposed benchmarks, AI-scored, no coach check yet.</p>`;
+      } catch (e) { box.innerHTML = '<p class="note">Could not load the learning assessment.</p>'; }
+    }, 0);
+
+    const pick = `<label class="row">Month <select class="sel" id="repMonth">${months.slice().reverse().map((k) => { const [yy, mm] = k.split('-').map(Number); return `<option value="${k}" ${k === month ? 'selected' : ''}>${MONTHS[mm - 1]} ${yy}${k === cur ? ' (so far)' : ''}</option>`; }).join('')}</select></label>`;
+    return `<div class="report">
+      ${card('c-rep0', `Monthly report · ${esc(mName)} · ${esc(scopeName())}`, `ICT primary teachers, ${esc(mName)}${partial}. Changes are against ${P ? esc(pName) : 'nothing (first month of data)'}. Generated ${esc(S.data.as_of)}. <b>Internal — do not share outside NIETE and Taleemabad.</b>`,
+        `<div class="row rep-tools">${pick}<button class="btn dark" type="button" data-print>Print / Save as PDF</button></div>${head}`)}
+      ${card('c-rep1', 'Sectors', 'Coverage this month with the change on the previous month; teaching-practice scores from FICO (DC and HITL kept apart).', table('rep1', secCols, secRows, { noLegend: true }))}
+      ${card('c-rep2', 'FICO section scores', 'This month, Digital Coach and HITL side by side.', fico)}
+      <div class="cards2">${card('c-rep3', 'Schools leading the way', 'Highest “using the tools” score this month (schools with 3+ primary teachers).', lst(lead))}
+      ${card('c-rep4', 'Schools where support is most needed', 'Lowest “using the tools” score this month.', lst(need))}</div>
+      ${card('c-rep5', 'School calendar', 'Holidays, exams, events and closures this month — context for any dips above.', cal)}
+      ${card('c-rep6', 'Children’s learning assessment', `Children tested in ${esc(mName)}.`, `<div id="rep-egra" data-q="${esc(q)}"><p class="note">Loading…</p></div>`)}
+    </div>`;
+  }
+
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-hitl', `HITL observations · ${scopeName()} · ${periodText()}`, 'A coach observes the lesson in person. Held = conducted (scored, not cancelled, abandoned, failed or a test). Held = debriefed + debrief pending + awaiting review. <code>/observe2</code> observations use another rubric and are left out.',
-      `<div class="kpis">${kpi('HITL observations', N(a.hitl), '')}${kpi('Teachers observed at least once', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)}`)}
+      `<div class="kpis">${kpi('HITL observations', N(a.hitl), vsLine(S.prevR ? dPct(a.hitl, S.prevR.all.hitl) : ''))}${kpi('Teachers observed at least once', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)} ${S.prevR ? dPts(ratio(a.hitlT, a.teachers), ratio(S.prevR.all.hitlT, S.prevR.all.teachers)) : ''}`)}
         ${kpi('Debriefed', N(a.hitlC), P1(ratio(a.hitlC, a.hitl)))}${kpi('Debrief pending', N(a.hitlP), '')}${kpi('Awaiting review', N(a.hitlA), '')}</div>
         <p class="note">${N(S.data.observe2_excluded || 0)} /observe2 observations (since 1 Aug, all schools) use the impact team's own rubric and are not counted here — see the <a href="#tab=observe2">/observe2 pilot</a> tab.</p>`)
       + card('c-hitl-trend', 'HITL observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.hitl, g.teachersHitl] })),
@@ -1278,7 +1497,7 @@
     const ser = seriesNow();
     return card('c-quiz', `Quizzes · ${scopeName()} · ${periodText()}`,
       `Quizzes made = lesson quizzes written from the teacher's recorded lesson or plan and sent when she said yes. Children = distinct children who sat one through her share link (her own test runs are not children). Lesson and video quizzes are kept apart. Counts only — no child is ever listed.${kidsNote()}`,
-      `<div class="kpis">${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers`)}${kpi('Children (lesson quizzes)', N(a.kidsL), `${N(a.sitL)} attempts, ${N(a.finL)} finished`)}
+      `<div class="kpis">${kpi('Quizzes made', N(a.made), `${N(a.madeT)} teachers ${S.prevR ? dPct(a.made, S.prevR.all.made) : ''}`)}${kpi('Children (lesson quizzes)', N(a.kidsL), `${N(a.sitL)} attempts, ${N(a.finL)} finished`)}
         ${kpi('Children (video quizzes)', N(a.kidsV), `${N(a.sitV)} attempts`)}${kpi('Teachers whose children took a lesson quiz', N(a.quizLT))}</div>`)
       + card('c-quiz-trend', 'Quizzes over time', S.gran === 'day' || S.gran === 'week' || S.gran === 'month' ? 'Children per bucket are distinct within that day, week or month.' : '',
         chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.made, g.kidsL] })), [{ name: 'Quizzes made', color: NAVY }, { name: 'Children (lesson quizzes)', color: GREEN }]), granSeg())
@@ -1408,7 +1627,7 @@
     const ser = seriesNow();
     return card('c-ex', `Exam generator · ${scopeName()} · ${periodText()}`,
       'A teacher asks Rumi (<code>/assessment</code> on WhatsApp, or the portal) for an exam paper on a grade 1–5 textbook chapter and gets a printable paper with its answer key. Live since 5 Sep 2026. <b>Exams generated</b> = the paper came out (on WhatsApp: stored and sent; in the portal: ready to download). Requested = generated + failed + never finished. Nothing records whether the class sat the paper or how pupils scored.',
-      `<div class="kpis">${kpi('Exams generated', N(a.exOk), `of ${N(a.exReq)} requested`)}${kpiP('Teachers with a paper', ratio(a.exT, a.teachers), `${N(a.exT)} of ${N(a.teachers)} teachers`)}
+      `<div class="kpis">${kpi('Exams generated', N(a.exOk), `of ${N(a.exReq)} requested ${S.prevR ? dPct(a.exOk, S.prevR.all.exOk) : ''}`)}${kpiP('Teachers with a paper', ratio(a.exT, a.teachers), `${N(a.exT)} of ${N(a.teachers)} teachers`)}
         ${kpi('Per teacher with a paper', a.exT ? (a.exOk / a.exT).toFixed(1) : '—', 'papers')}${kpi('Failed', N(a.exFail), `${N(a.exStuck)} never finished`)}${kpi('Edited by teacher', N(a.exEdit), P1(ratio(a.exEdit, a.exOk)) + ' of generated')}</div>`)
       + card('c-ex-trend', 'Exam generator over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.exOk, g.teachersEx] })),
         [{ name: 'Exams generated', color: NAVY }, { name: 'Teachers with a paper', color: GREEN }]), granSeg())
@@ -1676,18 +1895,24 @@
     $('#granTop').innerHTML = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']].map(([k, l]) => `<button type="button" data-gran="${k}" aria-pressed="${S.gran === k}">${l}</button>`).join('');
     $('#present').textContent = document.body.classList.contains('present') ? 'Exit presentation' : 'Present';
     const R = Calc.rollup(S.P, sel());
+    const len = S.to - S.from + 1, pf = S.from - len;
+    S.prevR = pf >= 0 ? Calc.rollup(S.P, { ...sel(), from: pf, to: S.from - 1 }) : null;
+    S.prevT = new Map(S.prevR ? S.prevR.teachers.map((t) => [t.i, t]) : []);
+    S.prevLabel = S.prevR ? (len === 1 ? `the day before (${nice(pf)})` : `the previous ${len} days (${nice(pf)} – ${nice(S.from - 1)})`) : '';
+    S.curAll = R.all;
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
     const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training' };
     const what = missing.map((k) => NAMES[k] || k).join(', ');
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
-    const focus = document.activeElement && document.activeElement.id === 'search' ? document.activeElement.selectionStart : null;
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
+    const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
     drawCharts($('#main'));
-    if (focus !== null && $('#search')) { $('#search').focus(); $('#search').setSelectionRange(focus, focus); }
+    if (focus !== null && $(`#${fid}`)) { $(`#${fid}`).focus(); $(`#${fid}`).setSelectionRange(focus, focus); }
   }
 
   // Save a section as a PNG. Scrolling tables and grids are opened up first, and the section widened to its full content,
@@ -1786,6 +2011,7 @@
     else if (b.dataset.qview) { S.qview = b.dataset.qview; render(); }
     else if (b.dataset.fkind) { S.fkind = b.dataset.fkind; render(); }
     else if (b.dataset.slens) { S.slens = b.dataset.slens; render(); }
+    else if (b.dataset.print !== undefined) { window.print(); }
     else if (b.dataset.calm) { S.calMonth = b.dataset.calm; render(); }
     else if (b.dataset.caladd !== undefined) { calendarForm(); }
     else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
@@ -1822,7 +2048,8 @@
       S.from = f; S.to = to; S.preset = 'custom'; render();
     }
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } });
+  document.addEventListener('change', (e) => { if (e.target.id === 'repMonth') { S.repMonth = e.target.value; render(); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } else if (e.target.id === 'gsearch') { S.gq = e.target.value; render(); } });
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.close(); });
   // A pasted or edited link (replaceState in writeHash does not fire this).
   window.addEventListener('hashchange', () => {

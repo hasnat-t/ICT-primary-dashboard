@@ -100,6 +100,8 @@ function egraSummary(all, draws, data, q) {
     days: [...days.entries()].sort((a, b) => a[0] - b[0]).map(([d, s]) => ({ d, children: s.size < MIN_GROUP ? 'fewer than 5' : s.size })),
     grades: group((x) => (x.g === null ? 'No grade' : `Grade ${x.g}`)).sort((a, b) => String(a.key).localeCompare(String(b.key))),
     sectors: group((x) => x.sector).sort((a, b) => String(a.key).localeCompare(String(b.key))),
+    // schools with at least five tested children only (smaller schools are left out entirely, not masked by name)
+    schools: group((x) => x.si).filter((g) => !g.masked && g.key >= 0).map(({ key, children, ur, en, maths }) => ({ key, children, ur, en, maths })),
     sample,
   };
 }
