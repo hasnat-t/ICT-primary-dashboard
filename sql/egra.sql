@@ -40,6 +40,10 @@ task AS (
   JOIN ids ON ids.id = b.block
   WHERE b.session_id IN (SELECT id FROM t)
 ),
+voice AS (                                   -- another voice heard on any subtask of the test (§4)
+  SELECT session_id, LOGICAL_OR(JSON_VALUE(ai_marks, '$.detail.second_voice') = 'true') AS v
+  FROM `Niete_Rumi_db.child_test_blocks` WHERE session_id IN (SELECT id FROM t) GROUP BY session_id
+),
 cell AS (
   SELECT session_id, o,
          IF(o IN (3, 8, 16), COALESCE(per_minute, correct), correct) AS v,
@@ -48,9 +52,9 @@ cell AS (
 ),
 per AS (
   SELECT t.id, t.school_id, t.day, t.grade, t.status, t.counted, t.student_id, t.region,
-         LOGICAL_OR(c.second_voice) AS voice,
+         LOGICAL_OR(vo.v) AS voice,
          ARRAY_AGG(IF(c.o IS NULL, NULL, STRUCT(c.o AS o, c.v AS v, c.of_items AS of_items)) IGNORE NULLS) AS cells
-  FROM t LEFT JOIN cell c ON c.session_id = t.id
+  FROM t LEFT JOIN cell c ON c.session_id = t.id LEFT JOIN voice vo ON vo.session_id = t.id
   GROUP BY t.id, t.school_id, t.day, t.grade, t.status, t.counted, t.student_id, t.region
 ),
 rec AS (
