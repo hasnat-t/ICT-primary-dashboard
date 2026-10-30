@@ -1822,8 +1822,16 @@
     MS.push(v);
     renderModal();
   }
+  // A school's teachers reuse the columns of the table that was clicked. Columns that only make sense for a group
+  // (a count or share of teachers) become that teacher's own column, and the Sector column is dropped, so the
+  // teacher table keeps the same measures instead of losing them.
+  const PER_TEACHER = { usage: 'g15', tTaught: 'taught', dcT: 'dc', dcPct: 'dc', hitlT: 'hitl', hitlPct: 'hitl', madeT: 'made', fdeT: 'fde', exT: 'exOk', exPct: 'exOk', didMod: 'mods' };
   function modalCols(cols, level) {
-    const base = cols && cols.length ? cols.slice(1) : [COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.exOk, COL.onProg];
+    let base = cols && cols.length ? cols.slice(1) : [COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.exOk, COL.onProg];
+    if (level === 'teacher') {
+      const seen = new Set();
+      base = base.filter((c) => c.k !== 'sector').map((c) => COL[PER_TEACHER[c.k]] || c).filter((c) => !seen.has(c.k) && seen.add(c.k));
+    }
     return [nameCol(level), ...base];
   }
   function miniKpis(g) {
