@@ -1657,13 +1657,14 @@
     ['', 'Everyone'], ['plan', 'Generated no grade 1–5 plan'], ['taught', 'No plan taught'], ['dc', 'No DC observation'], ['hitl', 'No HITL observation'],
     ['quiz', 'No quiz made'], ['exam', 'No exam paper'], ['prog', 'Not on NIETE primary'], ['l1', 'No Level 0 certificate'],
   ];
+  // One teacher table everywhere: the Teachers tab and a school's card show the same measures.
+  const teacherCols = () => [COL.g15, COL.plans, COL.opened, COL.taught, COL.dc, ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'dc-tsk3'), COL.hitl, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.mods, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
   function viewTeachers(R) {
     const q = S.search.toLowerCase();
     const miss = { plan: (t) => !t.g15, taught: (t) => !t.taught, dc: (t) => !t.dc, hitl: (t) => !t.hitl, quiz: (t) => !t.made, exam: (t) => !t.exOk, prog: (t) => !t.onProg, l1: (t) => !t.certs.includes('1') }[S.missing];
     const rows = R.teachers.filter((t) => (!q || t.name.toLowerCase().includes(q) || S.data.schools[t.s].name.toLowerCase().includes(q)) && (!miss || miss(t)))
       .map((t) => Object.assign(Calc.asGroup(t), { t, name: t.name, key: t.i, school: S.data.schools[t.s].name, sector: S.data.schools[t.s].sector }));
-    const cols = [nameCol('teacher'), { k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => `${esc(r.school)} <span class="dim">${esc(r.sector)}</span>` },
-      COL.g15, COL.plans, COL.opened, COL.taught, COL.dc, ...ficoCols().filter((c) => c.k === 'dc-hlp' || c.k === 'dc-tsk3'), COL.hitl, COL.made, COL.kidsL, COL.exOk, COL.onProg, COL.mods, COL.cert1, COL.cert2, COL.cert3, COL.cert4];
+    const cols = [nameCol('teacher'), { k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => `${esc(r.school)} <span class="dim">${esc(r.sector)}</span>` }, ...teacherCols()];
     const tools = `<div class="row"><input class="inp" type="search" id="search" placeholder="Search teacher or school" value="${esc(S.search)}">
       <select class="sel" id="missing" aria-label="Show">${MISSING.map(([k, l]) => `<option value="${k}" ${S.missing === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
     return card('c-tch', `Teachers · ${scopeName()} · ${periodText()}`, `${N(rows.length)} of ${N(R.teachers.length)} primary teachers. Click a teacher for the scorecard. Contains teacher names — internal use only.`,
@@ -1822,16 +1823,8 @@
     MS.push(v);
     renderModal();
   }
-  // A school's teachers reuse the columns of the table that was clicked. Columns that only make sense for a group
-  // (a count or share of teachers) become that teacher's own column, and the Sector column is dropped, so the
-  // teacher table keeps the same measures instead of losing them.
-  const PER_TEACHER = { usage: 'g15', tTaught: 'taught', dcT: 'dc', dcPct: 'dc', hitlT: 'hitl', hitlPct: 'hitl', madeT: 'made', fdeT: 'fde', exT: 'exOk', exPct: 'exOk', didMod: 'mods' };
   function modalCols(cols, level) {
-    let base = cols && cols.length ? cols.slice(1) : [COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.exOk, COL.onProg];
-    if (level === 'teacher') {
-      const seen = new Set();
-      base = base.filter((c) => c.k !== 'sector').map((c) => COL[PER_TEACHER[c.k]] || c).filter((c) => !seen.has(c.k) && seen.add(c.k));
-    }
+    const base = cols && cols.length ? cols.slice(1) : [COL.teachers, COL.usage, COL.taught, COL.dc, COL.dcPct, COL.hitl, COL.hitlPct, COL.made, COL.exOk, COL.onProg];
     return [nameCol(level), ...base];
   }
   function miniKpis(g) {
@@ -1860,7 +1853,7 @@
       sub = `EMIS ${sc.emis}${MS.length > 1 ? '' : ` · ${sc.sector}`} · ${N(R.all.teachers)} primary teachers · ${periodText()}`;
       html = `<section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
         <p class="note">Click a teacher for the scorecard. Contains teacher names — internal use only.</p>
-        ${table('m-tch', modalCols(v.cols, 'teacher'), rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`
+        ${table('m-tch', [nameCol('teacher'), ...teacherCols()], rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`
         + schoolCalendarCard(v.key);
     } else if (v.kind === 'coach') {
       ({ title, sub, html } = coachView(v.key));
