@@ -27,7 +27,8 @@ This file is for whoever looks after the dashboard: a developer, or the daily Cl
 ## School calendar
 
 - Tab **School calendar** (Directory). Coaches add entries (reason, dates, one or more schools / a sector / all ICT,
-  note) with the coach passcode in the Railway variable `CALENDAR_TOKEN` (the admin password `ADMIN_TOKEN` also works).
+  note). No passcode: anyone with the link can add or remove (owner decision 2026-10-30), rate-limited per visitor;
+  `CALENDAR_TOKEN` is no longer read and can be deleted from Railway.
   Stored in the Postgres table `school_events` (local runs: `data/events.json`); removal is a soft delete.
   Anyone can read entries at `GET /api/events`.
 - Federal public holidays are built in (`NATIONAL` in `events.js`, read-only). Add each year's Cabinet Division circular

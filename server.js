@@ -30,7 +30,6 @@ const CACHE_FILE = path.join(DATA_DIR, 'data.json');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';   // opens the feedback review page; set on Railway, never in code
 let feedbackStore = null;
 let eventStore = null;
-const CALENDAR_TOKEN = process.env.CALENDAR_TOKEN || '';   // coach passcode for the school calendar; set on Railway
 const eventLimit = FB.createLimiter();
 const feedbackLimit = FB.createLimiter();
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -323,13 +322,12 @@ async function handleFeedback(req, res, url) {
   return json(405, { error: 'method not allowed' });
 }
 
-// School calendar: public read; add / remove with the coach passcode or the admin password.
+// School calendar: anyone with the link can read, add and remove (owner decision 2026-10-30: no passcode).
+// Removing only hides an entry (soft delete), and changes are rate-limited per visitor.
 async function handleEvents(req, res, url) {
   const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
   if (!eventStore) return json(503, { error: 'The calendar is starting up, try again in a moment.' });
-  if (req.method === 'GET' && url.pathname === '/api/events') return json(200, { items: [...EV.NATIONAL, ...(await eventStore.list())].sort((a, b) => a.from.localeCompare(b.from)), types: EV.TYPES, writable: !!(CALENDAR_TOKEN || ADMIN_TOKEN) });
-  if (!CALENDAR_TOKEN && !ADMIN_TOKEN) return json(503, { error: 'Adding to the calendar is not set up yet: add CALENDAR_TOKEN on Railway.' });
-  if (!FB.isAdmin(req, CALENDAR_TOKEN) && !FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong coach passcode.' });
+  if (req.method === 'GET' && url.pathname === '/api/events') return json(200, { items: [...EV.NATIONAL, ...(await eventStore.list())].sort((a, b) => a.from.localeCompare(b.from)), types: EV.TYPES, writable: true });
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   if (!eventLimit(ip)) return json(429, { error: 'Too many changes in an hour; please try again later.' });
   if (req.method === 'POST' && url.pathname === '/api/events') {
@@ -341,7 +339,11 @@ async function handleEvents(req, res, url) {
     return json(200, { ok: true, item });
   }
   const m = url.pathname.match(/^\/api\/events\/(\d{1,9})\/delete$/);
-  if (req.method === 'POST' && m) return (await eventStore.remove(+m[1])) ? json(200, { ok: true }) : json(404, { error: 'not found' });
+  if (req.method === 'POST' && m) {
+    if (!(await eventStore.remove(+m[1]))) return json(404, { error: 'not found' });
+    log(`calendar entry #${m[1]} removed`);
+    return json(200, { ok: true });
+  }
   return json(405, { error: 'method not allowed' });
 }
 

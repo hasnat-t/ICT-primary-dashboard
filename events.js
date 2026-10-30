@@ -1,6 +1,6 @@
 // School calendar: coaches record why schools were busy or closed (exams, sports week, holidays, events, closures), so
-// managers can read engagement dips against a reason. Anyone can read; adding or removing needs the coach passcode
-// (CALENDAR_TOKEN) or the admin password (ADMIN_TOKEN). Stored in Postgres, or a JSON file for local runs.
+// managers can read engagement dips against a reason. Anyone with the link can read, add and remove (no passcode,
+// owner decision 2026-10-30); removal is a soft delete. Stored in Postgres, or a JSON file for local runs.
 const fs = require('fs');
 const path = require('path');
 

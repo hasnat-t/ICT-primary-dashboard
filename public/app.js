@@ -1077,7 +1077,7 @@
   function evRow(e) {
     return `<div class="ev" style="--c:${CAL_COLOR[e.type] || '#888'}"><div class="ev-h"><span class="ev-dot"></span><b>${esc(evLabel(e))}</b><span class="dim">${esc(evDates(e))}</span></div>
       <div class="ev-b">${esc(evWho(e))} · ${e.official ? 'official' : `added by ${esc(e.coach)}`}${e.note ? ` · ${esc(e.note)}` : ''}</div>
-      ${S.eventsWritable && !e.official ? `<button class="ev-x" type="button" data-caldel="${e.id}" title="Remove this entry (coach passcode)">Remove</button>` : ''}</div>`;
+      ${S.eventsWritable && !e.official ? `<button class="ev-x" type="button" data-caldel="${e.id}" title="Remove this entry">Remove</button>` : ''}</div>`;
   }
 
   function viewCalendar() {
@@ -1124,8 +1124,8 @@
     const now = own.filter((e) => e.from <= todayIso && e.to >= todayIso);
     const soon = own.filter((e) => e.from > todayIso).slice(0, 12);
     const past = own.filter((e) => e.to < todayIso).slice(-12).reverse();
-    const add = S.eventsWritable ? '<button class="btn dark" type="button" data-caladd>+ Add to calendar</button>' : '<span class="note">Adding is not switched on yet (needs the coach passcode set on Railway).</span>';
-    return card('c-cal0', `School calendar · ${esc(scopeName())}`, 'Coaches record when schools are busy or closed — student assessments, sports week, winter or summer holidays, events, unusual closures — so a dip in engagement has its reason beside it. Anyone can read the calendar; adding or removing an entry needs the coach passcode.', `<div class="row">${add}</div>`)
+    const add = S.eventsWritable ? '<button class="btn dark" type="button" data-caladd>+ Add to calendar</button>' : '';
+    return card('c-cal0', `School calendar · ${esc(scopeName())}`, 'Coaches record when schools are busy or closed — student assessments, sports week, winter or summer holidays, events, unusual closures — so a dip in engagement has its reason beside it. Anyone with this link can add or remove an entry, so please only record what you know.', `<div class="row">${add}</div>`)
       + card('c-cal1', 'Month view', '', grid)
       + card('c-cal2', 'Engagement against the calendar', `Each day of ${MONTHS[m - 1]} ${y}: the share of primary teachers who were active, beside the share of schools with a calendar entry. Weekends and holidays are expected to dip.`, chartHtml)
       + `<div class="cards2">${card('c-cal3', 'Happening now', `${N(now.length)} entr${now.length === 1 ? 'y' : 'ies'} today`, now.length ? now.map(evRow).join('') : '<p class="note">Nothing recorded for today.</p>')}
@@ -1139,18 +1139,14 @@
     return `<section class="card" id="m-cal"><div class="card-h"><h2>School calendar</h2></div>${list.length ? list.map(evRow).join('') : '<p class="note">No calendar entries for this school.</p>'}</section>`;
   }
 
-  let calToken = '';
-  try { calToken = localStorage.getItem('calToken') || ''; } catch (e) { /* storage blocked */ }
-  const remember = (t) => { calToken = t; try { localStorage.setItem('calToken', t); } catch (e) { /* ignore */ } };
+  try { localStorage.removeItem('calToken'); } catch (e) { /* storage blocked; the old passcode is no longer used */ }
   async function calendarRemove(id) {
     const e = (S.events || []).find((x) => x.id === id);
     if (!e || !confirm(`Remove "${evLabel(e)}" (${evDates(e)}, ${evWho(e)})?`)) return;
-    const t = calToken || prompt('Coach passcode');
-    if (!t) return;
-    const r = await fetch(`/api/events/${id}/delete`, { method: 'POST', headers: { 'x-admin-token': t } });
+    const r = await fetch(`/api/events/${id}/delete`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(j.error || 'Could not remove.'); if (r.status === 401) remember(''); return; }
-    remember(t); await loadEvents(); render();
+    if (!r.ok) { alert(j.error || 'Could not remove.'); return; }
+    await loadEvents(); render();
   }
 
   function calendarForm() {
@@ -1163,8 +1159,7 @@
     dlg.innerHTML = `<form class="m-panel" id="cal-form">
       <div class="m-head"><div class="m-tt"><h3>Add to the school calendar</h3><p>Record why schools are busy or closed, so leaders can read engagement in context.</p></div><button class="x" type="button" id="cal-x" aria-label="Close">×</button></div>
       <div class="m-body fb-body">
-        <div class="fb-two"><div><label class="fb-l" for="cal-coach">Your name</label><input class="inp" id="cal-coach" list="cal-coaches" maxlength="80" required autocomplete="name"><datalist id="cal-coaches">${coaches.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
-          <div><label class="fb-l" for="cal-pass">Coach passcode</label><input class="inp" id="cal-pass" type="password" required value="${esc(calToken)}" autocomplete="current-password"></div></div>
+        <div><label class="fb-l" for="cal-coach">Your name</label><input class="inp" id="cal-coach" list="cal-coaches" maxlength="80" required autocomplete="name"><datalist id="cal-coaches">${coaches.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
         <fieldset class="fb-types"><legend>Reason</legend>${Object.entries(S.eventTypes).filter(([k]) => k !== 'national').map(([k, l], i) => `<label><input type="radio" name="type" value="${k}" ${i === 0 ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</fieldset>
         <div id="cal-other" hidden><label class="fb-l" for="cal-reason">What is the reason?</label><input class="inp" id="cal-reason" maxlength="160"></div>
         <div class="fb-two"><div><label class="fb-l" for="cal-from">From</label><input class="inp" type="date" id="cal-from" value="${todayIso}" required></div>
@@ -1202,10 +1197,9 @@
         from: $('#cal-from').value, to: $('#cal-to').value, scope, sector: $('#cal-sector').value, schools: [...chosen], note: $('#cal-note').value };
       const out = $('#cal-out'); out.className = 'note'; out.textContent = 'Saving…'; $('#cal-save').disabled = true;
       try {
-        const r = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': $('#cal-pass').value }, body: JSON.stringify(body) });
+        const r = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.error || 'Could not save.');
-        remember($('#cal-pass').value);
         out.textContent = 'Added — thank you.';
         await loadEvents(); render(); setTimeout(close, 900);
       } catch (err) { out.className = 'note warn'; out.textContent = err.message; $('#cal-save').disabled = false; }
