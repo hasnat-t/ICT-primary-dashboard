@@ -1134,9 +1134,12 @@
   }
 
   function schoolCalendarCard(si) {
+    // Only what coaches entered for this school or its sector: national holidays and all-ICT entries would
+    // repeat on every school card, so they stay on the calendar tab. No entries, no section.
     if (!S.events) return '';
-    const list = S.events.filter((e) => evHits(e, si)).slice().sort((a, b) => b.from.localeCompare(a.from)).slice(0, 15);
-    return `<section class="card" id="m-cal"><div class="card-h"><h2>School calendar</h2></div>${list.length ? list.map(evRow).join('') : '<p class="note">No calendar entries for this school.</p>'}</section>`;
+    const list = S.events.filter((e) => !e.official && e.scope !== 'all' && evHits(e, si)).sort((a, b) => b.from.localeCompare(a.from)).slice(0, 15);
+    if (!list.length) return '';
+    return `<section class="card" id="m-cal"><div class="card-h"><h2>School calendar</h2></div><p class="note">Entered by coaches for this school or its sector.</p>${list.map(evRow).join('')}</section>`;
   }
 
   try { localStorage.removeItem('calToken'); } catch (e) { /* storage blocked; the old passcode is no longer used */ }
