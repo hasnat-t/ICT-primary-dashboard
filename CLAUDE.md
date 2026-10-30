@@ -76,7 +76,7 @@ sql/            one governed query per part; _common.sql = shared CTEs (sp, prim
 public/index.html  page shell (sidebar, filters, drill-down <dialog>, feedback <dialog>)
 public/app.js   all views, tables, charts, drill-down modal, feedback form (big file, ~1,800 lines)
 public/calc.js  all maths from the payload (UMD; also used by tests and server-side checks)
-public/temu.js  TEMU, the 3D parrot guide (bottom right): tour, "what's on this page", Q&A. three.js r128 from cdnjs, loaded after the page; falls back to an emoji. All answers are written in PAGES / FAQ / TOUR (no AI, no API key). Drives the page only by clicking #nav [data-tab]. Remembers seen/hidden in localStorage key temu.v1. When a tab or card id changes, update TOUR selectors and PAGES text.
+public/temu.js  TEMU, the 3D parrot guide (bottom right): tour, "what's on this page", Q&A. three.js r128 from cdnjs, loaded after the page; falls back to an emoji. All answers are written in PAGES / FAQ / TOUR (no AI, no API key). Drives the page only by clicking #nav [data-tab]. Remembers seen/hidden in localStorage key temu.v1. While its panel is closed it does a random move every 15–30 s, a random joke (shuffled deck, 33 jokes) every 2–3.5 min, and naps after 3 idle minutes; moves need the 3D loop (no moves on the emoji fallback). When a tab or card id changes, update TOUR selectors and PAGES text.
 public/app.css  styles (design from the owner's mock-up: sidebar, hero cards, tiers)
 public/admin.html  private feedback review page (/admin/feedback)
 config/coach-overrides.json  coach table display fixes (hide by role/id, rename) - see §6

@@ -84,6 +84,30 @@
   ];
   const JOKES = [
     'Why did the lesson plan go to therapy? Too many unresolved objectives.',
+    'I told the dashboard a secret. Now it’s in the CSV.',
+    'My doctor says I need more green in my life. I said, have you seen me?',
+    'Why did the pie chart go to the gym? It wanted to lose a few slices.',
+    'I don’t always read the footnotes. But when I do, it’s the governed rules. Thrilling stuff.',
+    'What do you call a teacher who never misses a lesson plan? Exemplary. I checked the band.',
+    'I tried to download myself as a PNG. Came out a bit cropped. Story of my life.',
+    'Why was the spreadsheet so tired? Too many late nights in the cells.',
+    'I asked for a raise. They gave me a higher perch.',
+    'Why don’t bar charts ever lie? They’re too upfront about their values.',
+    'My favourite filter? “Since 1 Aug”. It never judges where I’ve been.',
+    'What did the zero say to the eight? Nice belt.',
+    'I’m not saying I’m smart, but I wear glasses and a tie. Draw your own conclusions.',
+    'Why did the line chart break up with the bar chart? It needed to see some trends.',
+    'Chai first, data second. Even parrots have priorities.',
+    'They asked me to be more data-driven. I don’t have a licence.',
+    'Why did the observation go well? Somebody brought their FICO face.',
+    'I counted every teacher twice to be sure. Then the data team told me about DISTINCT.',
+    'What’s a parrot’s favourite subject? Repeat-ition. Ask me again.',
+    'I’d tell you a joke about the data refresh, but you’d have to wait for the next update.',
+    'Why did the median feel left out? Everyone kept talking about the average.',
+    'My tail is green, my beak is orange, my numbers are governed. I contain multitudes.',
+    'I tried load shedding my workload. The dashboard kept running anyway.',
+    'Why was the heatmap so popular? It knew how to bring the warmth.',
+    'Fun fact: I’ve never once said “let’s circle back”. You’re welcome.',
     'I asked the database out. It said I’m not in its schema.',
     'My favourite exercise? Running queries. My second favourite? Skipping meetings.',
     'Why was the FICO score so calm? It had perfect student engagement with itself.',
@@ -160,10 +184,13 @@
 
   // Moves are timed poses the 3D loop plays; with reduced motion TEMU just talks.
   const DUR = { dance: 4, backflip: 1.1, fly: 3, spin: 1.2, dizzy: 2.6, preen: 1.8, look: 2.4, stretch: 1.2, nap: Infinity };
+  // Moves need the 3D loop to play and to end them, so without it (emoji fallback) TEMU only talks.
+  let live3d = false;
+  function setMove(m) { anim.move = m; root.dataset.move = m ? m.name : ''; }
   function move(name) {
     if (name === 'wave') { anim.waveUntil = anim.now + 2.5; return; }
-    if (reduced) return;
-    anim.move = { name, t0: anim.now, dur: DUR[name] };
+    if (reduced || !live3d) return;
+    setMove({ name, t0: anim.now, dur: DUR[name] });
     zzz.hidden = name !== 'nap';
   }
   function confetti() {
@@ -260,14 +287,16 @@
     move(k);
     if (k === 'nap') { napGrace = Date.now() + 2500; setTimeout(() => { if (anim.move && anim.move.name === 'nap') close(); }, 900); }
   }
+  // Jokes come from a shuffled deck, so none repeats until every one has been told.
+  let deck = [];
+  function nextJoke() {
+    if (!deck.length) deck = JOKES.slice().sort(() => Math.random() - 0.5);
+    return deck.pop();
+  }
   function joke() {
-    let j = pick(JOKES);
-    if (j === lastJoke) j = pick(JOKES);
-    lastJoke = j;
-    screen(j, btn('joke', 'Another one', 'pri') + btn('home', 'Back'));
+    screen(nextJoke(), btn('joke', 'Another one', 'pri') + btn('home', 'Back'));
     setTimeout(() => { if (!reduced) move(pick(['spin', 'dance'])); }, 900);
   }
-  let lastJoke = '';
   // Read the four headline cards off the Overview, as they are drawn for the current filters.
   function headlines() {
     goTab('overview');
@@ -356,18 +385,36 @@
     }
     lastActive = Date.now();
     if (anim.move && anim.move.name === 'nap' && Date.now() > napGrace) {
-      anim.move = null; zzz.hidden = true; move('stretch');
+      setMove(null); zzz.hidden = true; move('stretch');
       setTimeout(() => toast(pick(WAKE)), 500);
     }
   }
   ['pointermove', 'keydown', 'wheel', 'touchmove', 'pointerdown'].forEach((ev) => addEventListener(ev, wake, { passive: true, capture: true }));
-  // Idle: now and then a small move; after three quiet minutes, a nap.
+  // While the panel is closed: a random move every 15-30 s, a random joke every 2-3.5 min, and a nap after
+  // three quiet minutes. Nothing while TEMU is busy, asleep, or the browser tab is in the background.
+  const AMBIENT = ['dance', 'backflip', 'fly', 'spin', 'wave', 'preen', 'look', 'stretch', 'dizzy'];
+  let nextMoveAt = Date.now() + 10000 + Math.random() * 10000, nextJokeAt = Date.now() + 90000 + Math.random() * 60000;
   setInterval(() => {
-    if (root.hidden || !panel.hidden || anim.move || document.hidden) return;
-    const idle = Date.now() - lastActive;
-    if (idle > 180000) move('nap');
-    else if (idle > 40000 && Math.random() < 0.2) move(pick(['preen', 'look']));
-  }, 8000);
+    if (root.hidden || document.hidden || !panel.hidden || tourI >= 0) return;
+    const now = Date.now();
+    if (anim.move && anim.move.name === 'nap') return;
+    if (now - lastActive > 180000) { if (!anim.move) move('nap'); return; }
+    if (anim.move) return;
+    if (now > nextJokeAt && toastEl.hidden) {
+      const j = nextJoke();
+      toast(j, 5000 + j.length * 45);
+      move(pick(['spin', 'dance', 'wave']));
+      nextJokeAt = now + 120000 + Math.random() * 90000; nextMoveAt = now + 15000;
+      return;
+    }
+    if (now > nextMoveAt) {
+      let m = pick(AMBIENT);
+      if (m === lastAmbient) m = pick(AMBIENT);
+      lastAmbient = m; move(m);
+      nextMoveAt = now + 15000 + Math.random() * 15000;
+    }
+  }, 2000);
+  let lastAmbient = '';
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !panel.hidden && !document.querySelector('dialog[open]')) { close(); return; }
@@ -575,7 +622,7 @@
           body.scale.y = 1 + Math.sin(t * 1.2) * 0.03;
           lid = 0;
         }
-        if (u >= 1 && mv.dur !== Infinity) anim.move = null;
+        if (u >= 1 && mv.dur !== Infinity) setMove(null);
       }
       eyes.forEach((e) => { e.scale.y = Math.max(0.08, lid); });
       wingR.rotation.z = ease(wingR.rotation.z, wr, mv ? 0.35 : 0.12);
@@ -589,7 +636,7 @@
     if (started) return;
     started = true;
     const canvas = $('#temu-cv');
-    const go = () => { try { build(window.THREE, canvas); } catch (e) { console.error(e); fallback(); } };
+    const go = () => { try { build(window.THREE, canvas); live3d = true; } catch (e) { console.error(e); fallback(); } };
     if (window.THREE) return go();
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
