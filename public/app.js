@@ -1256,7 +1256,7 @@
     if (c.kind === 'teacher') {
       const t = R.teachers.find((x) => x.i === +c.ti);
       if (!t) return null;
-      g = Calc.asGroup(t);
+      g = Calc.asGroup(t); g.lpDays = t.lpDays;
       const pt = PR && PR.teachers.find((x) => x.i === +c.ti);
       p = pt ? Calc.asGroup(pt) : null;
       name = t.name; sub = sc.name;
@@ -1278,6 +1278,8 @@
     if (c.kind === 'teacher') {
       const top = [1, 2, 3, 4].filter((l) => g.cert[l - 1]).pop();
       if (top) { const [lv, nm] = LEVELS[top - 1].split(' · '); add('cert', lv, `${nm} certificate (all time)`); }
+      const earned = g.cert.filter(Boolean).length;
+      if (earned > 1) add('certs', `${earned} of 4`, 'NIETE certificates earned (all time)');
     } else {
       const share = [['usage', ratio(g.g15, g.teachers), 'of teachers used lesson plans'], ['dcPct', ratio(g.dcT, g.teachers), 'of teachers recorded a lesson on the Digital Coach'],
         ['hitlPct', ratio(g.hitlT, g.teachers), 'of teachers welcomed a coach to their classroom']];
@@ -1288,14 +1290,43 @@
     const nouns = { plans: 'lesson plans generated', dc: 'lessons recorded', made: 'quizzes made' };
     if (p) for (const k of Object.keys(nouns)) if ((g[k] || 0) > (p[k] || 0) && p[k] > 0) add(`up-${k}`, `+${N(g[k] - p[k])}`, `more ${g[k] - p[k] === 1 ? nouns[k].replace(/^(lesson plans|lessons|quizzes)/, (w) => ({ 'lesson plans': 'lesson plan', lessons: 'lesson', quizzes: 'quiz' }[w])) : nouns[k]} than the ${len} days before`);
     const counts = c.kind === 'teacher'
-      ? [['plans', 'lesson plans generated with Rumi'], ['opened', 'lesson plans read in the teacher app'], ['taught', 'planned lessons taught and recorded'], ['dc', 'lessons recorded on the Digital Coach'],
-        ['hitl', 'classroom observations with a coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took their quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'NIETE training modules finished (all time)']]
-      : [['plans', 'lesson plans generated'], ['dc', 'lessons recorded on the Digital Coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'training modules finished (all time)']];
+      ? [['plans', 'lesson plans generated with Rumi'], ['lpDays', 'days a lesson plan was used'], ['opened', 'lesson plans read in the teacher app'], ['taught', 'planned lessons taught and recorded'],
+        ['dc', 'lessons recorded on the Digital Coach'], ['hitl', 'classroom observations with a coach'], ['hitlC', 'debriefs with a coach'], ['made', 'lesson quizzes made'],
+        ['kidsL', 'children took their quizzes'], ['kidsV', 'children took their video quizzes'], ['exOk', 'exam papers prepared'], ['fde', 'FDE board papers prepared (grade 5)'],
+        ['mods', 'NIETE training modules finished (all time)']]
+      : [['plans', 'lesson plans generated'], ['opened', 'lesson plans read in the teacher app'], ['dc', 'lessons recorded on the Digital Coach'], ['hitl', 'classroom observations with a coach'],
+        ['hitlC', 'coach debriefs'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared'], ['fde', 'FDE board papers prepared (grade 5)'],
+        ['mods', 'training modules finished (all time)']];
     // "1 lesson recorded", not "1 lessons recorded"
-    const one = (text) => text.replace(/^(lesson plans|lessons|planned lessons|classroom observations|lesson quizzes|exam papers|NIETE training modules|training modules)/, (w) => w.replace(/(plans|lessons|observations|papers|modules)$/, (x) => x.slice(0, -1)).replace(/quizzes$/, 'quiz')).replace(/^children took their/, 'child took their').replace(/^children took the/, 'child took the');
+    const ONE = [['lesson plans', 'lesson plan'], ['planned lessons', 'planned lesson'], ['lessons', 'lesson'], ['classroom observations', 'classroom observation'], ['lesson quizzes', 'lesson quiz'],
+      ['exam papers', 'exam paper'], ['FDE board papers', 'FDE board paper'], ['NIETE training modules', 'NIETE training module'], ['training modules', 'training module'], ['children', 'child'],
+      ['days a', 'day a'], ['debriefs', 'debrief'], ['coach debriefs', 'coach debrief']];
+    const one = (text) => { for (const [a, b] of ONE) if (text.startsWith(`${a} `)) return b + text.slice(a.length); return text; };
     for (const [k, text] of counts) if (g[k] > 0) add(k, N(g[k]), g[k] === 1 ? one(text) : text);
-    // training (certificates, modules) is all-time; everything else is activity in the card's period
-    const active = items.some((i) => i.k !== 'cert' && i.k !== 'mods');
+    // The programme so far, for when the chosen period has little to show (skipped when the period is already all of it).
+    if (!(rg.from === 0 && rg.to === S.data.today)) {
+      const RA = Calc.rollup(S.P, { from: 0, to: S.data.today, school: si });
+      let ga = null;
+      if (c.kind === 'teacher') { const ta = RA.teachers.find((x) => x.i === +c.ti); if (ta) { ga = Calc.asGroup(ta); ga.lpDays = ta.lpDays; } } else ga = RA.all;
+      if (ga) {
+        for (const [src, fx, who] of [['dc', ga.ficoD, 'Digital Coach'], ['hitl', ga.ficoH, 'coach observations']]) {
+          for (const sec of Object.keys(CARD_FICO)) {
+            const v = fx[sec];
+            if (!v || !v[2] || items.some((i) => i.k === `${src}-${sec}`)) continue;
+            const pc = fpct(v);
+            if (pc === null || pc < 70) continue;
+            add(`all-${src}-${sec}`, pc >= 80 ? '★★★' : '★★', `${bandName(pc)} in ${CARD_FICO[sec]} (${who}, since 1 Aug)`);
+          }
+        }
+        const since = c.kind === 'teacher'
+          ? [['plans', 'lesson plans generated'], ['lpDays', 'days a lesson plan was used'], ['dc', 'lessons recorded on the Digital Coach'], ['hitl', 'classroom observations with a coach'],
+            ['made', 'lesson quizzes made'], ['kidsL', 'children took their quizzes'], ['exOk', 'exam papers prepared']]
+          : [['plans', 'lesson plans generated'], ['dc', 'lessons recorded on the Digital Coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared']];
+        for (const [k, text] of since) if (ga[k] > 0) add(`all-${k}`, N(ga[k]), `${ga[k] === 1 ? one(text) : text} since 1 Aug`);
+      }
+    }
+    // activity in the card's period, as opposed to training (all time) and the since-1-Aug totals
+    const active = items.some((i) => !['cert', 'certs', 'mods'].includes(i.k) && !i.k.startsWith('all-'));
     return { name, sub, items, active };
   }
   function cardHtml(f) {
@@ -1336,7 +1367,7 @@
       <div class="fld"><span class="lbl">Design</span><div class="seg" role="group" aria-label="Design">${Object.entries(CARD_DESIGNS).map(([k, x]) => `<button type="button" data-cmdesign="${k}" aria-pressed="${c.design === k}">${x.label}</button>`).join('')}</div></div>
       ${cardPeriodField('Period on the card')}
       <div class="fld"><span class="lbl">What to celebrate <span class="dim">(up to ${CARD_MAX})</span></span>
-        ${f.items.length && !f.active ? '<p class="note">Only training shows for this period: no lesson plans, recordings or quizzes yet. Try a longer period, like “Last 30 days” or “Since 1 Aug”.</p>' : ''}
+        ${f.items.length && !f.active ? '<p class="note">Nothing from this period yet (no lesson plans, recordings or quizzes), so you can celebrate their training or what they have done since 1 Aug, or choose a longer period.</p>' : ''}
         <div class="cm-picks">${f.items.length ? f.items.map((i) => `<label><input type="checkbox" data-cmpick="${i.k}" ${c.picks.has(i.k) ? 'checked' : full ? 'disabled' : ''}> <b>${esc(i.big)}</b> ${esc(i.text)}</label>`).join('')
           : '<p class="note">Nothing to count in this period yet. Try a longer period, like “Since 1 Aug”, or send a card with just your message.</p>'}</div></div>
       <div class="fld"><label for="cm-title">Title</label><input class="inp" id="cm-title" maxlength="40" placeholder="${esc(d.title[c.kind])}" value="${esc(c.title)}"></div>
@@ -1356,7 +1387,8 @@
   // FICO still shows only as a band, and anything below Developing shows as a dash.
   const POSTER_IND = [['plans', 'Lesson plans generated', 'lesson plans'], ['opened', 'Plans opened in the app', 'plans opened'], ['taught', 'Plans taught', 'plans taught'],
     ['dc', 'Digital Coach recordings', 'Digital Coach observations'], ['hitl', 'Coach observations (HITL)', 'coach observations'], ['made', 'Quizzes made', 'quizzes made'],
-    ['kidsL', 'Children who took quizzes', 'children quizzed'], ['exOk', 'Exam papers', 'exam papers'], ['mods', 'Training modules (all time)', 'training modules']];
+    ['kidsL', 'Children who took quizzes', 'children quizzed'], ['exOk', 'Exam papers', 'exam papers'], ['mods', 'Training modules (all time)', 'training modules'],
+    ['lpDays', 'Days a plan was used', 'days with a plan'], ['hitlC', 'Coach debriefs', 'debriefs'], ['fde', 'FDE board papers (grade 5)', 'FDE papers']];
   const POSTER_FICO = [['lpf', 'Lesson plan fidelity'], ['tsk3', 'Subject knowledge'], ['hlp', 'Teaching practices'], ['se', 'Student engagement']];
   const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function longRange(from, to) {
@@ -1378,7 +1410,7 @@
     const fv = (g, k) => { const f = (c.pSrc === 'dc' ? g.ficoD : g.ficoH)[k]; return f && f[2] ? fpct(f) : null; };
     const val = (g, k) => (k.startsWith('f-') ? fv(g, k.slice(2)) : g[k] || 0);
     const keys = [...acts.map(([k]) => k), ...ficos.map(([k]) => `f-${k}`)];
-    const rows = R.teachers.map((t) => ({ t, g: Calc.asGroup(t) }))
+    const rows = R.teachers.map((t) => ({ t, g: Object.assign(Calc.asGroup(t), { lpDays: t.lpDays }) }))
       // owner rule 2026-11-02: a teacher appears only with 60%+ (Developing or better) in every chosen FICO section;
       // a section with no score does not count as 60%+. The stricter option asks for 70%+ (Proficient).
       .filter(({ g }) => (g.plans || 0) >= c.pMinPlans && (g.dc || 0) >= c.pMinDc && ficos.every(([k]) => (fv(g, k) ?? -1) >= (c.pGood ? 70 : 60)));
@@ -1421,6 +1453,7 @@
     else chips.push(['★', `Top ${f.top.length || c.pN} on ${rankName}`]);
     const tiles = [];
     for (const [k, label] of f.acts) {
+      if (k === 'lpDays') continue;   // a per-teacher measure, no school total
       const sub = k === 'plans' ? `${P0(ratio(g.g15, g.teachers))} of teachers used a plan` : k === 'dc' ? `${P0(ratio(g.dcT, g.teachers))} of teachers recorded` : k === 'hitl' ? `${P0(ratio(g.hitlT, g.teachers))} of teachers observed` : '';
       tiles.push(`<div class="pt-tile"><b>${N(g[k] || 0)}</b><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`);
     }
