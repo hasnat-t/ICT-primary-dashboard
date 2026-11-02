@@ -479,3 +479,45 @@ td .dlt { margin-left: 6px; }
 @media (prefers-reduced-motion: reduce) { .temu-hl { transition: none; } .temu-z i, .temu-toast { animation: none; } .temu-z i { opacity: 1; } }
 body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present .temu-cf { display: none; }
 @media print { .temu, .temu-chip, .temu-hl { display: none !important; } }
+
+/* appreciation cards */
+.m-acts { margin-bottom: 12px; }
+.cm { display: grid; grid-template-columns: minmax(280px, 400px) 1fr; gap: 28px; align-items: start; }
+.cm-form { display: flex; flex-direction: column; gap: 14px; }
+.cm-form .fld { display: flex; flex-direction: column; gap: 6px; }
+.cm-form .lbl, .cm-form label { font-size: 13px; font-weight: 600; color: var(--fg-2); }
+.cm-form textarea { resize: vertical; font: inherit; }
+.cm-picks { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.cm-picks label { font-weight: 400; color: var(--fg); display: flex; gap: 8px; align-items: baseline; line-height: 1.4; cursor: pointer; }
+.cm-picks label:has(input:disabled) { opacity: .5; cursor: default; }
+.cm-temu { display: flex; gap: 8px; align-items: center; font-weight: 400 !important; color: var(--fg) !important; }
+.cm-prev { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; position: sticky; top: 16px; }
+.acard-wrap { border-radius: 28px; box-shadow: var(--shadow); }
+.acard { position: relative; width: 540px; min-height: 675px; box-sizing: border-box; padding: 38px 40px 34px; border-radius: 28px; overflow: hidden; color: #FFF;
+  font-family: 'NT Jakarta', system-ui, sans-serif; display: flex; flex-direction: column; }
+.acard::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background-image: radial-gradient(circle at 12% 18%, rgba(255,255,255,.35) 0 2px, transparent 3px), radial-gradient(circle at 86% 12%, rgba(255,255,255,.3) 0 3px, transparent 4px),
+    radial-gradient(circle at 78% 42%, rgba(255,255,255,.25) 0 2px, transparent 3px), radial-gradient(circle at 20% 64%, rgba(255,255,255,.2) 0 2px, transparent 3px),
+    radial-gradient(circle at 92% 70%, rgba(255,255,255,.25) 0 2px, transparent 3px); }
+.acard > * { position: relative; }
+.ac-star { background: linear-gradient(160deg, #18245A 0%, #2C3C8C 55%, #8A6A2A 120%); --ac: #F7C548; }
+.ac-thanks { background: linear-gradient(160deg, #0C4D2F 0%, #1F7A4C 55%, #35C03F 125%); --ac: #FFE58A; }
+.ac-progress { background: linear-gradient(160deg, #13327A 0%, #2A5BD7 60%, #56A0FF 125%); --ac: #A8E6FF; }
+.ac-top { display: flex; align-items: center; gap: 12px; font-size: 13px; letter-spacing: .04em; opacity: .92; }
+.ac-logo { background: #FFF; border-radius: 10px; padding: 5px 8px; display: inline-flex; }
+.ac-logo img { height: 30px; display: block; }
+.ac-title { font-family: 'NT Outfit', system-ui, sans-serif; font-weight: 700; font-size: 52px; line-height: 1.05; margin-top: 26px; color: var(--ac); }
+.ac-to { margin-top: 14px; font-size: 14px; text-transform: uppercase; letter-spacing: .12em; opacity: .8; }
+.ac-name { font-family: 'NT Outfit', system-ui, sans-serif; font-weight: 700; font-size: 34px; line-height: 1.15; margin-top: 4px; }
+.ac-sub { font-size: 15px; opacity: .85; margin-top: 2px; }
+.ac-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+.ac-item { background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.18); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.ac-item b { font-family: 'NT Outfit', system-ui, sans-serif; font-size: 26px; line-height: 1.1; color: var(--ac); }
+.ac-item span { font-size: 13.5px; line-height: 1.35; }
+.ac-msg { font-size: 17px; line-height: 1.5; margin: 22px 130px 0 0; font-style: italic; }
+.ac-foot { margin-top: auto; padding-top: 20px; display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding-right: 120px; opacity: .92; }
+.ac-foot span:first-child { font-weight: 700; }
+.ac-temu { position: absolute; right: 14px; bottom: 10px; width: 130px; }
+@media (max-width: 64rem) { .cm { grid-template-columns: 1fr; } .cm-prev { position: static; } }
+@media (max-width: 40rem) { .acard-wrap { zoom: .62; } }
+.cm-picks label, .cm-temu { text-transform: none; letter-spacing: normal; font-size: 14px; }

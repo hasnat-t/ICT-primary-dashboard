@@ -31,6 +31,7 @@
     report: ['Monthly report', 'Pick a month and get a one-page summary: sectors, FICO, schools leading and needing support, the calendar and children’s learning. Print it or save it as a PDF. Meetings love paper.'],
     spotlight: ['Leading & support', 'Schools and teachers leading the way, and where support is most needed, on using the tools or on classroom practice, with minimum sample sizes so one lucky lesson can’t top the chart. It’s for celebrating and planning support, not for judging. I checked.'],
     trends: ['Analytics', 'Week-by-week trends of the key measures: lesson plans, plans taught, observations, FICO scores, exams and quizzes. Lines going up: good. Lines going down: let’s talk.'],
+    cards: ['Appreciation cards', 'Make a thank-you card for a teacher or a school. Pick who it’s for, tick what to celebrate, write a message and download it for WhatsApp. Cards only show the person’s own figures, and FICO only as a band (Proficient or Exemplary), never a score. I can even pose on it. I’m very photogenic.'],
     glossary: ['How we count', 'What every number means and where it comes from. <b>Governed</b> = defined by the Taleemabad data rules. <b>Provisional</b> = set by the programme, may change. It’s the boring page that settles every argument.'],
   };
 
@@ -51,6 +52,7 @@
     ['How do coaches add a school calendar entry?', 'Open <b>School calendar</b>, press <b>+ Add to calendar</b>, pick the reason, dates and schools, and save. No passcode needed. Please only add what you actually know; I can’t fact-check holidays, I’m a parrot.', 'calendar', '#c-cal0'],
     ['Who is leading and who needs support?', '<b>Leading & support</b> ranks schools and teachers on using the tools or on classroom practice, with minimum samples so one lesson can’t top the chart. Celebrate the first list; help the second.', 'spotlight', '#c-sp0'],
     ['Can I share this dashboard?', 'Inside the NIETE and Taleemabad team only. Please don’t send the link to teachers, school heads or anyone outside: it shows named teachers’ FICO scores. Loose lips sink ships. And parrots.', null, '.confid'],
+    ['How do I make an appreciation card?', 'Open <b>Appreciation cards</b> (under Insights), or press <b>Make appreciation card</b> on any teacher’s or school’s popup. Tick up to 6 things to celebrate, add your message and name, and download. Spreading joy, one PNG at a time.', 'cards', '#c-cards'],
     ['Something looks wrong. Who do I tell?', 'Press <b>Feedback</b> at the bottom right. Hasnat reads every message. Even the angry ones. Especially the angry ones.', null, '#fb-open'],
   ];
 
@@ -542,6 +544,19 @@
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     }
     size(); addEventListener('resize', size);
+    // A still of TEMU in a friendly pose for appreciation cards (a bigger render, then back to normal).
+    window.temuSnapshot = () => {
+      const keep = [rig.rotation.clone(), rig.position.y, head.rotation.clone(), wingR.rotation.z, wingL.rotation.z, jaw.rotation.x];
+      rig.rotation.set(0, 0, 0); rig.position.y = MID; head.rotation.set(0.05, -0.2, 0.1);
+      wingR.rotation.z = 2.2; wingL.rotation.z = -0.15; jaw.rotation.x = 0.35;
+      eyes.forEach((e) => { e.scale.y = 1; }); pupils.forEach((p) => p.position.set(-0.02, 0, 0));
+      renderer.setPixelRatio(1); renderer.setSize(360, 444, false); camera.aspect = 360 / 444; camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+      const url = canvas.toDataURL('image/png');
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); size();
+      rig.rotation.copy(keep[0]); rig.position.y = keep[1]; head.rotation.copy(keep[2]); wingR.rotation.z = keep[3]; wingL.rotation.z = keep[4]; jaw.rotation.x = keep[5];
+      return url;
+    };
 
     const clock = new THREE.Clock();
     const ease = (a, b, k) => a + (b - a) * k;

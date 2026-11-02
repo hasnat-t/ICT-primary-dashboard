@@ -20,7 +20,7 @@
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar']]],
-    ['Insights', [['report', 'Monthly report'], ['spotlight', 'Leading & support'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
+    ['Insights', [['report', 'Monthly report'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -1210,6 +1210,146 @@
     dlg.showModal();
   }
 
+  // ---------- appreciation cards ----------
+  // Coaches make a card for a teacher or a school and save it as a picture to send. Cards leave the team, so a card
+  // shows only the recipient's own figures, and FICO only as a band (Proficient or Exemplary), never the score
+  // (owner decisions 2026-11-02: band only, English, three designs, nothing stored).
+  const CARD_DESIGNS = {
+    star: { label: 'Star', title: { teacher: 'Star Teacher', school: 'Star School' },
+      msg: { teacher: 'Your hard work in the classroom shines. Thank you for everything you do for your students!', school: 'Your school shines! Thank you to every teacher for the care and effort you bring to your students.' } },
+    thanks: { label: 'Thank you', title: { teacher: 'Thank You', school: 'Thank You' },
+      msg: { teacher: 'Thank you for your dedication and the care you bring to every lesson. It makes a real difference.', school: 'Thank you for your dedication and teamwork. Your students are lucky to have you.' } },
+    progress: { label: 'Great progress', title: { teacher: 'Great Progress', school: 'Great Progress' },
+      msg: { teacher: 'Your progress has been wonderful to see. Keep going — your students are lucky to have you!', school: 'Your school’s progress has been wonderful to see. Keep up the great work together!' } },
+  };
+  const CARD_FICO = { hlp: 'teaching practices', se: 'student engagement', tsk3: 'subject knowledge', lpf: 'lesson-plan fidelity' };
+  const CARD_MAX = 6;
+  let temuImg = null;
+  const cardState = () => (S.card = S.card || { kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '' });
+  function openCard(kind, key) {
+    const c = cardState();
+    c.kind = kind;
+    if (kind === 'teacher') { c.ti = String(key); c.si = String(S.data.teachers[key].s); } else { c.si = String(key); c.ti = ''; }
+    c.picks = null;
+    if (S.sector && S.data.schools[+c.si].sector !== S.sector) { S.sector = ''; S.school = ''; }
+    if ($('#modal').open) $('#modal').close();
+    S.tab = 'cards'; S.search = ''; render(); window.scrollTo(0, 0);
+  }
+  // Everything worth celebrating for the recipient in the chosen period, best first.
+  function cardFacts() {
+    const c = cardState(), si = +c.si, sc = S.data.schools[si];
+    const R = Calc.rollup(S.P, { from: S.from, to: S.to, school: si });
+    const len = S.to - S.from + 1, pf = S.from - len;
+    const PR = pf >= 0 ? Calc.rollup(S.P, { from: pf, to: S.from - 1, school: si }) : null;
+    let g, p, name, sub;
+    if (c.kind === 'teacher') {
+      const t = R.teachers.find((x) => x.i === +c.ti);
+      if (!t) return null;
+      g = Calc.asGroup(t);
+      const pt = PR && PR.teachers.find((x) => x.i === +c.ti);
+      p = pt ? Calc.asGroup(pt) : null;
+      name = t.name; sub = sc.name;
+    } else {
+      g = R.all; p = PR ? PR.all : null;
+      name = sc.name; sub = `${sc.sector} · ${N(g.teachers)} primary teachers`;
+    }
+    const items = [];
+    const add = (k, big, text) => items.push({ k, big, text });
+    for (const [src, f, who] of [['dc', g.ficoD, 'Digital Coach'], ['hitl', g.ficoH, 'coach observations']]) {
+      for (const sec of Object.keys(CARD_FICO)) {
+        const v = f[sec];
+        if (!v || !v[2]) continue;
+        const pc = fpct(v);
+        if (pc === null || pc < 70) continue;   // only bands worth celebrating
+        add(`${src}-${sec}`, pc >= 80 ? '★★★' : '★★', `${bandName(pc)} in ${CARD_FICO[sec]} (${who})`);
+      }
+    }
+    if (c.kind === 'teacher') {
+      const top = [1, 2, 3, 4].filter((l) => g.cert[l - 1]).pop();
+      if (top) { const [lv, nm] = LEVELS[top - 1].split(' · '); add('cert', lv, `${nm} certificate`); }
+    } else {
+      const share = [['usage', ratio(g.g15, g.teachers), 'of teachers used lesson plans'], ['dcPct', ratio(g.dcT, g.teachers), 'of teachers recorded a lesson on the Digital Coach'],
+        ['hitlPct', ratio(g.hitlT, g.teachers), 'of teachers welcomed a coach to their classroom']];
+      for (const [k, v, text] of share) if (v !== null && v >= 50) add(k, `${Math.round(v)}%`, text);
+      const leaders = g.cert[3] || 0;
+      if (leaders) add('cert', N(leaders), `Teacher Leader${leaders === 1 ? '' : 's'} (Level 3)`);
+    }
+    const nouns = { plans: 'lesson plans generated', dc: 'lessons recorded', made: 'quizzes made' };
+    if (p) for (const k of Object.keys(nouns)) if ((g[k] || 0) > (p[k] || 0) && p[k] > 0) add(`up-${k}`, `+${N(g[k] - p[k])}`, `more ${nouns[k]} than the ${len} days before`);
+    const counts = c.kind === 'teacher'
+      ? [['plans', 'lesson plans generated with Rumi'], ['opened', 'lesson plans read in the teacher app'], ['taught', 'planned lessons taught and recorded'], ['dc', 'lessons recorded on the Digital Coach'],
+        ['hitl', 'classroom observations with a coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took their quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'NIETE training modules finished']]
+      : [['plans', 'lesson plans generated'], ['dc', 'lessons recorded on the Digital Coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'training modules finished']];
+    for (const [k, text] of counts) if (g[k] > 0) add(k, N(g[k]), text);
+    return { name, sub, items };
+  }
+  function cardHtml(f) {
+    const c = cardState(), d = CARD_DESIGNS[c.design];
+    const picked = f.items.filter((i) => c.picks.has(i.k)).slice(0, CARD_MAX);
+    return `<div class="acard ac-${c.design}" id="acard">
+      <div class="ac-top"><span class="ac-logo"><img src="/assets/niete-logo.png" alt="NIETE"></span><span>ICT Primary · Teacher programme</span></div>
+      <div class="ac-title">${esc(c.title || d.title[c.kind])}</div>
+      <div class="ac-to">${c.kind === 'teacher' ? 'presented to' : 'presented to the whole team at'}</div>
+      <div class="ac-name">${esc(f.name)}</div><div class="ac-sub">${esc(f.sub)}</div>
+      ${picked.length ? `<div class="ac-grid">${picked.map((i) => `<div class="ac-item"><b>${esc(i.big)}</b><span>${esc(i.text)}</span></div>`).join('')}</div>` : ''}
+      <p class="ac-msg">“${esc(c.msg || d.msg[c.kind])}”</p>
+      <div class="ac-foot"><span>${c.from ? `— ${esc(c.from)}` : ''}</span><span>${esc(periodText())}</span></div>
+      ${c.temu && temuImg ? `<img class="ac-temu" src="${temuImg}" alt="">` : ''}
+    </div>`;
+  }
+  function viewCards() {
+    const c = cardState();
+    const schools = S.data.schools.map((sc, i) => [i, sc]).filter(([, sc]) => !S.sector || sc.sector === S.sector).sort((a, b) => a[1].name.localeCompare(b[1].name));
+    if (c.si === '' || !S.data.schools[+c.si] || (S.sector && S.data.schools[+c.si].sector !== S.sector)) c.si = S.school !== '' ? String(S.school) : String((schools[0] || [0])[0]);
+    const R = Calc.rollup(S.P, { from: S.from, to: S.to, school: +c.si });
+    const teachers = R.teachers.slice().sort((a, b) => a.name.localeCompare(b.name));
+    if (c.kind === 'teacher' && !teachers.some((t) => String(t.i) === c.ti)) c.ti = teachers.length ? String(teachers[0].i) : '';
+    if (c.kind === 'teacher' && c.ti === '') c.kind = 'school';
+    if (!temuImg && window.temuSnapshot) { try { temuImg = window.temuSnapshot(); } catch (e) { temuImg = null; } }
+    const f = cardFacts();
+    const key = `${c.kind}:${c.si}:${c.ti}:${S.from}:${S.to}`;
+    if (c.picks === null || c.pickFor !== key) { c.picks = new Set(f.items.slice(0, 4).map((i) => i.k)); c.pickFor = key; }
+    const full = c.picks.size >= CARD_MAX;
+    const d = CARD_DESIGNS[c.design];
+    const form = `<div class="cm-form">
+      <div class="fld"><span class="lbl">Card for</span><div class="seg" role="group" aria-label="Card for">
+        <button type="button" data-cmkind="teacher" aria-pressed="${c.kind === 'teacher'}" ${teachers.length ? '' : 'disabled'}>A teacher</button><button type="button" data-cmkind="school" aria-pressed="${c.kind === 'school'}">A school</button></div></div>
+      <div class="fld"><label for="cm-school">School</label><select class="sel" id="cm-school">${schools.map(([i, sc]) => `<option value="${i}" ${String(i) === c.si ? 'selected' : ''}>${esc(sc.name)} (${esc(sc.sector)})</option>`).join('')}</select></div>
+      ${c.kind === 'teacher' ? `<div class="fld"><label for="cm-teacher">Teacher</label><select class="sel" id="cm-teacher">${teachers.map((t) => `<option value="${t.i}" ${String(t.i) === c.ti ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}
+      <div class="fld"><span class="lbl">Design</span><div class="seg" role="group" aria-label="Design">${Object.entries(CARD_DESIGNS).map(([k, x]) => `<button type="button" data-cmdesign="${k}" aria-pressed="${c.design === k}">${x.label}</button>`).join('')}</div></div>
+      <div class="fld"><span class="lbl">What to celebrate <span class="dim">(up to ${CARD_MAX}, for ${esc(periodText())} — change the period above)</span></span>
+        <div class="cm-picks">${f.items.length ? f.items.map((i) => `<label><input type="checkbox" data-cmpick="${i.k}" ${c.picks.has(i.k) ? 'checked' : full ? 'disabled' : ''}> <b>${esc(i.big)}</b> ${esc(i.text)}</label>`).join('')
+          : '<p class="note">Nothing to count in this period yet. Try a longer period, like “Since 1 Aug”, or send a card with just your message.</p>'}</div></div>
+      <div class="fld"><label for="cm-title">Title</label><input class="inp" id="cm-title" maxlength="40" placeholder="${esc(d.title[c.kind])}" value="${esc(c.title)}"></div>
+      <div class="fld"><label for="cm-msg">Your message</label><textarea class="inp" id="cm-msg" rows="3" maxlength="240" placeholder="${esc(d.msg[c.kind])}">${esc(c.msg)}</textarea></div>
+      <div class="fld"><label for="cm-from">From</label><input class="inp" id="cm-from" maxlength="60" placeholder="e.g. Ayesha Khan, Coach Urban-I" value="${esc(c.from)}"></div>
+      <label class="cm-temu"><input type="checkbox" id="cm-temu" ${c.temu && temuImg ? 'checked' : ''} ${temuImg ? '' : 'disabled'}> Add TEMU to the card${temuImg ? '' : ' <span class="dim">(TEMU is still waking up, or hidden)</span>'}</label>
+      <p class="note">A card shows only this ${c.kind === 'teacher' ? 'teacher’s' : 'school’s'} own figures. FICO appears only as a band (Proficient or Exemplary), never as a score. Nothing is saved.</p>
+    </div>`;
+    const prev = `<div class="cm-prev"><div class="acard-wrap" id="acard-wrap">${f ? cardHtml(f) : ''}</div>
+      <div class="row"><button class="btn dark" type="button" data-cmsave>Download card</button>${navigator.canShare ? '<button class="btn" type="button" data-cmshare>Share…</button>' : ''}</div></div>`;
+    return card('c-cards', 'Appreciation cards', 'Make a thank-you card for a teacher or a school, pick what to celebrate, and download it to send on WhatsApp.', `<div class="cm">${form}${prev}</div>`);
+  }
+  function refreshCard() { const f = cardFacts(); if (f && $('#acard-wrap')) $('#acard-wrap').innerHTML = cardHtml(f); }
+  async function cardImage() {
+    const el = $('#acard'), wrap = $('#acard-wrap');
+    const z = wrap.style.zoom; wrap.style.zoom = '1';
+    try { return await window.htmlToImage.toBlob(el, { pixelRatio: 2, cacheBust: true }); } finally { wrap.style.zoom = z; }
+  }
+  async function cardSave(share) {
+    const f = cardFacts();
+    if (!f || !window.htmlToImage) return;
+    const name = `Appreciation card - ${f.name}.png`.replace(/[\\/:*?"<>|]/g, '');
+    const blob = await cardImage();
+    if (share) {
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: 'Appreciation card' }); } catch (e) { /* cancelled */ } return; }
+    }
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
   // ---------- how we count (glossary) ----------
   // G = governed by the Taleemabad data rules; P = provisional (owner-defined or ungoverned, may change).
   const GLOSSARY = [
@@ -1259,6 +1399,7 @@
       ['Leading & support', '', 'Rankings on “using the tools” (share of teachers using lesson plans, DC, quizzes, exams) or classroom practice (DC or HITL FICO teaching practices + student engagement), with minimum samples. Where to celebrate and where to send support — not a judgement.', ''],
       ['School calendar', '', 'Exams, sports weeks, holidays, events and closures entered by coaches, plus federal public holidays from the Cabinet Division notifications.', ''],
       ['Feedback', '', 'Messages sent with the Feedback button go to the dashboard owner, who decides what to work on.', ''],
+      ['Appreciation cards', '', 'A picture a coach makes for one teacher or school, showing only that teacher’s or school’s own figures for the chosen period. FICO appears only as a band, and only when it is Proficient or Exemplary; never a score. Counts are the same as the tables. Nothing is saved.', ''],
     ]],
   ];
   function viewGlossary() {
@@ -1699,7 +1840,7 @@
     const keyOf = (d) => (S.gran === 'day' ? d : S.gran === 'week' ? Math.max(Calc.mondayOf(S.data.window_start, d), 0) : Calc.monthKey(S.data.window_start, d));
     for (const r of S.P.lp[ti]) if (r[1] >= S.from && r[1] <= S.to && by.has(keyOf(r[1]))) by.get(keyOf(r[1])).plan += r[2] || r[3] ? 1 : 0;
     for (const r of S.P.obs[ti]) if (r[1] >= S.from && r[1] <= S.to && by.has(keyOf(r[1]))) by.get(keyOf(r[1]))[r[2] === 'D' ? 'dc' : 'hitl']++;
-    return { title: T.name, sub: `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`, html: `<section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
+    return { title: T.name, sub: `${sc.name} · EMIS ${sc.emis} · ${sc.sector} · teaches ${T.lv.split('').map((c) => ({ P: 'primary', M: 'middle', H: 'high' }[c])).join(' + ')} · ${periodText()}`, html: `<div class="row m-acts"><button class="btn" type="button" data-card="teacher:${ti}">Make appreciation card</button></div><section class="card" id="c-tc"><div class="card-h"><h2>Scorecard</h2><button class="dl" data-dl="c-tc">Download image</button></div>
       <div class="kpis">${kpi('Days a plan was used', N(t.lpDays), 'generated or opened')}${kpi('Plans generated', N(t.plans), 'grade 1–5, with Rumi')}${kpi('Plans opened in the app', N(t.opened), 'grade 1–5')}${kpi('Plans taught', N(t.taught), 'seen in DC observations')}
       ${kpi('DC observations', N(t.dc), 'lessons recorded')}${kpi('HITL observations', N(t.hitl), `${N(t.hitlC)} debriefed`)}
       ${kpi('Quizzes made', N(t.made))}${kpi('Exam generator', N(t.exOk), `papers · ${N(t.exReq)} requested`)}${kpi('Children (lesson quizzes)', N(t.kidsL), `${N(t.sitL)} sittings`)}
@@ -1851,7 +1992,7 @@
       const rows = R.teachers.map((t) => Object.assign(Calc.asGroup(t), { t, name: t.name, key: t.i }));
       title = sc.name;
       sub = `EMIS ${sc.emis}${MS.length > 1 ? '' : ` · ${sc.sector}`} · ${N(R.all.teachers)} primary teachers · ${periodText()}`;
-      html = `<section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
+      html = `<div class="row m-acts"><button class="btn" type="button" data-card="school:${v.key}">Make appreciation card</button></div><section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
         <p class="note">Click a teacher for the scorecard. Contains teacher names — internal use only.</p>
         ${table('m-tch', [nameCol('teacher'), ...teacherCols()], rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`
         + schoolCalendarCard(v.key);
@@ -1904,7 +2045,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
@@ -2014,6 +2155,13 @@
     else if (b.dataset.caladd !== undefined) { calendarForm(); }
     else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
+    else if (b.dataset.card) { const [k, v] = b.dataset.card.split(':'); openCard(k, +v); }
+    else if (b.dataset.cmkind) { cardState().kind = b.dataset.cmkind; render(); }
+    else if (b.dataset.cmdesign) { cardState().design = b.dataset.cmdesign; render(); }
+    else if (b.dataset.cmsave !== undefined || b.dataset.cmshare !== undefined) {
+      const lbl = b.textContent; b.disabled = true; b.textContent = 'Preparing…';
+      cardSave(b.dataset.cmshare !== undefined).catch((err) => { console.error(err); alert('Could not make the picture. Please try again.'); }).finally(() => { b.disabled = false; b.textContent = lbl; });
+    }
     else if (b.dataset.focus) {
       const f = b.dataset.focus, i = f.indexOf(':'), kind = i < 0 ? f : f.slice(0, i), val = i < 0 ? '' : f.slice(i + 1);
       if (kind === 'clear') { S.sector = ''; S.school = ''; }
@@ -2047,6 +2195,19 @@
     }
   });
   document.addEventListener('change', (e) => { if (e.target.id === 'repMonth') { S.repMonth = e.target.value; render(); } });
+  // card maker: choices redraw the tab; typing only redraws the card, so the text box keeps focus
+  document.addEventListener('change', (e) => {
+    const t = e.target, c = S.card;
+    if (!c) return;
+    if (t.id === 'cm-school') { c.si = t.value; c.ti = ''; render(); }
+    else if (t.id === 'cm-teacher') { c.ti = t.value; render(); }
+    else if (t.id === 'cm-temu') { c.temu = t.checked; render(); }
+    else if (t.dataset.cmpick) { if (t.checked) c.picks.add(t.dataset.cmpick); else c.picks.delete(t.dataset.cmpick); render(); }
+  });
+  document.addEventListener('input', (e) => {
+    const c = S.card, k = { 'cm-title': 'title', 'cm-msg': 'msg', 'cm-from': 'from' }[e.target.id];
+    if (c && k) { c[k] = e.target.value; refreshCard(); }
+  });
   document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } else if (e.target.id === 'gsearch') { S.gq = e.target.value; render(); } });
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.close(); });
   // A pasted or edited link (replaceState in writeHash does not fire this).
