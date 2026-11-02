@@ -1225,27 +1225,16 @@
   const CARD_FICO = { hlp: 'teaching practices', se: 'student engagement', tsk3: 'subject knowledge', lpf: 'lesson-plan fidelity' };
   const CARD_MAX = 6;
   let temuImg = null;
-  const cardState = () => (S.card = S.card || { mode: 'card', kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '', per: '30', cfrom: null, cto: null,
+  const cardState = () => (S.card = S.card || { mode: 'card', kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '',
     pInd: new Set(['plans', 'dc', 'lpf', 'tsk3', 'hlp', 'se']), pSrc: 'dc', pRank: 'overall', pN: 3, pMinPlans: 1, pMinDc: 1, pGood: false, pWhole: true, pHead: '', pMsg: '', pFoot: '', pArt: 'art' });
   // A card has its own period (not the dashboard filter): a day or a week is usually too short to celebrate.
-  const CARD_PERIODS = ['week', 'lastweek', 'month', 'lastmonth', '30', 'all', 'custom'];
-  function cardRange() {
-    const c = cardState();
-    let from, to;
-    if (c.per === 'custom') {
-      if (c.cfrom === null || c.cto === null) { c.cto = S.data.today; c.cfrom = Math.max(0, S.data.today - 6); }
-      from = Math.max(0, Math.min(c.cfrom, c.cto)); to = Math.min(S.data.today, Math.max(c.cfrom, c.cto));
-    } else {
-      const p = presets().find((x) => x[0] === c.per) || presets().find((x) => x[0] === '30');
-      from = Math.max(p[2], 0); to = Math.max(from, p[3]);
-    }
-    return { from, to, text: from === to ? niceY(from) : `${nice(from)} – ${niceY(to)}` };
-  }
-  // the period picker shared by the card and the poster (own period, not the dashboard filter)
+  // Cards and posters use the dashboard's own period, so the Period filter at the top and the time-frame box on this
+  // tab are one setting: changing either changes the card. (A separate card period, tried first, made the top filter
+  // look broken on this tab.) Opening the tab on Today or Yesterday moves it to Last 30 days: a day is too short.
+  function cardRange() { return { from: S.from, to: S.to, text: periodText() }; }
   function cardPeriodField(label) {
-    const c = cardState(), rg = cardRange();
-    return `<div class="fld"><label for="cm-per">${label}</label><select class="sel" id="cm-per">${presets().filter((x) => CARD_PERIODS.includes(x[0])).map(([k, l]) => `<option value="${k}" ${c.per === k ? 'selected' : ''}>${esc(k === 'custom' ? 'Choose dates…' : l)}</option>`).join('')}</select>
-      ${c.per === 'custom' ? `<div class="row"><input class="inp" type="date" id="cm-cfrom" value="${iso(rg.from)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="From"><span class="dim">to</span><input class="inp" type="date" id="cm-cto" value="${iso(rg.to)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="To"></div>` : `<span class="dim">${esc(rg.text)}</span>`}</div>`;
+    return `<div class="fld"><label for="cm-per">${label} <span class="dim">(same as the Period filter above)</span></label><select class="sel" id="cm-per">${presets().map(([k, l]) => `<option value="${k}" ${S.preset === k ? 'selected' : ''}>${esc(k === 'custom' ? 'Choose dates…' : l)}</option>`).join('')}</select>
+      ${S.preset === 'custom' ? `<div class="row"><input class="inp" type="date" id="cm-cfrom" value="${iso(S.from)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="From"><span class="dim">to</span><input class="inp" type="date" id="cm-cto" value="${iso(S.to)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="To"></div>` : `<span class="dim">${esc(periodText())}</span>`}</div>`;
   }
   const cardModeSeg = () => `<div class="row cm-mode"><div class="seg" role="group" aria-label="What to make"><button type="button" data-cmmode="card" aria-pressed="${cardState().mode === 'card'}">One card</button><button type="button" data-cmmode="poster" aria-pressed="${cardState().mode === 'poster'}">School stars poster</button></div></div>`;
   function openCard(kind, key) {
@@ -1423,7 +1412,7 @@
   function posterHtml(f) {
     const c = cardState(), g = f.R.all;
     const head = esc(c.pHead || 'Our ICT stars shine').replace(/\b(stars?)\b/i, '<em>$1</em>');
-    const when = { week: 'this week', lastweek: 'last week', month: 'this month', lastmonth: 'last month' }[c.per] || 'in this period';
+    const when = { today: 'today', yesterday: 'yesterday', week: 'this week', lastweek: 'last week', month: 'this month', lastmonth: 'last month' }[S.preset] || 'in this period';
     const rankName = c.pRank === 'overall' ? 'all chosen indicators' : (POSTER_IND.find(([k]) => k === c.pRank) || POSTER_FICO.map(([k, l]) => [`f-${k}`, l]).find(([k]) => k === c.pRank) || [0, 'all chosen indicators'])[1].toLowerCase();
     const chips = [];
     if (c.pMinPlans > 0) chips.push([`${c.pMinPlans}+`, `lesson plans ${when}`]);
@@ -2195,6 +2184,11 @@
   // ---------- render ----------
   function render() {
     if (!S.data) return;
+    if (S.tab !== 'cards') S.cardsOpen = false;
+    else if (!S.cardsOpen) {
+      S.cardsOpen = true;
+      if (S.preset === 'today' || S.preset === 'yesterday') { const p = presets().find((x) => x[0] === '30'); S.preset = '30'; S.from = Math.max(p[2], 0); S.to = p[3]; }
+    }
     writeHash();
     $('#nav').innerHTML = NAV.map(([t, items]) => `<div class="nav-g">${t ? `<span class="nav-t">${t}</span>` : ''}${items.map(([k, l]) => `<button type="button" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</div>`).join('');
     $('#h1').textContent = TABS.find((t) => t[0] === S.tab)[1];
@@ -2387,8 +2381,14 @@
     if (t.id === 'cm-school') { c.si = t.value; c.ti = ''; render(); }
     else if (t.id === 'cm-teacher') { c.ti = t.value; render(); }
     else if (t.id === 'cm-temu') { c.temu = t.checked; render(); }
-    else if (t.id === 'cm-per') { c.per = t.value; render(); }
-    else if (t.id === 'cm-cfrom' || t.id === 'cm-cto') { const d = t.value ? Calc.dateToDay(S.data.window_start, t.value) : null; if (d !== null) { c[t.id === 'cm-cfrom' ? 'cfrom' : 'cto'] = Math.max(0, Math.min(d, S.data.today)); render(); } }
+    else if (t.id === 'cm-per') { if (t.value === 'custom') { S.preset = 'custom'; render(); } else setPreset(t.value); }
+    else if (t.id === 'cm-cfrom' || t.id === 'cm-cto') {
+      const d = t.value ? Calc.dateToDay(S.data.window_start, t.value) : null;
+      if (d === null) return;
+      if (t.id === 'cm-cfrom') S.from = Math.max(0, Math.min(d, S.data.today)); else S.to = Math.max(0, Math.min(d, S.data.today));
+      if (S.from > S.to) [S.from, S.to] = [S.to, S.from];
+      S.preset = 'custom'; render();
+    }
     else if (t.dataset.ppick) { if (t.checked) c.pInd.add(t.dataset.ppick); else c.pInd.delete(t.dataset.ppick); render(); }
     else if (t.id === 'p-rank') { c.pRank = t.value; render(); }
     else if (t.id === 'p-n') { c.pN = +t.value; render(); }
