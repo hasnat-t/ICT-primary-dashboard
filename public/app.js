@@ -1225,7 +1225,14 @@
   const CARD_FICO = { hlp: 'teaching practices', se: 'student engagement', tsk3: 'subject knowledge', lpf: 'lesson-plan fidelity' };
   const CARD_MAX = 6;
   let temuImg = null;
-  const cardState = () => (S.card = S.card || { kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '' });
+  const cardState = () => (S.card = S.card || { kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '', per: '30' });
+  // A card has its own period (not the dashboard filter): a day or a week is usually too short to celebrate.
+  const CARD_PERIODS = ['week', 'month', 'lastmonth', '30', 'all'];
+  function cardRange() {
+    const c = cardState(), p = presets().find((x) => x[0] === c.per) || presets().find((x) => x[0] === '30');
+    const from = Math.max(p[2], 0), to = Math.max(from, p[3]);
+    return { from, to, text: from === to ? niceY(from) : `${nice(from)} – ${niceY(to)}` };
+  }
   function openCard(kind, key) {
     const c = cardState();
     c.kind = kind;
@@ -1237,10 +1244,10 @@
   }
   // Everything worth celebrating for the recipient in the chosen period, best first.
   function cardFacts() {
-    const c = cardState(), si = +c.si, sc = S.data.schools[si];
-    const R = Calc.rollup(S.P, { from: S.from, to: S.to, school: si });
-    const len = S.to - S.from + 1, pf = S.from - len;
-    const PR = pf >= 0 ? Calc.rollup(S.P, { from: pf, to: S.from - 1, school: si }) : null;
+    const c = cardState(), si = +c.si, sc = S.data.schools[si], rg = cardRange();
+    const R = Calc.rollup(S.P, { from: rg.from, to: rg.to, school: si });
+    const len = rg.to - rg.from + 1, pf = rg.from - len;
+    const PR = pf >= 0 ? Calc.rollup(S.P, { from: pf, to: rg.from - 1, school: si }) : null;
     let g, p, name, sub;
     if (c.kind === 'teacher') {
       const t = R.teachers.find((x) => x.i === +c.ti);
@@ -1266,24 +1273,26 @@
     }
     if (c.kind === 'teacher') {
       const top = [1, 2, 3, 4].filter((l) => g.cert[l - 1]).pop();
-      if (top) { const [lv, nm] = LEVELS[top - 1].split(' · '); add('cert', lv, `${nm} certificate`); }
+      if (top) { const [lv, nm] = LEVELS[top - 1].split(' · '); add('cert', lv, `${nm} certificate (all time)`); }
     } else {
       const share = [['usage', ratio(g.g15, g.teachers), 'of teachers used lesson plans'], ['dcPct', ratio(g.dcT, g.teachers), 'of teachers recorded a lesson on the Digital Coach'],
         ['hitlPct', ratio(g.hitlT, g.teachers), 'of teachers welcomed a coach to their classroom']];
       for (const [k, v, text] of share) if (v !== null && v >= 50) add(k, `${Math.round(v)}%`, text);
       const leaders = g.cert[3] || 0;
-      if (leaders) add('cert', N(leaders), `Teacher Leader${leaders === 1 ? '' : 's'} (Level 3)`);
+      if (leaders) add('cert', N(leaders), `Teacher Leader${leaders === 1 ? '' : 's'} (Level 3, all time)`);
     }
     const nouns = { plans: 'lesson plans generated', dc: 'lessons recorded', made: 'quizzes made' };
     if (p) for (const k of Object.keys(nouns)) if ((g[k] || 0) > (p[k] || 0) && p[k] > 0) add(`up-${k}`, `+${N(g[k] - p[k])}`, `more ${g[k] - p[k] === 1 ? nouns[k].replace(/^(lesson plans|lessons|quizzes)/, (w) => ({ 'lesson plans': 'lesson plan', lessons: 'lesson', quizzes: 'quiz' }[w])) : nouns[k]} than the ${len} days before`);
     const counts = c.kind === 'teacher'
       ? [['plans', 'lesson plans generated with Rumi'], ['opened', 'lesson plans read in the teacher app'], ['taught', 'planned lessons taught and recorded'], ['dc', 'lessons recorded on the Digital Coach'],
-        ['hitl', 'classroom observations with a coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took their quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'NIETE training modules finished']]
-      : [['plans', 'lesson plans generated'], ['dc', 'lessons recorded on the Digital Coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'training modules finished']];
+        ['hitl', 'classroom observations with a coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took their quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'NIETE training modules finished (all time)']]
+      : [['plans', 'lesson plans generated'], ['dc', 'lessons recorded on the Digital Coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'training modules finished (all time)']];
     // "1 lesson recorded", not "1 lessons recorded"
-    const one = (text) => text.replace(/^(lesson plans|lessons|planned lessons|classroom observations|lesson quizzes|exam papers|NIETE training modules|training modules)/, (w) => w.replace(/(plans|lessons|observations|papers|modules)$/, (x) => x.slice(0, -1)).replace(/quizzes$/, 'quiz')).replace(/^children took their/, 'child took their').replace(/^children took the/, 'child took the');
+    const one = (text) => text.replace(/^(lesson plans|lessons|planned lessons|classroom observations|lesson quizzes|exam papers|NIETE training modules|training modules)/, (w) => w.replace(/(plans|lessons|observations|papers|modules)$/, (x) => x.slice(0, -1)).replace(/quizzes$/, 'quiz')).replace(/^children took their/, 'child took their').replace(/^children took the/, 'child took the');
     for (const [k, text] of counts) if (g[k] > 0) add(k, N(g[k]), g[k] === 1 ? one(text) : text);
-    return { name, sub, items };
+    // training (certificates, modules) is all-time; everything else is activity in the card's period
+    const active = items.some((i) => i.k !== 'cert' && i.k !== 'mods');
+    return { name, sub, items, active };
   }
   function cardHtml(f) {
     const c = cardState(), d = CARD_DESIGNS[c.design];
@@ -1295,7 +1304,7 @@
       <div class="ac-name">${esc(f.name)}</div><div class="ac-sub">${esc(f.sub)}</div>
       ${picked.length ? `<div class="ac-grid">${picked.map((i) => `<div class="ac-item"><b>${esc(i.big)}</b><span>${esc(i.text)}</span></div>`).join('')}</div>` : ''}
       <p class="ac-msg">“${esc(c.msg || d.msg[c.kind])}”</p>
-      <div class="ac-foot"><span>${c.from ? `— ${esc(c.from)}` : ''}</span><span>${esc(periodText())}</span></div>
+      <div class="ac-foot"><span>${c.from ? `— ${esc(c.from)}` : ''}</span><span>${esc(cardRange().text)}</span></div>
       ${c.temu && temuImg ? `<img class="ac-temu" src="${temuImg}" alt="">` : ''}
     </div>`;
   }
@@ -1303,13 +1312,14 @@
     const c = cardState();
     const schools = S.data.schools.map((sc, i) => [i, sc]).filter(([, sc]) => !S.sector || sc.sector === S.sector).sort((a, b) => a[1].name.localeCompare(b[1].name));
     if (c.si === '' || !S.data.schools[+c.si] || (S.sector && S.data.schools[+c.si].sector !== S.sector)) c.si = S.school !== '' ? String(S.school) : String((schools[0] || [0])[0]);
-    const R = Calc.rollup(S.P, { from: S.from, to: S.to, school: +c.si });
+    const rg = cardRange();
+    const R = Calc.rollup(S.P, { from: rg.from, to: rg.to, school: +c.si });
     const teachers = R.teachers.slice().sort((a, b) => a.name.localeCompare(b.name));
     if (c.kind === 'teacher' && !teachers.some((t) => String(t.i) === c.ti)) c.ti = teachers.length ? String(teachers[0].i) : '';
     if (c.kind === 'teacher' && c.ti === '') c.kind = 'school';
     if (!temuImg && window.temuSnapshot) { try { temuImg = window.temuSnapshot(); } catch (e) { temuImg = null; } }
     const f = cardFacts();
-    const key = `${c.kind}:${c.si}:${c.ti}:${S.from}:${S.to}`;
+    const key = `${c.kind}:${c.si}:${c.ti}:${rg.from}:${rg.to}`;
     if (c.picks === null || c.pickFor !== key) { c.picks = new Set(f.items.slice(0, 4).map((i) => i.k)); c.pickFor = key; }
     const full = c.picks.size >= CARD_MAX;
     const d = CARD_DESIGNS[c.design];
@@ -1319,7 +1329,9 @@
       <div class="fld"><label for="cm-school">School</label><select class="sel" id="cm-school">${schools.map(([i, sc]) => `<option value="${i}" ${String(i) === c.si ? 'selected' : ''}>${esc(sc.name)} (${esc(sc.sector)})</option>`).join('')}</select></div>
       ${c.kind === 'teacher' ? `<div class="fld"><label for="cm-teacher">Teacher</label><select class="sel" id="cm-teacher">${teachers.map((t) => `<option value="${t.i}" ${String(t.i) === c.ti ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}
       <div class="fld"><span class="lbl">Design</span><div class="seg" role="group" aria-label="Design">${Object.entries(CARD_DESIGNS).map(([k, x]) => `<button type="button" data-cmdesign="${k}" aria-pressed="${c.design === k}">${x.label}</button>`).join('')}</div></div>
-      <div class="fld"><span class="lbl">What to celebrate <span class="dim">(up to ${CARD_MAX}, for ${esc(periodText())} — change the period above)</span></span>
+      <div class="fld"><label for="cm-per">Period on the card</label><select class="sel" id="cm-per">${presets().filter((x) => CARD_PERIODS.includes(x[0])).map(([k, l]) => `<option value="${k}" ${c.per === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><span class="dim">${esc(rg.text)}</span></div>
+      <div class="fld"><span class="lbl">What to celebrate <span class="dim">(up to ${CARD_MAX})</span></span>
+        ${f.items.length && !f.active ? '<p class="note">Only training shows for this period: no lesson plans, recordings or quizzes yet. Try a longer period, like “Last 30 days” or “Since 1 Aug”.</p>' : ''}
         <div class="cm-picks">${f.items.length ? f.items.map((i) => `<label><input type="checkbox" data-cmpick="${i.k}" ${c.picks.has(i.k) ? 'checked' : full ? 'disabled' : ''}> <b>${esc(i.big)}</b> ${esc(i.text)}</label>`).join('')
           : '<p class="note">Nothing to count in this period yet. Try a longer period, like “Since 1 Aug”, or send a card with just your message.</p>'}</div></div>
       <div class="fld"><label for="cm-title">Title</label><input class="inp" id="cm-title" maxlength="40" placeholder="${esc(d.title[c.kind])}" value="${esc(c.title)}"></div>
@@ -2204,6 +2216,7 @@
     if (t.id === 'cm-school') { c.si = t.value; c.ti = ''; render(); }
     else if (t.id === 'cm-teacher') { c.ti = t.value; render(); }
     else if (t.id === 'cm-temu') { c.temu = t.checked; render(); }
+    else if (t.id === 'cm-per') { c.per = t.value; render(); }
     else if (t.dataset.cmpick) { if (t.checked) c.picks.add(t.dataset.cmpick); else c.picks.delete(t.dataset.cmpick); render(); }
   });
   document.addEventListener('input', (e) => {
