@@ -1426,7 +1426,7 @@
     if (c.pMinPlans > 0) chips.push([`${c.pMinPlans}+`, `lesson plans ${when}`]);
     if (c.pMinDc > 0) chips.push([`${c.pMinDc}+`, 'Digital Coach observations']);
     if (c.pGood && f.ficos.length) chips.push(['✓', `Proficient or better on ${f.ficos.length === 4 ? 'all four' : f.ficos.length === 1 ? 'the chosen' : 'every chosen'} FICO section${f.ficos.length === 1 ? '' : 's'}`]);
-    else chips.push(['★', `Top ${c.pN} on ${rankName}`]);
+    else chips.push(['★', `Top ${f.top.length || c.pN} on ${rankName}`]);
     const tiles = [];
     for (const [k, label] of f.acts) {
       const sub = k === 'plans' ? `${P0(ratio(g.g15, g.teachers))} of teachers used a plan` : k === 'dc' ? `${P0(ratio(g.dcT, g.teachers))} of teachers recorded` : k === 'hitl' ? `${P0(ratio(g.hitlT, g.teachers))} of teachers observed` : '';
