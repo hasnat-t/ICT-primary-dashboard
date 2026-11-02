@@ -1390,7 +1390,9 @@
     const val = (g, k) => (k.startsWith('f-') ? fv(g, k.slice(2)) : g[k] || 0);
     const keys = [...acts.map(([k]) => k), ...ficos.map(([k]) => `f-${k}`)];
     const rows = R.teachers.map((t) => ({ t, g: Calc.asGroup(t) }))
-      .filter(({ g }) => (g.plans || 0) >= c.pMinPlans && (g.dc || 0) >= c.pMinDc && (!c.pGood || ficos.every(([k]) => (fv(g, k) ?? 0) >= 70)));
+      // owner rule 2026-11-02: a teacher appears only with 60%+ (Developing or better) in every chosen FICO section;
+      // a section with no score does not count as 60%+. The stricter option asks for 70%+ (Proficient).
+      .filter(({ g }) => (g.plans || 0) >= c.pMinPlans && (g.dc || 0) >= c.pMinDc && ficos.every(([k]) => (fv(g, k) ?? -1) >= (c.pGood ? 70 : 60)));
     // Overall: each indicator scaled to the best in the school, averaged; or one indicator on its own.
     const max = Object.fromEntries(keys.map((k) => [k, Math.max(0, ...rows.map((r) => val(r.g, k) ?? 0))]));
     for (const r of rows) {
@@ -1399,7 +1401,8 @@
         : (val(r.g, c.pRank) ?? -1);
     }
     const ranked = rows.filter((r) => r.score > 0).sort((a, b) => b.score - a.score || (b.g.plans || 0) - (a.g.plans || 0) || a.t.name.localeCompare(b.t.name));
-    return { sc, rg, R, acts, ficos, fv, top: ranked.slice(0, c.pN), eligible: ranked.length };
+    const noScore = ficos.filter(([k]) => R.teachers.every((t) => fv(Calc.asGroup(t), k) === null)).map(([, l]) => l);
+    return { sc, rg, R, acts, ficos, fv, top: ranked.slice(0, c.pN), eligible: ranked.length, noScore };
   }
   const SVG_RIBBON = '<svg viewBox="0 0 48 60" width="46" aria-hidden="true"><path d="M13 33 7 56l8-4 4 6 7-20z" fill="#2F3441"/><path d="m35 33 6 23-8-4-4 6-7-20z" fill="#7FD3A3"/><circle cx="24" cy="22" r="20" fill="#45B97C"/><circle cx="24" cy="22" r="15" fill="none" stroke="#fff" stroke-width="2.5"/><path d="m24 11.5 3.2 6.6 7.2.9-5.3 5 1.4 7.1-6.5-3.5-6.5 3.5 1.4-7.1-5.3-5 7.2-.9z" fill="#fff"/></svg>';
   const SVG_CAL = '<svg viewBox="0 0 40 40" width="40" aria-hidden="true"><rect x="3" y="7" width="34" height="30" rx="6" fill="#2F3441"/><rect x="7" y="16" width="26" height="17" rx="2" fill="#fff"/><rect x="10" y="2" width="4" height="9" rx="2" fill="#2F3441"/><rect x="26" y="2" width="4" height="9" rx="2" fill="#2F3441"/><rect x="10" y="19" width="6" height="4" rx="1" fill="#45B97C"/><rect x="18" y="19" width="6" height="4" rx="1" fill="#45B97C"/><rect x="26" y="19" width="4" height="4" rx="1" fill="#45B97C"/><rect x="10" y="26" width="6" height="4" rx="1" fill="#45B97C"/></svg>';
@@ -1425,7 +1428,7 @@
     const chips = [];
     if (c.pMinPlans > 0) chips.push([`${c.pMinPlans}+`, `lesson plans ${when}`]);
     if (c.pMinDc > 0) chips.push([`${c.pMinDc}+`, 'Digital Coach observations']);
-    if (c.pGood && f.ficos.length) chips.push(['✓', `Proficient or better on ${f.ficos.length === 4 ? 'all four' : f.ficos.length === 1 ? 'the chosen' : 'every chosen'} FICO section${f.ficos.length === 1 ? '' : 's'}`]);
+    if (f.ficos.length) chips.push(['✓', `${c.pGood ? 'Proficient' : 'Developing'} or better on ${f.ficos.length === 4 ? 'all four' : f.ficos.length === 1 ? 'the chosen' : 'every chosen'} FICO section${f.ficos.length === 1 ? '' : 's'}`]);
     else chips.push(['★', `Top ${f.top.length || c.pN} on ${rankName}`]);
     const tiles = [];
     for (const [k, label] of f.acts) {
@@ -1451,7 +1454,9 @@
     </div>`;
   }
   function posterCount(f) {
-    return f.eligible ? `${N(f.eligible)} teacher${f.eligible === 1 ? '' : 's'} at this school qualif${f.eligible === 1 ? 'ies' : 'y'}; the poster shows the top ${Math.min(cardState().pN, f.eligible)}.` : 'No teacher qualifies yet: lower the minimums or choose a longer period.';
+    if (f.eligible) return `${N(f.eligible)} teacher${f.eligible === 1 ? '' : 's'} at this school qualif${f.eligible === 1 ? 'ies' : 'y'}; the poster shows the top ${Math.min(cardState().pN, f.eligible)}.`;
+    const why = f.noScore.length ? ` No teacher has a ${f.noScore.join(' or ').toLowerCase()} score in this time frame, so untick ${f.noScore.length === 1 ? 'it' : 'them'} or choose a longer period.` : ' Lower the minimums, untick a FICO section, or choose a longer period.';
+    return `No teacher qualifies yet: each needs 60%+ in every chosen FICO section.${why}`;
   }
   function viewPoster() {
     const c = cardState();
@@ -1474,13 +1479,13 @@
         <div class="fld"><label for="p-n">Teachers on the poster</label><select class="sel" id="p-n">${[1, 2, 3, 4, 5].map((n) => `<option ${c.pN === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
       <div class="cm-two"><div class="fld"><label for="p-minplans">At least … lesson plans</label><input class="inp" type="number" id="p-minplans" min="0" max="999" value="${c.pMinPlans}"></div>
         <div class="fld"><label for="p-mindc">At least … DC recordings</label><input class="inp" type="number" id="p-mindc" min="0" max="999" value="${c.pMinDc}"></div></div>
-      <label class="cm-temu"><input type="checkbox" id="p-good" ${c.pGood ? 'checked' : ''} ${nFico ? '' : 'disabled'}> Only teachers Proficient or better on every chosen FICO section</label>
+      <label class="cm-temu"><input type="checkbox" id="p-good" ${c.pGood ? 'checked' : ''} ${nFico ? '' : 'disabled'}> Stricter: Proficient (70%+) on every chosen FICO section</label>
       <label class="cm-temu"><input type="checkbox" id="p-whole" ${c.pWhole ? 'checked' : ''}> Show whole-school figures</label>
       <div class="fld"><label for="p-head">Headline</label><input class="inp" id="p-head" maxlength="40" placeholder="Our ICT stars shine" value="${esc(c.pHead)}"></div>
       <div class="fld"><label for="p-msg">Message</label><textarea class="inp" id="p-msg" rows="3" maxlength="200" placeholder="Because of you, excellence in teaching is no longer a goal. It is happening in our classrooms. Thank you.">${esc(c.pMsg)}</textarea></div>
       <div class="fld"><label for="p-foot">Closing line</label><input class="inp" id="p-foot" maxlength="80" placeholder="Thank you for your continuous dedication and efforts." value="${esc(c.pFoot)}"></div>
       <div class="fld"><span class="lbl">Picture</span><div class="seg" role="group" aria-label="Picture"><button type="button" data-part="art" aria-pressed="${c.pArt === 'art'}">Illustration</button><button type="button" data-part="temu" aria-pressed="${c.pArt === 'temu'}" ${temuImg ? '' : 'disabled'}>TEMU</button></div></div>
-      <p class="note">The poster names this school’s top teachers for the time frame. FICO appears only as a band (below Developing shows as a dash), never as a score. Nothing is saved.</p>
+      <p class="note">A teacher appears only with 60% or more (Developing or better) in every chosen FICO section; a section with no score in the time frame does not count. The poster names this school’s top teachers, shows FICO only as a band, never as a score, and saves nothing.</p>
     </div>`;
     const prev = `<div class="cm-prev"><div class="poster-wrap" id="poster-wrap">${posterHtml(f)}</div><p class="note" id="p-count">${esc(posterCount(f))}</p>
       <div class="row"><button class="btn dark" type="button" data-psave>Download poster</button>${navigator.canShare ? '<button class="btn" type="button" data-pshare>Share…</button>' : ''}</div></div>`;
