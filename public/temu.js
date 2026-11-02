@@ -31,7 +31,7 @@
     report: ['Monthly report', 'Pick a month and get a one-page summary: sectors, FICO, schools leading and needing support, the calendar and children’s learning. Print it or save it as a PDF. Meetings love paper.'],
     spotlight: ['Leading & support', 'Schools and teachers leading the way, and where support is most needed, on using the tools or on classroom practice, with minimum sample sizes so one lucky lesson can’t top the chart. It’s for celebrating and planning support, not for judging. I checked.'],
     trends: ['Analytics', 'Week-by-week trends of the key measures: lesson plans, plans taught, observations, FICO scores, exams and quizzes. Lines going up: good. Lines going down: let’s talk.'],
-    cards: ['Appreciation cards', 'Make a thank-you card for a teacher or a school. Pick who it’s for, tick what to celebrate, write a message and download it for WhatsApp. Cards only show the person’s own figures, and FICO only as a band (Proficient or Exemplary), never a score. I can even pose on it. I’m very photogenic.'],
+    cards: ['Appreciation cards', 'Make a thank-you card for a teacher or a school. Pick who it’s for, tick what to celebrate, write a message and download it for WhatsApp. Cards only show the person’s own figures, and FICO only as a band (Proficient or Exemplary), never a score. Switch to <b>School stars poster</b> for a school’s top teachers over any time frame, with the indicators you pick. I can even pose on both. I’m very photogenic.'],
     glossary: ['How we count', 'What every number means and where it comes from. <b>Governed</b> = defined by the Taleemabad data rules. <b>Provisional</b> = set by the programme, may change. It’s the boring page that settles every argument.'],
   };
 

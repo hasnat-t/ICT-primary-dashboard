@@ -521,3 +521,65 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 @media (max-width: 64rem) { .cm { grid-template-columns: 1fr; } .cm-prev { position: static; } }
 @media (max-width: 40rem) { .acard-wrap { zoom: .62; } }
 .cm-picks label, .cm-temu { text-transform: none; letter-spacing: normal; font-size: 14px; }
+
+/* school stars poster */
+.cm-mode { margin: 4px 0 16px; }
+.cm-grid2 { display: grid !important; grid-template-columns: 1fr 1fr; max-height: none !important; }
+.cm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.poster-wrap { zoom: .86; box-shadow: var(--shadow); }
+.poster { width: 720px; background: linear-gradient(180deg, #E9F5EE 0%, #F3F8F5 60%, #EAF5EF 100%); color: #2F3441; font-family: 'NT Jakarta', system-ui, sans-serif; overflow: hidden; }
+.poster * { box-sizing: border-box; }
+.pt-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 26px 30px 16px; }
+.pt-logo { height: 62px; display: block; }
+.pt-date { display: flex; gap: 14px; align-items: center; background: #45B97C; border: 3px solid #2F3441; border-radius: 22px; padding: 10px 22px 10px 16px; box-shadow: 6px 6px 0 #2F3441; }
+.pt-date small { display: block; font-size: 13px; font-weight: 700; }
+.pt-date b { font-family: 'NT Outfit', system-ui, sans-serif; font-size: 25px; line-height: 1.1; }
+.pt-hero { margin: 6px 30px 0; background: #30353F; border-radius: 30px; padding: 28px 22px 28px 34px; display: flex; gap: 6px; color: #FFF; align-items: center; }
+.pt-hero-txt { flex: 1; min-width: 0; }
+.pt-hero h1 { font-family: 'NT Outfit', system-ui, sans-serif; font-size: 46px; line-height: 1.03; margin: 0 0 16px; font-weight: 700; }
+.pt-hero h1 em { font-style: normal; color: #5ED196; }
+.pt-school { display: inline-block; background: #45B97C; color: #1D3326; font-weight: 800; font-size: 19px; padding: 8px 18px; border-radius: 12px; margin-bottom: 14px; }
+.pt-hero p { font-size: 17px; line-height: 1.45; font-weight: 600; margin: 0; }
+.pt-art { flex: none; width: 240px; display: flex; justify-content: center; }
+.pt-art svg { width: 240px; height: auto; display: block; }
+.pt-art img { width: 190px; display: block; }
+.pt-chips { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 10px; margin: 18px 30px 0; }
+.pt-chip { display: flex; align-items: center; gap: 10px; border: 2px solid #2F3441; border-radius: 16px; background: #FFF; padding: 10px 12px; font-weight: 700; font-size: 14px; line-height: 1.25; }
+.pt-chip i { flex: none; width: 40px; height: 40px; border-radius: 50%; background: #45B97C; color: #FFF; display: grid; place-items: center; font-style: normal; font-size: 15px; font-weight: 800; }
+.pt-whole { margin: 14px 30px 0; background: #FFF; border: 2px solid #2F3441; border-radius: 20px; padding: 14px 16px; }
+.pt-whole-h { font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: #2E7D52; margin-bottom: 10px; }
+.pt-tiles { display: grid; grid-template-columns: repeat(var(--t, 3), 1fr); gap: 8px; }
+.pt-tile { background: #E8F5EE; border-radius: 12px; padding: 8px 10px; border: 2px solid transparent; }
+.pt-tile b { display: block; font-family: 'NT Outfit', system-ui, sans-serif; font-size: 21px; line-height: 1.15; color: #2E8B57; }
+.pt-tile span { display: block; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+.pt-tile small { display: block; font-size: 11.5px; color: #55606E; margin-top: 2px; }
+.pt-tile.pb-ex { background: #45B97C; border-color: #2F3441; } .pt-tile.pb-ex b { color: #173A27; }
+.pt-tile.pb-pr { background: #A8E2C2; } .pt-tile.pb-pr b { color: #1E5A3A; }
+.pt-tile.pb-none b { color: #8A929C; }
+.pt-rows { display: flex; flex-direction: column; gap: 12px; margin: 14px 30px 0; }
+.pt-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto minmax(0, 2.2fr); gap: 12px; align-items: center; background: #FFF; border: 2px solid #2F3441; border-left: 12px solid #45B97C; border-radius: 22px; padding: 14px; }
+.pt-row.nofico { grid-template-columns: 50px minmax(0, 1fr) auto; }
+.pt-who b { display: block; font-family: 'NT Outfit', system-ui, sans-serif; font-size: 19px; line-height: 1.15; }
+.pt-who span { display: block; font-size: 12.5px; color: #6A7280; margin-top: 2px; }
+.pt-nums { display: flex; gap: 10px; }
+.pt-nums div { text-align: center; min-width: 52px; max-width: 84px; }
+.pt-nums b { display: block; font-family: 'NT Outfit', system-ui, sans-serif; font-size: 30px; color: #3DAA70; line-height: 1.05; }
+.pt-nums span { display: block; font-size: 11.5px; line-height: 1.2; }
+.pt-fico { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pb { border-radius: 10px; padding: 5px 8px; border: 2px solid transparent; min-width: 0; }
+.pb small { display: block; font-size: 10.5px; font-weight: 700; line-height: 1.25; white-space: nowrap; }
+.pb b { display: block; font-family: 'NT Outfit', system-ui, sans-serif; font-size: 15px; line-height: 1.2; white-space: nowrap; }
+.pb-ex { background: #45B97C; border-color: #2F3441; color: #173A27; }
+.pb-pr { background: #A8E2C2; }
+.pb-dv { background: #E7F5EE; border-color: #C3E7D2; }
+.pb-none { background: #F1F3F2; color: #8A929C; }
+.pt-legend { display: flex; justify-content: center; gap: 18px; align-items: center; margin: 16px 30px 0; font-weight: 700; font-size: 14px; }
+.pt-legend i { display: inline-block; width: 16px; height: 16px; border-radius: 4px; vertical-align: -3px; margin-right: 6px; border: 2px solid #2F3441; }
+.pt-empty { margin: 14px 30px 0; padding: 22px; border: 2px dashed #9BB5A6; border-radius: 18px; text-align: center; font-weight: 700; }
+.pt-foot { margin-top: 22px; background: #45B97C; padding: 26px 34px 28px; display: flex; gap: 22px; align-items: center; }
+.pt-foot svg { flex: none; }
+.pt-foot h2 { font-family: 'NT Outfit', system-ui, sans-serif; font-size: 27px; line-height: 1.15; margin: 0 0 8px; color: #1F2E26; }
+.pt-foot p { margin: 0 0 6px; font-weight: 800; font-size: 16px; color: #1F2E26; }
+.pt-foot small { font-size: 13px; color: #24402F; }
+@media (max-width: 64rem) { .poster-wrap { zoom: .78; } }
+@media (max-width: 40rem) { .poster-wrap { zoom: .46; } .cm-grid2, .cm-two { grid-template-columns: 1fr !important; } }

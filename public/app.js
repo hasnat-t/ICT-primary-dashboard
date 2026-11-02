@@ -1225,14 +1225,29 @@
   const CARD_FICO = { hlp: 'teaching practices', se: 'student engagement', tsk3: 'subject knowledge', lpf: 'lesson-plan fidelity' };
   const CARD_MAX = 6;
   let temuImg = null;
-  const cardState = () => (S.card = S.card || { kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '', per: '30' });
+  const cardState = () => (S.card = S.card || { mode: 'card', kind: 'teacher', si: '', ti: '', design: 'star', temu: true, picks: null, pickFor: '', msg: '', from: '', title: '', per: '30', cfrom: null, cto: null,
+    pInd: new Set(['plans', 'dc', 'lpf', 'tsk3', 'hlp', 'se']), pSrc: 'dc', pRank: 'overall', pN: 3, pMinPlans: 1, pMinDc: 1, pGood: false, pWhole: true, pHead: '', pMsg: '', pFoot: '', pArt: 'art' });
   // A card has its own period (not the dashboard filter): a day or a week is usually too short to celebrate.
-  const CARD_PERIODS = ['week', 'month', 'lastmonth', '30', 'all'];
+  const CARD_PERIODS = ['week', 'lastweek', 'month', 'lastmonth', '30', 'all', 'custom'];
   function cardRange() {
-    const c = cardState(), p = presets().find((x) => x[0] === c.per) || presets().find((x) => x[0] === '30');
-    const from = Math.max(p[2], 0), to = Math.max(from, p[3]);
+    const c = cardState();
+    let from, to;
+    if (c.per === 'custom') {
+      if (c.cfrom === null || c.cto === null) { c.cto = S.data.today; c.cfrom = Math.max(0, S.data.today - 6); }
+      from = Math.max(0, Math.min(c.cfrom, c.cto)); to = Math.min(S.data.today, Math.max(c.cfrom, c.cto));
+    } else {
+      const p = presets().find((x) => x[0] === c.per) || presets().find((x) => x[0] === '30');
+      from = Math.max(p[2], 0); to = Math.max(from, p[3]);
+    }
     return { from, to, text: from === to ? niceY(from) : `${nice(from)} – ${niceY(to)}` };
   }
+  // the period picker shared by the card and the poster (own period, not the dashboard filter)
+  function cardPeriodField(label) {
+    const c = cardState(), rg = cardRange();
+    return `<div class="fld"><label for="cm-per">${label}</label><select class="sel" id="cm-per">${presets().filter((x) => CARD_PERIODS.includes(x[0])).map(([k, l]) => `<option value="${k}" ${c.per === k ? 'selected' : ''}>${esc(k === 'custom' ? 'Choose dates…' : l)}</option>`).join('')}</select>
+      ${c.per === 'custom' ? `<div class="row"><input class="inp" type="date" id="cm-cfrom" value="${iso(rg.from)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="From"><span class="dim">to</span><input class="inp" type="date" id="cm-cto" value="${iso(rg.to)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="To"></div>` : `<span class="dim">${esc(rg.text)}</span>`}</div>`;
+  }
+  const cardModeSeg = () => `<div class="row cm-mode"><div class="seg" role="group" aria-label="What to make"><button type="button" data-cmmode="card" aria-pressed="${cardState().mode === 'card'}">One card</button><button type="button" data-cmmode="poster" aria-pressed="${cardState().mode === 'poster'}">School stars poster</button></div></div>`;
   function openCard(kind, key) {
     const c = cardState();
     c.kind = kind;
@@ -1310,6 +1325,7 @@
   }
   function viewCards() {
     const c = cardState();
+    if (c.mode === 'poster') return viewPoster();
     const schools = S.data.schools.map((sc, i) => [i, sc]).filter(([, sc]) => !S.sector || sc.sector === S.sector).sort((a, b) => a[1].name.localeCompare(b[1].name));
     if (c.si === '' || !S.data.schools[+c.si] || (S.sector && S.data.schools[+c.si].sector !== S.sector)) c.si = S.school !== '' ? String(S.school) : String((schools[0] || [0])[0]);
     const rg = cardRange();
@@ -1329,7 +1345,7 @@
       <div class="fld"><label for="cm-school">School</label><select class="sel" id="cm-school">${schools.map(([i, sc]) => `<option value="${i}" ${String(i) === c.si ? 'selected' : ''}>${esc(sc.name)} (${esc(sc.sector)})</option>`).join('')}</select></div>
       ${c.kind === 'teacher' ? `<div class="fld"><label for="cm-teacher">Teacher</label><select class="sel" id="cm-teacher">${teachers.map((t) => `<option value="${t.i}" ${String(t.i) === c.ti ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>` : ''}
       <div class="fld"><span class="lbl">Design</span><div class="seg" role="group" aria-label="Design">${Object.entries(CARD_DESIGNS).map(([k, x]) => `<button type="button" data-cmdesign="${k}" aria-pressed="${c.design === k}">${x.label}</button>`).join('')}</div></div>
-      <div class="fld"><label for="cm-per">Period on the card</label><select class="sel" id="cm-per">${presets().filter((x) => CARD_PERIODS.includes(x[0])).map(([k, l]) => `<option value="${k}" ${c.per === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><span class="dim">${esc(rg.text)}</span></div>
+      ${cardPeriodField('Period on the card')}
       <div class="fld"><span class="lbl">What to celebrate <span class="dim">(up to ${CARD_MAX})</span></span>
         ${f.items.length && !f.active ? '<p class="note">Only training shows for this period: no lesson plans, recordings or quizzes yet. Try a longer period, like “Last 30 days” or “Since 1 Aug”.</p>' : ''}
         <div class="cm-picks">${f.items.length ? f.items.map((i) => `<label><input type="checkbox" data-cmpick="${i.k}" ${c.picks.has(i.k) ? 'checked' : full ? 'disabled' : ''}> <b>${esc(i.big)}</b> ${esc(i.text)}</label>`).join('')
@@ -1342,7 +1358,149 @@
     </div>`;
     const prev = `<div class="cm-prev"><div class="acard-wrap" id="acard-wrap">${f ? cardHtml(f) : ''}</div>
       <div class="row"><button class="btn dark" type="button" data-cmsave>Download card</button>${navigator.canShare ? '<button class="btn" type="button" data-cmshare>Share…</button>' : ''}</div></div>`;
-    return card('c-cards', 'Appreciation cards', 'Make a thank-you card for a teacher or a school, pick what to celebrate, and download it to send on WhatsApp.', `<div class="cm">${form}${prev}</div>`);
+    return card('c-cards', 'Appreciation cards', 'Make a thank-you card for a teacher or a school, pick what to celebrate, and download it to send on WhatsApp.', `<div class="cm">${form}${prev}</div>`, cardModeSeg());
+  }
+
+  // ---------- school stars poster ----------
+  // One school's top teachers for a period, ranked on indicators the coach picks, with whole-school figures, in the
+  // style of the programme's "Our ICT stars shine" poster. The owner asked for named top teachers here (2026-11-02);
+  // FICO still shows only as a band, and anything below Developing shows as a dash.
+  const POSTER_IND = [['plans', 'Lesson plans generated', 'lesson plans'], ['opened', 'Plans opened in the app', 'plans opened'], ['taught', 'Plans taught', 'plans taught'],
+    ['dc', 'Digital Coach recordings', 'Digital Coach observations'], ['hitl', 'Coach observations (HITL)', 'coach observations'], ['made', 'Quizzes made', 'quizzes made'],
+    ['kidsL', 'Children who took quizzes', 'children quizzed'], ['exOk', 'Exam papers', 'exam papers'], ['mods', 'Training modules (all time)', 'training modules']];
+  const POSTER_FICO = [['lpf', 'Lesson plan fidelity'], ['tsk3', 'Subject knowledge'], ['hlp', 'Teaching practices'], ['se', 'Student engagement']];
+  const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function longRange(from, to) {
+    const [ya, ma, da] = iso(from).split('-').map(Number), [yb, mb, db] = iso(to).split('-').map(Number);
+    if (from === to) return `${da} ${MONTHS_LONG[ma - 1]} ${ya}`;
+    if (ya === yb && ma === mb) return `${da} – ${db} ${MONTHS_LONG[mb - 1]} ${yb}`;
+    if (ya === yb) return `${da} ${MONTHS_LONG[ma - 1]} – ${db} ${MONTHS_LONG[mb - 1]} ${yb}`;
+    return `${da} ${MONTHS_LONG[ma - 1]} ${ya} – ${db} ${MONTHS_LONG[mb - 1]} ${yb}`;
+  }
+  function pBand(pc) {
+    if (pc === null || pc === undefined || pc < 60) return ['pb-none', '—'];
+    return pc >= 80 ? ['pb-ex', '★ Exemplary'] : pc >= 70 ? ['pb-pr', 'Proficient'] : ['pb-dv', 'Developing'];
+  }
+  const P0 = (v) => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
+  function posterFacts() {
+    const c = cardState(), si = +c.si, sc = S.data.schools[si], rg = cardRange();
+    const R = Calc.rollup(S.P, { from: rg.from, to: rg.to, school: si });
+    const acts = POSTER_IND.filter(([k]) => c.pInd.has(k)), ficos = POSTER_FICO.filter(([k]) => c.pInd.has(k));
+    const fv = (g, k) => { const f = (c.pSrc === 'dc' ? g.ficoD : g.ficoH)[k]; return f && f[2] ? fpct(f) : null; };
+    const val = (g, k) => (k.startsWith('f-') ? fv(g, k.slice(2)) : g[k] || 0);
+    const keys = [...acts.map(([k]) => k), ...ficos.map(([k]) => `f-${k}`)];
+    const rows = R.teachers.map((t) => ({ t, g: Calc.asGroup(t) }))
+      .filter(({ g }) => (g.plans || 0) >= c.pMinPlans && (g.dc || 0) >= c.pMinDc && (!c.pGood || ficos.every(([k]) => (fv(g, k) ?? 0) >= 70)));
+    // Overall: each indicator scaled to the best in the school, averaged; or one indicator on its own.
+    const max = Object.fromEntries(keys.map((k) => [k, Math.max(0, ...rows.map((r) => val(r.g, k) ?? 0))]));
+    for (const r of rows) {
+      r.score = c.pRank === 'overall' || !keys.includes(c.pRank)
+        ? (keys.length ? keys.reduce((a, k) => a + (max[k] ? (val(r.g, k) ?? 0) / max[k] : 0), 0) / keys.length : 0)
+        : (val(r.g, c.pRank) ?? -1);
+    }
+    const ranked = rows.filter((r) => r.score > 0).sort((a, b) => b.score - a.score || (b.g.plans || 0) - (a.g.plans || 0) || a.t.name.localeCompare(b.t.name));
+    return { sc, rg, R, acts, ficos, fv, top: ranked.slice(0, c.pN), eligible: ranked.length };
+  }
+  const SVG_RIBBON = '<svg viewBox="0 0 48 60" width="46" aria-hidden="true"><path d="M13 33 7 56l8-4 4 6 7-20z" fill="#2F3441"/><path d="m35 33 6 23-8-4-4 6-7-20z" fill="#7FD3A3"/><circle cx="24" cy="22" r="20" fill="#45B97C"/><circle cx="24" cy="22" r="15" fill="none" stroke="#fff" stroke-width="2.5"/><path d="m24 11.5 3.2 6.6 7.2.9-5.3 5 1.4 7.1-6.5-3.5-6.5 3.5 1.4-7.1-5.3-5 7.2-.9z" fill="#fff"/></svg>';
+  const SVG_CAL = '<svg viewBox="0 0 40 40" width="40" aria-hidden="true"><rect x="3" y="7" width="34" height="30" rx="6" fill="#2F3441"/><rect x="7" y="16" width="26" height="17" rx="2" fill="#fff"/><rect x="10" y="2" width="4" height="9" rx="2" fill="#2F3441"/><rect x="26" y="2" width="4" height="9" rx="2" fill="#2F3441"/><rect x="10" y="19" width="6" height="4" rx="1" fill="#45B97C"/><rect x="18" y="19" width="6" height="4" rx="1" fill="#45B97C"/><rect x="26" y="19" width="4" height="4" rx="1" fill="#45B97C"/><rect x="10" y="26" width="6" height="4" rx="1" fill="#45B97C"/></svg>';
+  const SVG_DIAMONDS = '<svg viewBox="0 0 120 64" width="96" aria-hidden="true"><rect x="8" y="12" width="40" height="40" transform="rotate(45 28 32)" fill="#2F3441"/><rect x="62" y="12" width="40" height="40" transform="rotate(45 82 32)" fill="#fff"/></svg>';
+  const SVG_SPARK = (x, y, r, c) => `<path d="M${x} ${y - r}C${x + r * 0.15} ${y - r * 0.15} ${x + r * 0.15} ${y - r * 0.15} ${x + r} ${y}C${x + r * 0.15} ${y + r * 0.15} ${x + r * 0.15} ${y + r * 0.15} ${x} ${y + r}C${x - r * 0.15} ${y + r * 0.15} ${x - r * 0.15} ${y + r * 0.15} ${x - r} ${y}C${x - r * 0.15} ${y - r * 0.15} ${x - r * 0.15} ${y - r * 0.15} ${x} ${y - r}Z" fill="${c}"/>`;
+  const SVG_ART = `<svg viewBox="0 0 280 250" width="250" aria-hidden="true">
+    <circle cx="150" cy="128" r="104" fill="#3A404D" stroke="#45B97C" stroke-width="3.5" stroke-dasharray="1 10" stroke-linecap="round"/>
+    <g transform="rotate(9 238 70)"><rect x="205" y="18" width="70" height="92" rx="9" fill="#fff"/><path d="M205 27a9 9 0 0 1 9-9h52a9 9 0 0 1 9 9v10h-70z" fill="#45B97C"/><rect x="216" y="52" width="46" height="6" rx="3" fill="#D4D8E0"/><rect x="216" y="66" width="36" height="6" rx="3" fill="#D4D8E0"/></g>
+    <rect x="76" y="62" width="160" height="114" rx="12" fill="#262A33"/><rect x="86" y="72" width="140" height="94" rx="5" fill="#fff"/><path d="M86 77a5 5 0 0 1 5-5h130a5 5 0 0 1 5 5v13H86z" fill="#45B97C"/>
+    <circle cx="96" cy="81" r="3" fill="#fff"/><circle cx="106" cy="81" r="3" fill="#E8F5EE"/><circle cx="116" cy="81" r="3" fill="#BFE8D0"/>
+    ${[104, 126, 148].map((y) => `<circle cx="101" cy="${y}" r="7" fill="#45B97C"/><path d="m97.5 ${y} 2.5 2.5 4.5-5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><rect x="114" y="${y - 5}" width="${y === 126 ? 70 : 88}" height="5" rx="2.5" fill="#3A404D"/><rect x="114" y="${y + 3}" width="58" height="4" rx="2" fill="#D4D8E0"/>`).join('')}
+    <path d="M60 176h196l-14 17H74z" fill="#C8CDD6"/><rect x="138" y="179" width="40" height="5" rx="2.5" fill="#9AA1AE"/>
+    <rect x="196" y="196" width="70" height="14" rx="4" fill="#45B97C"/><rect x="203" y="211" width="68" height="14" rx="4" fill="#fff"/><rect x="194" y="226" width="72" height="14" rx="4" fill="#8FD3AE"/>
+    <path d="M58 168 50 205l13-7 6 11 10-36z" fill="#fff"/><circle cx="72" cy="150" r="30" fill="#45B97C"/><circle cx="72" cy="150" r="23" fill="none" stroke="#fff" stroke-width="3"/><path d="m72 134 4.6 9.4 10.4 1.3-7.6 7.2 2 10.2-9.4-5.1-9.4 5.1 2-10.2-7.6-7.2 10.4-1.3z" fill="#fff"/>
+    ${SVG_SPARK(40, 48, 9, '#fff')}${SVG_SPARK(268, 150, 7, '#45B97C')}${SVG_SPARK(198, 236, 6, '#45B97C')}${SVG_SPARK(118, 30, 7, '#fff')}
+    <rect x="20" y="34" width="14" height="14" transform="rotate(45 27 41)" fill="#fff"/><rect x="38" y="34" width="14" height="14" transform="rotate(45 45 41)" fill="#45B97C"/><circle cx="52" cy="98" r="4" fill="#45B97C"/>
+  </svg>`;
+  function posterHtml(f) {
+    const c = cardState(), g = f.R.all;
+    const head = esc(c.pHead || 'Our ICT stars shine').replace(/\b(stars?)\b/i, '<em>$1</em>');
+    const when = { week: 'this week', lastweek: 'last week', month: 'this month', lastmonth: 'last month' }[c.per] || 'in this period';
+    const rankName = c.pRank === 'overall' ? 'all chosen indicators' : (POSTER_IND.find(([k]) => k === c.pRank) || POSTER_FICO.map(([k, l]) => [`f-${k}`, l]).find(([k]) => k === c.pRank) || [0, 'all chosen indicators'])[1].toLowerCase();
+    const chips = [];
+    if (c.pMinPlans > 0) chips.push([`${c.pMinPlans}+`, `lesson plans ${when}`]);
+    if (c.pMinDc > 0) chips.push([`${c.pMinDc}+`, 'Digital Coach observations']);
+    if (c.pGood && f.ficos.length) chips.push(['✓', `Proficient or better on ${f.ficos.length === 4 ? 'all four' : f.ficos.length === 1 ? 'the chosen' : 'every chosen'} FICO section${f.ficos.length === 1 ? '' : 's'}`]);
+    else chips.push(['★', `Top ${c.pN} on ${rankName}`]);
+    const tiles = [];
+    for (const [k, label] of f.acts) {
+      const sub = k === 'plans' ? `${P0(ratio(g.g15, g.teachers))} of teachers used a plan` : k === 'dc' ? `${P0(ratio(g.dcT, g.teachers))} of teachers recorded` : k === 'hitl' ? `${P0(ratio(g.hitlT, g.teachers))} of teachers observed` : '';
+      tiles.push(`<div class="pt-tile"><b>${N(g[k] || 0)}</b><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`);
+    }
+    for (const [k, label] of f.ficos) { const [cls, txt] = pBand(f.fv(g, k)); tiles.push(`<div class="pt-tile ${cls}"><b>${esc(txt)}</b><span>${esc(label)}</span></div>`); }
+    const whole = c.pWhole && tiles.length ? `<div class="pt-whole"><div class="pt-whole-h">Whole school · ${N(g.teachers)} primary teachers</div><div class="pt-tiles" style="--t:${tiles.length <= 4 ? tiles.length : 3}">${tiles.join('')}</div></div>` : '';
+    const nums = f.acts.slice(0, 3);
+    const rows = f.top.map(({ t, g: tg }) => `<div class="pt-row ${f.ficos.length ? '' : 'nofico'}"><div class="pt-rib">${SVG_RIBBON}</div>
+      <div class="pt-who"><b>${esc(t.name)}</b><span>${esc(f.sc.name)}</span></div>
+      <div class="pt-nums">${nums.map(([k, , short]) => `<div><b>${N(tg[k] || 0)}</b><span>${esc(short)}</span></div>`).join('')}</div>
+      ${f.ficos.length ? `<div class="pt-fico">${f.ficos.map(([k, label]) => { const [cls, txt] = pBand(f.fv(tg, k)); return `<div class="pb ${cls}"><small>${esc(label)}</small><b>${esc(txt)}</b></div>`; }).join('')}</div>` : ''}</div>`).join('');
+    const art = c.pArt === 'temu' && temuImg ? `<img src="${temuImg}" alt="">` : SVG_ART;
+    return `<div class="poster" id="poster">
+      <div class="pt-head"><img class="pt-logo" src="/assets/niete-logo.png" alt="NIETE"><div class="pt-date">${SVG_CAL}<div><small>Data from</small><b>${esc(longRange(f.rg.from, f.rg.to))}</b></div></div></div>
+      <div class="pt-hero"><div class="pt-hero-txt"><h1>${head}</h1><span class="pt-school">${esc(f.sc.name)}</span><p>${esc(c.pMsg || 'Because of you, excellence in teaching is no longer a goal. It is happening in our classrooms. Thank you.')}</p></div><div class="pt-art">${art}</div></div>
+      <div class="pt-chips" style="--n:${chips.length}">${chips.map(([b, l]) => `<div class="pt-chip"><i>${esc(b)}</i><span>${esc(l)}</span></div>`).join('')}</div>
+      ${whole}
+      ${rows ? `<div class="pt-rows">${rows}</div>` : '<div class="pt-empty">No teacher meets these criteria in this period yet.</div>'}
+      ${f.ficos.length && rows ? `<div class="pt-legend"><span>Rating</span><span><i class="pb-dv"></i>Developing</span><span><i class="pb-pr"></i>Proficient</span><span><i class="pb-ex"></i>★ Exemplary</span></div>` : ''}
+      <div class="pt-foot">${SVG_DIAMONDS}<div><h2>${esc(c.pFoot || 'Thank you for your continuous dedication and efforts.')}</h2><p>Our students’ learning is our main goal.</p><small>National Institute of Excellence in Teacher Education</small></div></div>
+    </div>`;
+  }
+  function posterCount(f) {
+    return f.eligible ? `${N(f.eligible)} teacher${f.eligible === 1 ? '' : 's'} at this school qualif${f.eligible === 1 ? 'ies' : 'y'}; the poster shows the top ${Math.min(cardState().pN, f.eligible)}.` : 'No teacher qualifies yet: lower the minimums or choose a longer period.';
+  }
+  function viewPoster() {
+    const c = cardState();
+    const schools = S.data.schools.map((sc, i) => [i, sc]).filter(([, sc]) => !S.sector || sc.sector === S.sector).sort((a, b) => a[1].name.localeCompare(b[1].name));
+    if (c.si === '' || !S.data.schools[+c.si] || (S.sector && S.data.schools[+c.si].sector !== S.sector)) c.si = S.school !== '' ? String(S.school) : String((schools[0] || [0])[0]);
+    if (!temuImg && window.temuSnapshot) { try { temuImg = window.temuSnapshot(); } catch (e) { temuImg = null; } }
+    const f = posterFacts();
+    const nAct = f.acts.length, nFico = f.ficos.length;
+    const box = (k, label, full) => `<label><input type="checkbox" data-ppick="${k}" ${c.pInd.has(k) ? 'checked' : full ? 'disabled' : ''}> ${esc(label)}</label>`;
+    const rankOpts = [['overall', 'All chosen indicators together'], ...f.acts.map(([k, l]) => [k, l]), ...f.ficos.map(([k, l]) => [`f-${k}`, `${l} (FICO)`])];
+    if (!rankOpts.some(([k]) => k === c.pRank)) c.pRank = 'overall';
+    const form = `<div class="cm-form">
+      <div class="fld"><label for="cm-school">School</label><select class="sel" id="cm-school">${schools.map(([i, sc]) => `<option value="${i}" ${String(i) === c.si ? 'selected' : ''}>${esc(sc.name)} (${esc(sc.sector)})</option>`).join('')}</select></div>
+      ${cardPeriodField('Time frame')}
+      <div class="fld"><span class="lbl">Activity to show <span class="dim">(up to 3)</span></span><div class="cm-picks cm-grid2">${POSTER_IND.map(([k, l]) => box(k, l, nAct >= 3)).join('')}</div></div>
+      <div class="fld"><span class="lbl">FICO sections <span class="dim">(up to 4, shown as a band)</span></span>
+        <div class="seg" role="group" aria-label="FICO from"><button type="button" data-psrc="dc" aria-pressed="${c.pSrc === 'dc'}">Digital Coach</button><button type="button" data-psrc="hitl" aria-pressed="${c.pSrc === 'hitl'}">Coach observations</button></div>
+        <div class="cm-picks cm-grid2">${POSTER_FICO.map(([k, l]) => box(k, l, nFico >= 4)).join('')}</div></div>
+      <div class="cm-two"><div class="fld"><label for="p-rank">Rank teachers by</label><select class="sel" id="p-rank">${rankOpts.map(([k, l]) => `<option value="${k}" ${c.pRank === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+        <div class="fld"><label for="p-n">Teachers on the poster</label><select class="sel" id="p-n">${[1, 2, 3, 4, 5].map((n) => `<option ${c.pN === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
+      <div class="cm-two"><div class="fld"><label for="p-minplans">At least … lesson plans</label><input class="inp" type="number" id="p-minplans" min="0" max="999" value="${c.pMinPlans}"></div>
+        <div class="fld"><label for="p-mindc">At least … DC recordings</label><input class="inp" type="number" id="p-mindc" min="0" max="999" value="${c.pMinDc}"></div></div>
+      <label class="cm-temu"><input type="checkbox" id="p-good" ${c.pGood ? 'checked' : ''} ${nFico ? '' : 'disabled'}> Only teachers Proficient or better on every chosen FICO section</label>
+      <label class="cm-temu"><input type="checkbox" id="p-whole" ${c.pWhole ? 'checked' : ''}> Show whole-school figures</label>
+      <div class="fld"><label for="p-head">Headline</label><input class="inp" id="p-head" maxlength="40" placeholder="Our ICT stars shine" value="${esc(c.pHead)}"></div>
+      <div class="fld"><label for="p-msg">Message</label><textarea class="inp" id="p-msg" rows="3" maxlength="200" placeholder="Because of you, excellence in teaching is no longer a goal. It is happening in our classrooms. Thank you.">${esc(c.pMsg)}</textarea></div>
+      <div class="fld"><label for="p-foot">Closing line</label><input class="inp" id="p-foot" maxlength="80" placeholder="Thank you for your continuous dedication and efforts." value="${esc(c.pFoot)}"></div>
+      <div class="fld"><span class="lbl">Picture</span><div class="seg" role="group" aria-label="Picture"><button type="button" data-part="art" aria-pressed="${c.pArt === 'art'}">Illustration</button><button type="button" data-part="temu" aria-pressed="${c.pArt === 'temu'}" ${temuImg ? '' : 'disabled'}>TEMU</button></div></div>
+      <p class="note">The poster names this school’s top teachers for the time frame. FICO appears only as a band (below Developing shows as a dash), never as a score. Nothing is saved.</p>
+    </div>`;
+    const prev = `<div class="cm-prev"><div class="poster-wrap" id="poster-wrap">${posterHtml(f)}</div><p class="note" id="p-count">${esc(posterCount(f))}</p>
+      <div class="row"><button class="btn dark" type="button" data-psave>Download poster</button>${navigator.canShare ? '<button class="btn" type="button" data-pshare>Share…</button>' : ''}</div></div>`;
+    return card('c-cards', 'Appreciation cards', 'A school stars poster: pick a school, a time frame and the indicators, and the school’s top teachers appear with the whole school’s figures.', `<div class="cm">${form}${prev}</div>`, cardModeSeg());
+  }
+  function refreshPoster() { const f = posterFacts(); if ($('#poster-wrap')) { $('#poster-wrap').innerHTML = posterHtml(f); $('#p-count').textContent = posterCount(f); } }
+  async function posterSave(share) {
+    const el = $('#poster'), wrap = $('#poster-wrap');
+    if (!el || !window.htmlToImage) return;
+    const name = `School stars - ${S.data.schools[+cardState().si].name}.png`.replace(/[\\/:*?"<>|]/g, '');
+    const z = wrap.style.zoom; wrap.style.zoom = '1';
+    let blob;
+    try { blob = await window.htmlToImage.toBlob(el, { pixelRatio: 3, cacheBust: true }); } finally { wrap.style.zoom = z; }
+    if (share) {
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: 'School stars' }); } catch (e) { /* cancelled */ } return; }
+    }
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
   function refreshCard() { const f = cardFacts(); if (f && $('#acard-wrap')) $('#acard-wrap').innerHTML = cardHtml(f); }
   async function cardImage() {
@@ -2006,7 +2164,7 @@
       const rows = R.teachers.map((t) => Object.assign(Calc.asGroup(t), { t, name: t.name, key: t.i }));
       title = sc.name;
       sub = `EMIS ${sc.emis}${MS.length > 1 ? '' : ` · ${sc.sector}`} · ${N(R.all.teachers)} primary teachers · ${periodText()}`;
-      html = `<div class="row m-acts"><button class="btn" type="button" data-card="school:${v.key}">Make appreciation card</button></div><section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
+      html = `<div class="row m-acts"><button class="btn" type="button" data-card="school:${v.key}">Make appreciation card</button><button class="btn" type="button" data-poster="${v.key}">Make school stars poster</button></div><section class="card" id="m-c2"><div class="card-h"><h2>Teachers</h2><button class="dl" data-dl="m-c2">Download image</button></div>${miniKpis(R.all)}
         <p class="note">Click a teacher for the scorecard. Contains teacher names — internal use only.</p>
         ${table('m-tch', [nameCol('teacher'), ...teacherCols()], rows, { level: 'teacher', onRow: (k) => modalOpen({ kind: 'teacher', key: +k }), rowKey: (r) => r.key, foot: R.all })}</section>`
         + schoolCalendarCard(v.key);
@@ -2171,6 +2329,14 @@
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
     else if (b.dataset.card) { const [k, v] = b.dataset.card.split(':'); openCard(k, +v); }
     else if (b.dataset.cmkind) { cardState().kind = b.dataset.cmkind; render(); }
+    else if (b.dataset.cmmode) { cardState().mode = b.dataset.cmmode; render(); }
+    else if (b.dataset.psrc) { cardState().pSrc = b.dataset.psrc; render(); }
+    else if (b.dataset.part) { cardState().pArt = b.dataset.part; render(); }
+    else if (b.dataset.poster) { const c = cardState(); c.mode = 'poster'; c.si = b.dataset.poster; if (S.sector && S.data.schools[+c.si].sector !== S.sector) { S.sector = ''; S.school = ''; } if ($('#modal').open) $('#modal').close(); S.tab = 'cards'; S.search = ''; render(); window.scrollTo(0, 0); }
+    else if (b.dataset.psave !== undefined || b.dataset.pshare !== undefined) {
+      const lbl = b.textContent; b.disabled = true; b.textContent = 'Preparing…';
+      posterSave(b.dataset.pshare !== undefined).catch((err) => { console.error(err); alert('Could not make the picture. Please try again.'); }).finally(() => { b.disabled = false; b.textContent = lbl; });
+    }
     else if (b.dataset.cmdesign) { cardState().design = b.dataset.cmdesign; render(); }
     else if (b.dataset.cmsave !== undefined || b.dataset.cmshare !== undefined) {
       const lbl = b.textContent; b.disabled = true; b.textContent = 'Preparing…';
@@ -2217,11 +2383,19 @@
     else if (t.id === 'cm-teacher') { c.ti = t.value; render(); }
     else if (t.id === 'cm-temu') { c.temu = t.checked; render(); }
     else if (t.id === 'cm-per') { c.per = t.value; render(); }
+    else if (t.id === 'cm-cfrom' || t.id === 'cm-cto') { const d = t.value ? Calc.dateToDay(S.data.window_start, t.value) : null; if (d !== null) { c[t.id === 'cm-cfrom' ? 'cfrom' : 'cto'] = Math.max(0, Math.min(d, S.data.today)); render(); } }
+    else if (t.dataset.ppick) { if (t.checked) c.pInd.add(t.dataset.ppick); else c.pInd.delete(t.dataset.ppick); render(); }
+    else if (t.id === 'p-rank') { c.pRank = t.value; render(); }
+    else if (t.id === 'p-n') { c.pN = +t.value; render(); }
+    else if (t.id === 'p-good') { c.pGood = t.checked; render(); }
+    else if (t.id === 'p-whole') { c.pWhole = t.checked; render(); }
     else if (t.dataset.cmpick) { if (t.checked) c.picks.add(t.dataset.cmpick); else c.picks.delete(t.dataset.cmpick); render(); }
   });
   document.addEventListener('input', (e) => {
     const c = S.card, k = { 'cm-title': 'title', 'cm-msg': 'msg', 'cm-from': 'from' }[e.target.id];
     if (c && k) { c[k] = e.target.value; refreshCard(); }
+    const pk = { 'p-head': 'pHead', 'p-msg': 'pMsg', 'p-foot': 'pFoot', 'p-minplans': 'pMinPlans', 'p-mindc': 'pMinDc' }[e.target.id];
+    if (c && pk) { c[pk] = pk.startsWith('pMin') ? Math.max(0, Math.min(999, Math.floor(+e.target.value || 0))) : e.target.value; refreshPoster(); }
   });
   document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } else if (e.target.id === 'gsearch') { S.gq = e.target.value; render(); } });
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.close(); });
