@@ -1275,12 +1275,14 @@
       if (leaders) add('cert', N(leaders), `Teacher Leader${leaders === 1 ? '' : 's'} (Level 3)`);
     }
     const nouns = { plans: 'lesson plans generated', dc: 'lessons recorded', made: 'quizzes made' };
-    if (p) for (const k of Object.keys(nouns)) if ((g[k] || 0) > (p[k] || 0) && p[k] > 0) add(`up-${k}`, `+${N(g[k] - p[k])}`, `more ${nouns[k]} than the ${len} days before`);
+    if (p) for (const k of Object.keys(nouns)) if ((g[k] || 0) > (p[k] || 0) && p[k] > 0) add(`up-${k}`, `+${N(g[k] - p[k])}`, `more ${g[k] - p[k] === 1 ? nouns[k].replace(/^(lesson plans|lessons|quizzes)/, (w) => ({ 'lesson plans': 'lesson plan', lessons: 'lesson', quizzes: 'quiz' }[w])) : nouns[k]} than the ${len} days before`);
     const counts = c.kind === 'teacher'
       ? [['plans', 'lesson plans generated with Rumi'], ['opened', 'lesson plans read in the teacher app'], ['taught', 'planned lessons taught and recorded'], ['dc', 'lessons recorded on the Digital Coach'],
         ['hitl', 'classroom observations with a coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took their quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'NIETE training modules finished']]
       : [['plans', 'lesson plans generated'], ['dc', 'lessons recorded on the Digital Coach'], ['made', 'lesson quizzes made'], ['kidsL', 'children took the quizzes'], ['exOk', 'exam papers prepared'], ['mods', 'training modules finished']];
-    for (const [k, text] of counts) if (g[k] > 0) add(k, N(g[k]), text);
+    // "1 lesson recorded", not "1 lessons recorded"
+    const one = (text) => text.replace(/^(lesson plans|lessons|planned lessons|classroom observations|lesson quizzes|exam papers|NIETE training modules|training modules)/, (w) => w.replace(/(plans|lessons|observations|papers|modules)$/, (x) => x.slice(0, -1)).replace(/quizzes$/, 'quiz')).replace(/^children took their/, 'child took their').replace(/^children took the/, 'child took the');
+    for (const [k, text] of counts) if (g[k] > 0) add(k, N(g[k]), g[k] === 1 ? one(text) : text);
     return { name, sub, items };
   }
   function cardHtml(f) {
