@@ -128,6 +128,17 @@
     ['wave', 'Wave', 'Hello! Hello! Hello! I’m a parrot, I repeat things.'],
     ['dizzy', 'Get dizzy', 'Spin me round… oh no. Oh no no no.'],
     ['nap', 'Take a nap', 'Wake me if engagement drops. Zzz.'],
+    ['thumbsup', 'Thumbs up', 'Great job! I’d give you two thumbs, but I only have wings.'],
+    ['clap', 'Clap', 'A round of applause for everyone who finished a module this week!'],
+    ['salute', 'Salute', 'Saluting every teacher who planned a lesson today.'],
+    ['shrug', 'Shrug', 'When someone asks why it’s zero and nothing happened that day.'],
+    ['facepalm', 'Facepalm', 'Me, when someone shares the dashboard link outside the team.'],
+    ['moonwalk', 'Moonwalk', 'Smooth. Like a well-paced lesson plan.'],
+    ['rockstar', 'Rock out', 'Data rocks. I’ll see myself out.'],
+    ['peekaboo', 'Peekaboo', 'Where did the data go? … Peekaboo! There it is.'],
+    ['wink', 'Wink', 'Our little secret.'],
+    ['breakdance', 'Breakdance', 'Upside down, still governed.'],
+    ['celebrate', 'Celebrate', 'Confetti for everyone! Except bugs.'],
   ];
   const WAKE = ['I wasn’t sleeping. I was… indexing.', 'Huh? Who? Oh. Hi. I was resting my eyes.', 'Five more minutes… fine, I’m up.'];
   // a comment for each FICO band, used when reading out the headline cards
@@ -186,7 +197,8 @@
   function hideToast() { clearTimeout(toastT); toastEl.hidden = true; }
 
   // Moves are timed poses the 3D loop plays; with reduced motion TEMU just talks.
-  const DUR = { dance: 4, backflip: 1.1, fly: 3, spin: 1.2, dizzy: 2.6, preen: 1.8, look: 2.4, stretch: 1.2, nap: Infinity };
+  const DUR = { dance: 4, backflip: 1.1, fly: 3, spin: 1.2, dizzy: 2.6, preen: 1.8, look: 2.4, stretch: 1.2, nap: Infinity,
+    thumbsup: 2.4, clap: 2.4, salute: 2.2, shrug: 1.8, facepalm: 2.4, moonwalk: 3.2, rockstar: 2.6, peekaboo: 2.6, wink: 1.3, breakdance: 2.6, celebrate: 2.2 };
   // Moves need the 3D loop to play and to end them, so without it (emoji fallback) TEMU only talks.
   let live3d = false;
   function setMove(m) { anim.move = m; root.dataset.move = m ? m.name : ''; }
@@ -288,6 +300,7 @@
     const m = MOVES.find((x) => x[0] === k);
     speak(m[2]);
     move(k);
+    if (k === 'celebrate') setTimeout(confetti, 300);
     if (k === 'nap') { napGrace = Date.now() + 2500; setTimeout(() => { if (anim.move && anim.move.name === 'nap') close(); }, 900); }
   }
   // Jokes come from a shuffled deck, so none repeats until every one has been told.
@@ -298,7 +311,7 @@
   }
   function joke() {
     screen(nextJoke(), btn('joke', 'Another one', 'pri') + btn('home', 'Back'));
-    setTimeout(() => { if (!reduced) move(pick(['spin', 'dance'])); }, 900);
+    setTimeout(() => { if (!reduced) move(pick(['spin', 'dance', 'rockstar', 'clap', 'shrug', 'wink'])); }, 900);
   }
   // Read the four headline cards off the Overview, as they are drawn for the current filters.
   function headlines() {
@@ -395,7 +408,7 @@
   ['pointermove', 'keydown', 'wheel', 'touchmove', 'pointerdown'].forEach((ev) => addEventListener(ev, wake, { passive: true, capture: true }));
   // While the panel is closed: a random move every 15-30 s, a random joke every 2-3.5 min, and a nap after
   // three quiet minutes. Nothing while TEMU is busy, asleep, or the browser tab is in the background.
-  const AMBIENT = ['dance', 'backflip', 'fly', 'spin', 'wave', 'preen', 'look', 'stretch', 'dizzy'];
+  const AMBIENT = ['dance', 'backflip', 'fly', 'spin', 'wave', 'preen', 'look', 'stretch', 'dizzy', 'thumbsup', 'clap', 'salute', 'shrug', 'moonwalk', 'rockstar', 'peekaboo', 'wink', 'breakdance'];
   let nextMoveAt = Date.now() + 10000 + Math.random() * 10000, nextJokeAt = Date.now() + 90000 + Math.random() * 60000;
   setInterval(() => {
     if (root.hidden || document.hidden || !panel.hidden || tourI >= 0) return;
@@ -406,7 +419,7 @@
     if (now > nextJokeAt && toastEl.hidden) {
       const j = nextJoke();
       toast(j, 5000 + j.length * 45);
-      move(pick(['spin', 'dance', 'wave']));
+      move(pick(['spin', 'dance', 'wave', 'rockstar', 'clap', 'shrug']));
       nextJokeAt = now + 120000 + Math.random() * 90000; nextMoveAt = now + 15000;
       return;
     }
@@ -515,6 +528,7 @@
       return g;
     }
     const wingL = wing(-1), wingR = wing(1);
+    const thumb = ball(1, C.dark, [0.02, -0.74, 0.24], [0.1, 0.1, 0.28], wingR); thumb.scale.set(0.001, 0.001, 0.001);
 
     const head = new THREE.Group(); head.position.set(0, 1.5, 0); body.add(head);
     ball(0.78, C.green, [0, 0.65, 0], null, head);
@@ -549,7 +563,7 @@
     window.temuSnapshot = () => {
       const keep = [rig.rotation.clone(), rig.position.y, head.rotation.clone(), wingR.rotation.z, wingL.rotation.z, jaw.rotation.x];
       rig.rotation.set(0, 0, 0); rig.position.y = MID; head.rotation.set(0.05, -0.2, 0.1);
-      wingR.rotation.z = 2.2; wingL.rotation.z = -0.15; jaw.rotation.x = 0.35;
+      wingR.rotation.z = 2.2; wingL.rotation.z = -0.15; jaw.rotation.x = 0.35; wingR.rotation.x = 0; wingL.rotation.x = 0;
       eyes.forEach((e) => { e.scale.y = 1; }); pupils.forEach((p) => p.position.set(-0.02, 0, 0));
       renderer.setPixelRatio(1); renderer.setSize(360, 444, false); camera.aspect = 360 / 444; camera.updateProjectionMatrix();
       renderer.render(scene, camera);
@@ -562,7 +576,7 @@
     const clock = new THREE.Clock();
     const ease = (a, b, k) => a + (b - a) * k;
     const smooth = (u) => u * u * (3 - 2 * u);
-    let nextBlink = 2;
+    let nextBlink = 2, thumbS = 0;
     (function tick() {
       requestAnimationFrame(tick);
       if (root.hidden || document.hidden) return;
@@ -574,7 +588,7 @@
       body.rotation.z = Math.sin(t * 0.9) * 0.03 * calm;
       const j = t - anim.jumpAt;
       rig.position.y = MID + (calm && j >= 0 && j < 0.6 ? Math.sin((j / 0.6) * Math.PI) * 0.45 : 0);
-      rig.rotation.set(0, 0, 0);
+      rig.rotation.set(0, 0, 0); rig.position.x = 0;
       let lx = look.x, ly = look.y;
       if (hlEl) {
         const r = hlEl.getBoundingClientRect(), b = bird.getBoundingClientRect();
@@ -592,6 +606,7 @@
       const waving = t < anim.waveUntil;
       let wr = waving ? 2.3 + Math.sin(t * 9) * 0.35 : 0.12 + Math.sin(t * 2.2) * 0.04 * calm;
       let wl = -0.12 - Math.sin(t * 2.2) * 0.04 * calm;
+      let wrx = 0, wlx = 0, thumbOn = 0, lidR = 1;   // wings swung forward, thumb, right eye
 
       // special moves override the idle for a while
       const mv = anim.move;
@@ -633,6 +648,68 @@
           wr = 0.12 + 2.4 * s; wl = -0.12 - 2.4 * s;
           rig.position.y = MID + s * 0.12;
           jaw.rotation.x = 0.15 + s * 0.5;
+        } else if (mv.name === 'thumbsup') {
+          const s = Math.min(1, k / 0.35) * Math.min(1, (mv.dur - k) / 0.35);
+          wrx = -1.35 * s; wr = 0.35 * s + 0.12; thumbOn = s;
+          head.rotation.z = -0.18 * s; head.rotation.x = Math.sin(k * 6) * 0.08 * s;
+          if (k > 0.5 && k < 1.1) lidR = 0.05;
+          jaw.rotation.x = 0.35 * s;
+        } else if (mv.name === 'clap') {
+          const s = Math.min(1, k / 0.3) * Math.min(1, (mv.dur - k) / 0.3), c = Math.abs(Math.sin(k * 11));
+          wrx = -1.15 * s; wlx = -1.15 * s;
+          wr = (-0.25 + 0.4 * c) * s + 0.12 * (1 - s); wl = (0.25 - 0.4 * c) * s - 0.12 * (1 - s);
+          rig.position.y = MID + c * 0.05 * s; jaw.rotation.x = 0.3 * s;
+        } else if (mv.name === 'salute') {
+          const s = Math.min(1, k / 0.4) * Math.min(1, (mv.dur - k) / 0.4);
+          wr = 0.12 + 2.45 * s; wrx = -0.75 * s;
+          rig.position.y = MID + 0.06 * s; head.rotation.x = -0.1 * s; head.rotation.y = 0;
+        } else if (mv.name === 'shrug') {
+          const s = Math.sin(u * Math.PI);
+          wr = 0.12 + 0.9 * s; wl = -0.12 - 0.9 * s; wrx = -0.35 * s; wlx = -0.35 * s;
+          body.scale.y = 1 + 0.05 * s; head.rotation.z = 0.28 * s; jaw.rotation.x = 0.15 + 0.3 * s;
+          pupils.forEach((p) => { p.position.y = 0.05 * s; });
+        } else if (mv.name === 'facepalm') {
+          const s = Math.min(1, k / 0.35) * Math.min(1, (mv.dur - k) / 0.35);
+          wrx = -2.05 * s; wr = 0.12 - 0.55 * s;
+          head.rotation.x = 0.32 * s; head.rotation.y = Math.sin(k * 7) * 0.18 * s;
+          lid = 1 - 0.9 * s;
+        } else if (mv.name === 'moonwalk') {
+          const s = Math.min(1, k / 0.3) * Math.min(1, (mv.dur - k) / 0.3);
+          rig.rotation.y = -1.25 * s;
+          rig.position.x = Math.sin(u * Math.PI) * 0.45;
+          rig.position.y = MID + Math.abs(Math.sin(k * 9)) * 0.06 * s;
+          wr = 0.25 * s + 0.12; wl = -0.25 * s - 0.12; wrx = Math.sin(k * 9) * 0.4 * s; wlx = -Math.sin(k * 9) * 0.4 * s;
+          head.rotation.y = 0.9 * s;
+        } else if (mv.name === 'rockstar') {
+          const s = Math.min(1, k / 0.3) * Math.min(1, (mv.dur - k) / 0.3);
+          head.rotation.x = (0.15 + Math.sin(k * 15) * 0.35) * s;
+          wr = 0.12 + 2.5 * s;
+          wl = -0.4 * s - 0.12 + Math.sin(k * 15) * 0.25 * s; wlx = -1.0 * s;
+          rig.position.y = MID + Math.abs(Math.sin(k * 7.5)) * 0.08 * s; jaw.rotation.x = 0.45 * s;
+        } else if (mv.name === 'peekaboo') {
+          if (u < 0.6) {
+            const s = Math.min(1, k / 0.35);
+            wrx = -2.25 * s; wlx = -2.25 * s; wr = 0.12 - 0.45 * s; wl = -0.12 + 0.45 * s;
+            head.rotation.x = 0.12 * s;
+          } else {
+            const s = Math.sin(((u - 0.6) / 0.4) * Math.PI);
+            wr = 0.12 + 1.6 * s; wl = -0.12 - 1.6 * s;
+            rig.position.y = MID + s * 0.35; jaw.rotation.x = 0.15 + 0.4 * s;
+          }
+        } else if (mv.name === 'wink') {
+          const s = Math.sin(u * Math.PI);
+          lidR = 1 - 0.95 * s; head.rotation.z = -0.22 * s; head.rotation.y = 0.15 * s; jaw.rotation.x = 0.15 + 0.15 * s;
+        } else if (mv.name === 'breakdance') {
+          const flip = u < 0.2 ? smooth(u / 0.2) : u > 0.8 ? smooth((1 - u) / 0.2) : 1;
+          rig.rotation.x = Math.PI * flip;
+          rig.position.y = MID + 0.8 * flip;
+          if (u >= 0.2 && u <= 0.8) rig.rotation.y = ((u - 0.2) / 0.6) * Math.PI * 4;
+          wr = 0.12 + 1.5 * flip; wl = -0.12 - 1.5 * flip;
+        } else if (mv.name === 'celebrate') {
+          const s = Math.sin(u * Math.PI);
+          rig.position.y = MID + Math.abs(Math.sin(k * 6)) * 0.4 * s;
+          wr = 0.12 + 2.5 * s + Math.sin(k * 18) * 0.2 * s; wl = -0.12 - 2.5 * s - Math.sin(k * 18) * 0.2 * s;
+          jaw.rotation.x = 0.15 + 0.4 * s; head.rotation.x = -0.15 * s;
         } else if (mv.name === 'nap') {
           head.rotation.x = 0.35; head.rotation.y = 0; head.rotation.z = 0.12;
           body.scale.y = 1 + Math.sin(t * 1.2) * 0.03;
@@ -640,9 +717,12 @@
         }
         if (u >= 1 && mv.dur !== Infinity) setMove(null);
       }
-      eyes.forEach((e) => { e.scale.y = Math.max(0.08, lid); });
+      eyes.forEach((e, i) => { e.scale.y = Math.max(0.08, i === 1 ? Math.min(lid, lidR) : lid); });
       wingR.rotation.z = ease(wingR.rotation.z, wr, mv ? 0.35 : 0.12);
       wingL.rotation.z = ease(wingL.rotation.z, wl, mv ? 0.35 : 0.12);
+      wingR.rotation.x = ease(wingR.rotation.x, wrx, mv ? 0.3 : 0.12);
+      wingL.rotation.x = ease(wingL.rotation.x, wlx, mv ? 0.3 : 0.12);
+      thumbS = ease(thumbS, thumbOn, 0.25); thumb.scale.set(0.1 * thumbS + 0.001, 0.1 * thumbS + 0.001, 0.28 * thumbS + 0.001);
       renderer.render(scene, camera);
     })();
   }
