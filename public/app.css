@@ -584,8 +584,3 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 @media (max-width: 64rem) { .poster-wrap { zoom: .78; } }
 @media (max-width: 40rem) { .poster-wrap { zoom: .46; } .cm-grid2, .cm-two { grid-template-columns: 1fr !important; } }
 
-/* middle & high training */
-.mh-combos { margin: 6px 0 14px; flex-wrap: wrap; gap: 10px; align-items: center; }
-.mh-combos .seg { flex-wrap: wrap; }
-.chip-on { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px; font-weight: 600; font-size: 14px; }
-.mh-combos .seg [aria-pressed="true"] .dim { color: inherit; opacity: .75; }
