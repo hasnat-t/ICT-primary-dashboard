@@ -1560,7 +1560,17 @@
   const mhComboName = (c) => (MH_COMBOS.find((x) => x[0] === c) || [c, c])[1];
   // Level tags chosen in the tick-box dropdown; none ticked = all of them.
   const mhTags = () => (S.mhTags = S.mhTags || []);
-  const mhTagText = () => { const t = mhTags(); return !t.length || t.length === MH_COMBOS.length ? 'All level tags' : t.length <= 2 ? t.map(mhComboName).join(', ') : `${t.length} level tags`; };
+  const mhTagText = () => { const t = mhTags(); return !t.length || t.length === MH_COMBOS.length ? 'All level tags' : t.length <= 2 ? MH_COMBOS.filter(([k]) => t.includes(k)).map(([, l]) => l).join(', ') : `${t.length} level tags`; };
+  // Trainings chosen in the second dropdown (vendor keys); none ticked = all of them.
+  const mhTrain = () => (S.mhTrain = S.mhTrain || []);
+  const mhTrainText = () => { const t = mhTrain(); return !t.length ? 'All trainings' : t.length <= 2 ? MH_ORDER.filter((v) => t.includes(v)).map((v) => MH_VENDOR[v] || v).join(', ') : `${t.length} trainings`; };
+  // A tick-box dropdown (none ticked = all), kept open while ticking. key is the S.* array it edits; opts [[value, label, count?]].
+  function msel(id, key, text, opts) {
+    const cur = S[key] || [];
+    return `<details class="msel" id="${id}" ${S.mselOpen === id ? 'open' : ''}><summary class="sel">${esc(text)}</summary>
+      <div class="msel-p" role="group" aria-label="${esc(text)}">${opts.map(([v, l, n]) => `<label><input type="checkbox" data-msel="${key}" value="${esc(v)}" ${cur.includes(v) ? 'checked' : ''}> ${esc(l)}${n === undefined ? '' : ` <span class="dim">${N(n)}</span>`}</label>`).join('')}
+        <div class="row msel-a"><button class="dl" type="button" data-mselall="${key}" ${cur.length ? '' : 'disabled'}>Show all</button></div></div></details>`;
+  }
   function mhLevelName(l) {
     if (l.vendor === 'TALEEMABAD') return `NIETE ${LEVELS[l.order] || `level ${l.order}`}`;
     if (l.vendor === 'OXBRIDGE') return MH_VENDOR.OXBRIDGE;
@@ -1586,7 +1596,7 @@
     }
     return g;
   }
-  const mhLevels = (M) => M.levels.slice().sort((a, b) => MH_ORDER.indexOf(a.vendor) - MH_ORDER.indexOf(b.vendor) || a.order - b.order);
+  const mhLevels = (M) => M.levels.filter((l) => !mhTrain().length || mhTrain().includes(l.vendor)).sort((a, b) => MH_ORDER.indexOf(a.vendor) - MH_ORDER.indexOf(b.vendor) || a.order - b.order);
   const MH_ORDER = ['TALEEMABAD', 'OXBRIDGE', 'BEACONHOUSE', 'ISAPS'];
   // The teachers in the filters, as [index, teacher]: sector, school (matched by EMIS) and the level tag.
   function mhScope(extra) {
@@ -1597,28 +1607,28 @@
     });
   }
   function mhKpis(g, L) {
-    const core = L.filter((l) => l.vendor !== 'ISAPS'), vendors = [...new Set(core.map((l) => l.vendor))];
+    const core = L.filter((l) => l.vendor !== 'ISAPS'), vendors = [...new Set(core.map((l) => l.vendor))], isaps = L.some((l) => l.vendor === 'ISAPS');
     const of = (n) => `${N(n)} of ${N(g.teachers)}`;
     return `<div class="kpis">${kpi('Middle & high teachers', N(g.teachers), `in ${N(g.schools)} school${g.schools === 1 ? '' : 's'}`)}
-      ${kpiP('On the programme', ratio(g.onProg, g.teachers), of(g.onProg))}${kpiP('Finished a module', ratio(g.didMod, g.teachers), of(g.didMod))}
-      ${kpiP('Hold a certificate', ratio(g.certAny, g.teachers), of(g.certAny))}
+      ${kpiP('On the programme', ratio(g.onProg, g.teachers), of(g.onProg))}
+      ${core.length ? kpiP('Finished a module', ratio(g.didMod, g.teachers), of(g.didMod)) + kpiP('Hold a certificate', ratio(g.certAny, g.teachers), of(g.certAny)) : ''}
       ${vendors.map((v) => kpiP(`${MH_VENDOR[v]} done`, ratio(g.vend[v], g.teachers), of(g.vend[v]))).join('')}
-      ${kpiP(`${MH_VENDOR.ISAPS} certified`, ratio(g.isapsCert, g.teachers), of(g.isapsCert))}</div>`;
+      ${isaps ? kpiP(`${MH_VENDOR.ISAPS} certified`, ratio(g.isapsCert, g.teachers), of(g.isapsCert)) : ''}</div>`;
   }
   // Columns for sector / school rows ({g}) or teacher rows ({t}), in the dashboard's coverage-bar style.
   function mhCols(level, L) {
-    const core = L.filter((l) => l.vendor !== 'ISAPS'), vendors = [...new Set(core.map((l) => l.vendor))];
+    const core = L.filter((l) => l.vendor !== 'ISAPS'), vendors = [...new Set(core.map((l) => l.vendor))], isaps = L.some((l) => l.vendor === 'ISAPS');
     const share = (k, label, f, title) => ({ k, label, num: true, title, val: (r) => ratio(f(r.g), r.g.teachers), fmt: (r) => `${cov(ratio(f(r.g), r.g.teachers))} <span class="dim">${N(f(r.g))}</span>` });
     if (level !== 'teacher') {
       return [
         { k: 'name', label: level === 'sector' ? 'Sector' : 'School', val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.emis ? ` <span class="dim">EMIS ${esc(r.emis)}</span>` : ''}` },
         { k: 'teachers', label: 'Middle & high teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
         share('on', 'On the programme', (g) => g.onProg, 'Active assignment to the middle/high programme ÷ middle & high teachers'),
-        share('mod', 'Finished a module', (g) => g.didMod, `At least one module of ${core.map((l) => mhLevelName(l)).join(', ')}`),
-        share('cert', 'Hold a certificate', (g) => g.certAny, 'At least one of those levels certified'),
+        ...(core.length ? [share('mod', 'Finished a module', (g) => g.didMod, `At least one module of ${core.map((l) => mhLevelName(l)).join(', ')}`),
+          share('cert', 'Hold a certificate', (g) => g.certAny, 'At least one of those levels certified')] : []),
         ...vendors.map((v) => share(`v-${v}`, `${MH_VENDOR[v]} done`, (g) => g.vend[v], `Certified on every ${MH_VENDOR[v]} level`)),
-        share('all', `All ${core.length} levels`, (g) => g.allCore, `Certified on all ${core.length} levels (the ${MH_VENDOR.ISAPS} is apart)`),
-        share('isaps', `${MH_VENDOR.ISAPS} certified`, (g) => g.isapsCert, 'At least one level certified; shown on its own (different pass marks, composite certificate)'),
+        ...(vendors.length > 1 ? [share('all', `All ${core.length} levels`, (g) => g.allCore, `Certified on all ${core.length} levels of the chosen trainings (the ${MH_VENDOR.ISAPS} is apart)`)] : []),
+        ...(isaps ? [share('isaps', `${MH_VENDOR.ISAPS} certified`, (g) => g.isapsCert, 'At least one level certified; shown on its own (different pass marks, composite certificate)')] : []),
       ];
     }
     const lvCell = (l) => ({ k: `l${l.id}`, label: mhLevelName(l), num: true, title: `${mhLevelName(l)}: certified, or modules finished of ${l.modules}`,
@@ -1628,7 +1638,7 @@
       { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => esc(r.name) },
       { k: 'tag', label: 'Level tag', val: (r) => mhComboName(r.t[2]), fmt: (r) => esc(mhComboName(r.t[2])) },
       { k: 'on', label: 'On the programme', num: true, val: (r) => r.t[3], fmt: (r) => yn(r.t[3]) },
-      { k: 'certs', label: `Certified levels (of ${core.length})`, num: true, val: (r) => core.filter((l) => r.t[5].includes(l.id)).length, fmt: (r) => N(core.filter((l) => r.t[5].includes(l.id)).length) },
+      ...(core.length ? [{ k: 'certs', label: `Certified levels (of ${core.length})`, num: true, val: (r) => core.filter((l) => r.t[5].includes(l.id)).length, fmt: (r) => N(core.filter((l) => r.t[5].includes(l.id)).length) }] : []),
       ...L.map(lvCell),
     ];
   }
@@ -1651,12 +1661,10 @@
     // counts per tag inside the sector / school filters, whatever is ticked
     const selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
     const tagN = (k) => M.teachers.filter((t) => t[2] === k && (!S.sector || M.schools[t[0]][1] === S.sector) && (!selEmis || M.schools[t[0]][0] === selEmis)).length;
-    const tagSel = `<div class="row"><details class="msel" id="mhtags" ${S.mhTagsOpen ? 'open' : ''}><summary class="sel" aria-label="Level tags">${esc(mhTagText())}</summary>
-      <div class="msel-p" role="group" aria-label="Level tags">${MH_COMBOS.map(([k, l]) => `<label><input type="checkbox" data-mhtag="${k}" ${mhTags().includes(k) ? 'checked' : ''}> ${esc(l)} <span class="dim">${N(tagN(k))}</span></label>`).join('')}
-        <div class="row msel-a"><button class="dl" type="button" data-mhtags="all" ${mhTags().length ? '' : 'disabled'}>Show all level tags</button></div></div></details></div>`;
-    const head = card('c-mh', `Middle & high training · ${scopeName()}${mhTagText() !== 'All level tags' ? ` · ${mhTagText()}` : ''} · all time`,
-      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too). The middle/high programme: ${core.map((l) => esc(mhLevelName(l))).join(', ')}. The <b>${MH_VENDOR.ISAPS}</b> is shown on its own: its pass marks and composite certificate are not comparable. <b>Done</b> = certified on every level of that programme. Training is all time, so the period filter does not apply.`,
-      mhKpis(g, L), tagSel);
+    const filters = `<div class="row mh-f">${msel('mhtags', 'mhTags', mhTagText(), MH_COMBOS.map(([k, l]) => [k, l, tagN(k)]))}${msel('mhtrain', 'mhTrain', mhTrainText(), MH_ORDER.filter((v) => M.levels.some((l) => l.vendor === v)).map((v) => [v, MH_VENDOR[v] || v]))}</div>`;
+    const head = card('c-mh', `Middle & high training · ${scopeName()}${mhTagText() !== 'All level tags' ? ` · ${mhTagText()}` : ''}${mhTrain().length ? ` · ${mhTrainText()}` : ''} · all time`,
+      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too). Levels shown: ${L.map((l) => esc(mhLevelName(l))).join(', ')}. The <b>${MH_VENDOR.ISAPS}</b> is always shown on its own: its pass marks and composite certificate are not comparable. <b>Done</b> = certified on every level of that training. Use the two filters to pick level tags and trainings. Training is all time, so the period filter does not apply.`,
+      mhKpis(g, L), filters);
     const byLevel = card('c-mh-t', `By ${level}`, level === 'teacher' ? 'Each level shows ✓ Certified, or modules finished of the level’s total. Click a teacher for their progress. Contains teacher names — internal use only.' : `Click a ${level} to see its ${level === 'sector' ? 'schools' : 'teachers'}.`,
       rows.length ? table('mht', mhCols(level, L), rows, { level, onRow, rowKey: (r) => r.key, foot: level === 'teacher' ? null : { g, name: 'Total' } })
         : '<p class="note">No middle or high teachers here. The School filter lists schools with primary teachers; pick the sector instead to see every middle & high school in it.</p>');
@@ -1697,8 +1705,8 @@
     const rows = L.map((l) => ({ key: l.id, l, m: t[4][l.id] || 0, c: t[5].includes(l.id) }));
     return { title: t[1], sub: `${MS.length > 1 ? '' : `${sc[2]} · ${sc[1]} · `}${mhComboName(t[2])} · all time`,
       html: `<section class="card" id="m-mh3"><div class="card-h"><h2>Training progress</h2><button class="dl" data-dl="m-mh3">Download image</button></div>
-        <div class="kpis">${kpi('On the middle/high programme', t[3] ? 'Yes' : 'No', '')}${kpi('Levels certified', `${N(done)} of ${N(core.length)}`, `${MH_VENDOR.ISAPS} apart`)}${kpi('Modules finished', N(mods), 'all levels')}
-          ${kpi(`${MH_VENDOR.ISAPS}`, `${N(L.filter((l) => l.vendor === 'ISAPS' && t[5].includes(l.id)).length)} certified`, `of ${N(L.filter((l) => l.vendor === 'ISAPS').length)} levels`)}</div>
+        <div class="kpis">${kpi('On the middle/high programme', t[3] ? 'Yes' : 'No', '')}${core.length ? kpi('Levels certified', `${N(done)} of ${N(core.length)}`, L.some((l) => l.vendor === 'ISAPS') ? `${MH_VENDOR.ISAPS} apart` : '') : ''}${kpi('Modules finished', N(mods), mhTrain().length ? 'chosen trainings' : 'all levels')}
+          ${L.some((l) => l.vendor === 'ISAPS') ? kpi(`${MH_VENDOR.ISAPS}`, `${N(L.filter((l) => l.vendor === 'ISAPS' && t[5].includes(l.id)).length)} certified`, `of ${N(L.filter((l) => l.vendor === 'ISAPS').length)} levels`) : ''}</div>
         ${table('m-mhl', [
           { k: 'name', label: 'Level', val: (r) => L.indexOf(r.l), fmt: (r) => `${esc(mhLevelName(r.l))}${r.l.vendor === 'ISAPS' ? ' <span class="dim">(on its own)</span>' : ''}` },
           { k: 'm', label: 'Modules finished', num: true, val: (r) => r.m, fmt: (r) => `${cov(ratio(r.m, r.l.modules))} <span class="dim">${N(r.m)} of ${N(r.l.modules)}</span>` },
@@ -2519,7 +2527,7 @@
     else if (b.dataset.caladd !== undefined) { calendarForm(); }
     else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
-    else if (b.dataset.mhtags) { S.mhTags = []; S.mhTagsOpen = false; render(); }
+    else if (b.dataset.mselall) { S[b.dataset.mselall] = []; S.mselOpen = null; render(); }
 
     else if (b.dataset.card) { const [k, v] = b.dataset.card.split(':'); openCard(k, +v); }
     else if (b.dataset.cmkind) { cardState().kind = b.dataset.cmkind; render(); }
@@ -2555,19 +2563,21 @@
     else if (b.id === 'm-back') { MS.pop(); renderModal(); }
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('tr.click')) e.target.click(); });
-  document.addEventListener('toggle', (e) => { if (e.target.id === 'mhtags') S.mhTagsOpen = e.target.open; }, true);
-  document.addEventListener('pointerdown', (e) => { const d = document.getElementById('mhtags'); if (d && d.open && !d.contains(e.target)) { d.open = false; S.mhTagsOpen = false; } });
+  // tick-box dropdowns: remember which one is open across redraws; a click outside closes it
+  document.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('msel')) { if (e.target.open) S.mselOpen = e.target.id; else if (S.mselOpen === e.target.id) S.mselOpen = null; } }, true);
+  document.addEventListener('pointerdown', (e) => { document.querySelectorAll('details.msel[open]').forEach((d) => { if (!d.contains(e.target)) { d.open = false; if (S.mselOpen === d.id) S.mselOpen = null; } }); });
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (t.id === 'presetSel') { if (t.value === 'custom') { S.preset = 'custom'; render(); } else setPreset(t.value); }
     else if (t.id === 'sector') { S.sector = t.value; S.school = ''; render(); }
     else if (t.id === 'school') { S.school = t.value; if (t.value !== '') S.sector = S.data.schools[+t.value].sector; render(); }
     else if (t.id === 'missing') { S.missing = t.value; render(); }
-    else if (t.dataset.mhtag) {
-      const k = t.dataset.mhtag, tags = mhTags();
-      S.mhTags = t.checked ? [...tags.filter((x) => x !== k), k] : tags.filter((x) => x !== k);
-      if (S.mhTags.length === MH_COMBOS.length) S.mhTags = [];   // every tag ticked = all
-      S.mhTagsOpen = true; render();
+    else if (t.dataset.msel) {
+      const key = t.dataset.msel, every = document.querySelectorAll(`[data-msel="${key}"]`).length;
+      let cur = (S[key] || []).filter((x) => x !== t.value);
+      if (t.checked) cur.push(t.value);
+      S[key] = cur.length === every ? [] : cur;   // every box ticked = all
+      S.mselOpen = t.closest('details').id; render();
     }
     else if (t.id === 'from' || t.id === 'to') {
       let f = Calc.dateToDay(S.data.window_start, $('#from').value || iso(0)), to = Calc.dateToDay(S.data.window_start, $('#to').value || iso(S.data.today));
