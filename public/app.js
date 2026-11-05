@@ -1617,7 +1617,7 @@
     const core = L.filter((l) => l.vendor !== 'ISAPS'), vendors = [...new Set(core.map((l) => l.vendor))], isaps = L.some((l) => l.vendor === 'ISAPS');
     const of = (n) => `${N(n)} of ${N(g.teachers)}`;
     return `<div class="kpis">${kpi('Middle & high teachers', N(g.teachers), `in ${N(g.schools)} school${g.schools === 1 ? '' : 's'}`)}
-      ${kpiP('On the programme', ratio(g.onProg, g.teachers), of(g.onProg))}
+      ${kpi('On the programme', P0(ratio(g.onProg, g.teachers)), of(g.onProg))}
       ${core.length ? kpiP('Finished a module', ratio(g.didMod, g.teachers), of(g.didMod)) + kpiP('Hold a certificate', ratio(g.certAny, g.teachers), of(g.certAny)) : ''}
       ${vendors.map((v) => kpiP(`${MH_VENDOR[v]} done`, ratio(g.vend[v], g.teachers), of(g.vend[v]))).join('')}
       ${isaps ? kpiP(`${MH_VENDOR.ISAPS} certified`, ratio(g.isapsCert, g.teachers), of(g.isapsCert)) : ''}</div>`;
@@ -1630,7 +1630,7 @@
       return [
         { k: 'name', label: level === 'sector' ? 'Sector' : 'School', val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.emis ? ` <span class="dim">EMIS ${esc(r.emis)}</span>` : ''}` },
         { k: 'teachers', label: 'Middle & high teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
-        share('on', 'On the programme', (g) => g.onProg, 'Active assignment to the middle/high programme ÷ middle & high teachers'),
+        { k: 'on', label: 'On the programme', num: true, title: 'Enrolled: the middle/high training is assigned to the teacher (whole-number %, no band: enrolment is not performance)', val: (r) => ratio(r.g.onProg, r.g.teachers), fmt: (r) => `${P0(ratio(r.g.onProg, r.g.teachers))} <span class="dim">${N(r.g.onProg)}</span>` },
         ...(core.length ? [share('mod', 'Finished a module', (g) => g.didMod, `At least one module of ${core.map((l) => mhLevelName(l)).join(', ')}`),
           share('cert', 'Hold a certificate', (g) => g.certAny, 'At least one of those levels certified')] : []),
         ...vendors.map((v) => share(`v-${v}`, `${MH_VENDOR[v]} done`, (g) => g.vend[v], MH_ANY_LEVEL.includes(v) ? `Certified on any one ${MH_VENDOR[v]} level` : `Certified on every ${MH_VENDOR[v]} level`)),
