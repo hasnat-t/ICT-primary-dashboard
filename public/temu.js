@@ -14,67 +14,208 @@
   };
 
   // ---------- what TEMU knows ----------
-  const PAGES = {
-    overview: ['Overview', 'The big picture, for whatever period and place you picked. Up top, four headline cards: lesson-plan engagement, DC coverage, HITL coverage and Teacher Leader certificates. The green ▲ and red ▼ compare with the period of the same length just before, so you can tell if things are going up or just feeling like it. Below: activity counts, the <b>teacher reach ladder</b> (each rung counted on its own, so it’s a ladder, not a funnel; please don’t pour water in it) and <b>needs attention</b> notes written from the figures. Click a note’s tag to focus that sector.'],
-    lp: ['Lesson plans', 'Who used a grade 1–5 lesson plan: generated one with Rumi (WhatsApp or the portal) or opened one in the teacher app. <b>LP engagement %</b> = teachers who used at least one plan ÷ primary teachers. Then a trend, a table by sector, school or teacher, and analytics: subjects, grades, weekdays, the hour plans are made (spoiler: some people plan at midnight), the lessons most taught and the lessons most generated.'],
-    quiz: ['Quizzes', 'Lesson quizzes teachers made, and the children who took them through the teacher’s share link. Children are counts only; no child is ever named. Not even by me, and I love naming things. Quiz scores are marked provisional until the data team writes a rule for them.'],
-    exams: ['Exam generator', 'Exam papers teachers asked for and the ones that actually came out, on WhatsApp or the portal, including grade 5 <b>FDE board papers</b>. Analytics by subject, grade, how papers are made, day, hour and the most examined chapters. Children, look away.'],
-    dc: ['DC observations', 'The <b>Digital Coach</b>: a teacher records a lesson and the AI scores it on FICO. Basically a very patient robot sitting at the back of the class. <b>DC coverage</b> = teachers with at least one scored recording. Below: subjects, grades, a grade × subject heatmap and what stands out. DC is never added to coach visits.'],
-    hitl: ['HITL observations', '<b>HITL</b> (human in the loop): a real coach, in a real classroom, with /observe. No robots were harmed. You’ll see observations, teachers observed and debrief stages, then analytics by coach (click a coach to see their schools, teachers, scores and debrief reports), principals doing HITL, observations per teacher, grades and weekdays.'],
-    observe2: ['/observe2 pilot', 'The impact team’s experiment: coaches score 17 indicators (fico17) themselves. Science! It is counted on its own and never added to HITL or FICO figures. Progress by week, what we are learning, and the pilot study’s four questions.'],
-    fico: ['FICO scores', 'FICO has four sections: lesson-plan fidelity, subject knowledge, teaching practices and student engagement, each shown as score ÷ maximum. DC and HITL are never mixed; we compare apples with apples and mangoes with mangoes. Then all 37 indicators (FICO v3, from 8 Sep), by sector and week by week. Bands: <b>Exemplary</b> 80%+, <b>Proficient</b> 70–79.9%, <b>Developing</b> 60–69.9%, <b>Needs support</b> under 60%.'],
-    egra: ['Learning assessment', 'Children’s reading (EGRA, Urdu and English) and maths (EGMA), tested on coaches’ phones with children drawn at random. Only totals are shown, and any group of fewer than 5 children just says “fewer than 5”. Privacy first, curiosity second. Benchmarks are proposed, scores are AI-marked. At the bottom: children’s learning beside their teachers’ teaching, by sector and school.'],
-    mhtraining: ['Middle & high training', 'Every teacher whose level includes Middle or High, in any mix (Primary too), and how far they are in their training: on the programme, finished a module, certified. NIETE Trainings, Game-Based Teaching (GBTLA) and AI-Powered Subject Pedagogy are shown level by level; the Teacher Development Programme sits on its own, because its pass marks are different. Tick level tags and trainings in the two dropdowns to show just the stats you want, then click a sector, a school and a teacher to drill in, just like the other tabs. Every table has Download CSV. All time, so the period filter takes the day off here.'],
-    training: ['Training', 'NIETE primary training, all time: who is on the programme, modules finished, and Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader). I’m Level 0 myself. Aspiring Parrot.'],
-    schools: ['All schools', 'Every ICT school with its figures for the period. Click a column header to sort, click a school for its details, and use <b>Download CSV</b> if you’d rather suffer in Excel.'],
-    teachers: ['Teachers', 'Every primary teacher. Search by name, then click a teacher for their scorecard: activity, FICO scores, the score trend and their HITL <b>debrief reports</b> (strengths, areas of growth, action plan). Read them before the next visit; future you will say thanks.'],
-    calendar: ['School calendar', 'Exams, sports weeks, holidays, events and closures entered by coaches, plus federal public holidays. So when engagement dips, you’ll know if it’s a problem or just sports week. Anyone with the link can add an entry, so only add what you know.'],
-    report: ['Monthly report', 'Pick a month and get a one-page summary: sectors, FICO, schools leading and needing support, the calendar and children’s learning. Print it or save it as a PDF. Meetings love paper.'],
-    spotlight: ['Leading & support', 'Schools and teachers leading the way, and where support is most needed, on using the tools or on classroom practice, with minimum sample sizes so one lucky lesson can’t top the chart. It’s for celebrating and planning support, not for judging. I checked.'],
-    trends: ['Analytics', 'Week-by-week trends of the key measures: lesson plans, plans taught, observations, FICO scores, exams and quizzes. Lines going up: good. Lines going down: let’s talk.'],
-    cards: ['Appreciation cards', 'Make a thank-you card for a teacher or a school. Pick who it’s for, tick what to celebrate, write a message and download it for WhatsApp. Cards only show the person’s own figures, and FICO only as a band (Proficient or Exemplary), never a score. Switch to <b>School stars poster</b> for a school’s top teachers over any time frame, with the indicators you pick. I can even pose on both. I’m very photogenic.'],
-    glossary: ['How we count', 'What every number means and where it comes from. <b>Governed</b> = defined by the Taleemabad data rules. <b>Provisional</b> = set by the programme, may change. It’s the boring page that settles every argument.'],
+  // Everything TEMU knows about each tab: [name, what it is, [[selector, section, what it shows and what you can do]]].
+  // "Show me around this page" walks the sections that are on screen; the full tour visits every tab in menu order.
+  // Keep it in step with the page: when a tab or section is added or renamed, add or rename it here (CLAUDE.md).
+  const GUIDE = {
+    overview: ['Overview', 'The big picture for the period, sector and school you pick in the filters. Start here every morning, with chai.', [
+      ['.hc2', 'ICT teachers', 'Every teacher at an ICT programme school, whatever they teach, counted once, as of the last data refresh. Green teach Primary, orange teach Middle or High, blue teach both; the bar shows the split without overlap. Follows the Sector filter. The rest of the dashboard counts primary teachers only.'],
+      ['.hero', 'Headline cards', 'Four headline measures for primary teachers: lesson-plan engagement, Digital Coach coverage, HITL coverage and Teacher Leader certificates. The badge is the performance band, ▲/▼ compare with the period before, and each dot on the strip is a sector: click one to focus the page on it.'],
+      ['.volume', 'Activity counts', 'How much happened in the period: DC and HITL observations, plans taught, quizzes made, children quizzed and exams generated.'],
+      ['#c-ladder', 'Teacher reach ladder', 'The share of primary teachers each part of the programme reached. Each rung is counted on its own, so it’s a ladder, not a funnel. Please don’t climb it.'],
+      ['#c-att', 'Needs attention', 'Notes written automatically from this period’s figures: drops, sectors that trail, who leads. Click a note to focus that sector or open that tab.'],
+      ['#c-mom', 'Momentum', 'The key measures week by week, so you can see what is rising and what is slipping. The current week is faded because it isn’t over yet.'],
+      ['#c-hm', 'Sectors at a glance', 'Every sector side by side on every measure, as a share of its primary teachers. Click a sector to focus the whole page on it.'],
+      ['#c-stairs', 'Certification staircase', 'How many primary teachers hold each NIETE level certificate, Level 0 to Level 3. The dots are the six sectors.'],
+    ]],
+    lp: ['Lesson plans', 'Who used a grade 1–5 lesson plan: generated one with Rumi (WhatsApp or the portal) or opened one in the teacher app. LP engagement % = teachers who used at least one ÷ primary teachers.', [
+      ['#c-lp', 'Headline', 'Engagement, plans generated, plans opened in the app and plans taught (seen in DC recordings) for your period.'],
+      ['#c-lp-trend', 'Over time', 'Plans by day, week or month. Switch with “Group charts by” in the filter bar.'],
+      ['#c-lp-t', 'By sector, school or teacher', 'The same measures per sector. Pick a sector to see its schools, a school to see its teachers. Click any row for the details; Download CSV takes the table to Excel.'],
+      ['#c-lps', 'By subject', 'Plans generated and taught for each subject.'],
+      ['#c-lpg', 'By grade', 'Plans generated and taught for each grade.'],
+      ['#c-lpw', 'Day of the week', 'The average plans made on each weekday.'],
+      ['#c-lph', 'When plans are made', 'A weekday × hour heatmap; darker means more plans. Spoiler: teachers plan early.'],
+      ['#c-lpt', 'Most taught lessons', 'The curriculum lessons most often taught with a Rumi plan attached to the DC recording.'],
+      ['#c-lpl', 'Most generated lessons', 'The lessons teachers most often made a plan for.'],
+    ]],
+    quiz: ['Quizzes', 'Lesson quizzes teachers made, and the children who took them through the teacher’s share link. Children are counts only; nobody is ever named. Not even by me.', [
+      ['#c-quiz', 'Headline', 'Quizzes made, children reached, attempts, and the teachers whose children took a quiz.'],
+      ['#c-quiz-trend', 'Over time', 'Quizzes and children by day, week or month.'],
+      ['#c-quiz-t', 'By sector, school or teacher', 'The same figures per sector, school or teacher. Click a row to drill in.'],
+      ['#c-qs', 'Scores at a glance', 'How children scored on finished quizzes, with mastery bands. Provisional until the data team writes a rule for scores.'],
+      ['#c-qg', 'By grade and subject', 'Average scores for each grade and subject.'],
+      ['#c-qst', 'Score over time', 'The average quiz score week by week.'],
+    ]],
+    exams: ['Exam generator', 'Exam papers teachers made with Rumi’s exam generator (/assessment on WhatsApp, or the portal), with answer keys, including grade 5 FDE board papers.', [
+      ['#c-ex', 'Headline', 'Papers generated and requested, teachers using it, and FDE board papers.'],
+      ['#c-ex-trend', 'Over time', 'Papers by day, week or month.'],
+      ['#c-ex-t', 'By sector, school or teacher', 'The same figures per sector, school or teacher. Click a row to drill in.'],
+      ['#c-exs', 'By subject', 'Papers for each subject.'],
+      ['#c-exg', 'By grade', 'Papers generated and requested for each grade.'],
+      ['#c-exh', 'How papers are made', 'Seen (the textbook’s own questions), unseen (new questions) or a mix, and where teachers make them.'],
+      ['#c-exb', 'FDE board papers', 'Grade 5 papers in the FDE board exam layout.'],
+      ['#c-exw', 'Day of the week', 'The average papers made on each weekday.'],
+      ['#c-exhh', 'When exams are made', 'A weekday × hour heatmap of papers.'],
+      ['#c-exc', 'Most examined chapters', 'The top 25 textbook chapters by papers made.'],
+    ]],
+    dc: ['DC observations', 'The Digital Coach: a teacher records her own lesson and the AI scores it on FICO. Coverage = teachers with at least one scored recording. A very patient robot at the back of the class. Never added to coach visits.', [
+      ['#c-dc', 'Headline', 'Recordings, teachers recorded, coverage and the FICO section scores.'],
+      ['#c-dc-trend', 'Over time', 'Recordings by day, week or month.'],
+      ['#c-dc-t', 'By sector, school or teacher', 'The same figures per sector, school or teacher. Click a teacher for their scorecard.'],
+      ['#c-dcx', 'What stands out', 'The strongest and weakest subjects and grades, only where there are at least 30 scored lessons.'],
+      ['#c-dcs', 'By subject', 'Average DC score per FICO section for each subject.'],
+      ['#c-dcg', 'By grade', 'The same by grade. The grade comes from the attached plan, else the teacher’s classes.'],
+      ['#c-dch', 'Grade × subject', 'A heatmap of scores. Pick the measure at the top; faded cells have too few lessons to trust.'],
+    ]],
+    hitl: ['HITL observations', 'Human in the loop: a coach observes a lesson in person with /observe, and an AI pre-fills the form for the coach to check.', [
+      ['#c-hitl', 'Headline', 'Observations held, teachers observed, and the debrief stages: debriefed, debrief pending, awaiting review.'],
+      ['#c-hitl-trend', 'Over time', 'Observations by day, week or month.'],
+      ['#c-hitl-t', 'By sector, school or teacher', 'The same figures per sector, school or teacher.'],
+      ['#c-hx', 'What stands out', 'The highlights from this period’s observations.'],
+      ['#c-hp', 'Observations per teacher', 'How many times each teacher was observed: once, twice, more.'],
+      ['#c-hw', 'Day of the week', 'The average observations on each weekday.'],
+      ['#c-hf', 'How coaches use the AI’s form', 'Whether the coach changed the AI’s scores, rewrote only the feedback, or submitted it as it was.'],
+      ['#c-hc', 'By coach', 'Each coach’s observations. Click a coach to see their schools, teachers, score trends and debrief reports.'],
+      ['#c-hpr', 'Principals doing HITL', 'School heads who observed their own teachers.'],
+      ['#c-hg', 'By grade', 'Observations and scores by the grade of the lesson.'],
+    ]],
+    observe2: ['/observe2 pilot', 'The impact team’s experiment: coaches score 17 indicators (fico17) themselves. Kept apart from HITL and FICO, and please don’t feed it.', [
+      ['#c-o2', 'Headline', 'Visits, teachers observed and the overall picture of the pilot so far.'],
+      ['#c-o2l', 'What we are learning', 'Early signals from the observations so far.'],
+      ['#c-o2t', 'Progress by week', 'Observations and teachers each week since the pilot began.'],
+      ['#c-o2s', 'By sector', 'The pilot in each sector.'],
+      ['#c-o2i', 'The 17 indicators', 'How coaches rated each indicator, level by level.'],
+      ['#c-o2p', 'What to work on first', 'The one thing coaches most often asked teachers to work on.'],
+      ['#c-o2c', 'Children’s thinking', 'What coaches noticed about children’s thinking in the lesson.'],
+      ['#c-o2co', 'By coach', 'Each coach’s pilot visits. Counts are activity, not quality.'],
+      ['#c-ps1', 'Pilot study: progress', 'Progress against the study design’s targets.'],
+      ['#c-ps2', 'Can the DC score it?', 'How often the Digital Coach’s rating matches the coach’s, indicator by indicator.'],
+      ['#c-ps3', 'Does the evidence check help?', 'How coaches judged the evidence the DC found.'],
+      ['#c-ps4', 'Same priority whoever observes?', 'Whether two coaches pick the same priority for a teacher.'],
+      ['#c-ps5', 'How many visits for a fair picture?', 'How stable a teacher’s levels are from one visit to the next.'],
+      ['#c-ps6', 'How the visit steps are going', 'Timings and lesson-plan steps during the visits.'],
+    ]],
+    fico: ['FICO scores', 'FICO, the lesson-observation framework: lesson-plan fidelity, subject knowledge, teaching practices and student engagement, as score ÷ maximum. Bands: Exemplary 80%+, Proficient 70–79.9%, Developing 60–69.9%, Needs support under 60%. DC and HITL are never mixed. Apples and mangoes.', [
+      ['#c-fico', 'Headline', 'The four sections for DC and HITL, side by side and never pooled.'],
+      ['#c-fico-trend', 'DC scores over time', 'Teaching practices, student engagement and lesson-plan fidelity week by week.'],
+      ['#c-fico-t', 'By sector, school or teacher', 'Section scores per sector, school or teacher. Green edge = Digital Coach, grey edge = coach visits.'],
+      ['#c-fi1', 'What stands out', 'The strongest and weakest indicators (50+ scores).'],
+      ['#c-fi2', 'All 37 indicators', 'Every indicator’s average. Sort by any column.'],
+      ['#c-fi3', 'Indicators by sector', 'A heatmap of indicators in each sector. Pick DC or HITL.'],
+      ['#c-fi4', 'Indicators week by week', 'How each indicator moved since 8 Sep.'],
+    ]],
+    egra: ['Learning assessment', 'Children’s reading (EGRA, Urdu and English) and maths (EGMA), tested on coaches’ phones with children drawn at random. Totals only; any group under 5 children shows “fewer than 5”. Privacy first, curiosity second.', [
+      ['#c-eg0', 'Headline', 'Children tested, schools, and how many completed the test.'],
+      ['#c-eg1', 'Reading', 'Words a minute in bands (non-reader to fluent) and reading with understanding.'],
+      ['#c-eg2', 'Maths', 'Children meeting the maths benchmark and number fluency.'],
+      ['#c-eg3', 'Skills', 'The share right on each part of the test. Sort by any column.'],
+      ['#c-eg4', 'By grade', 'Results per grade.'],
+      ['#c-eg5', 'By sector', 'Results per sector.'],
+      ['#c-eg6', 'Children tested each day', 'Testing day by day.'],
+      ['#c-eg7', 'Learning beside teaching', 'Children’s results next to their teachers’ teaching, by sector.'],
+      ['#c-eg8', 'By school', 'Schools with at least 5 children tested.'],
+    ]],
+    training: ['Primary training', 'NIETE primary training (niete_primary), all time: who is on the programme, modules finished, and the Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader).', [
+      ['#c-tr', 'Headline', 'On the programme, finished a module, and the share holding each level certificate.'],
+      ['#c-tr-t', 'By sector, school or teacher', 'The same per sector, school or teacher. Click a row to drill in.'],
+    ]],
+    mhtraining: ['Middle & high training', 'Every teacher tagged Middle or High, in any mix (Primary too), and their training: NIETE Trainings, Game-Based Teaching (GBTLA), AI-Powered Subject Pedagogy (any one certified level completes it) and the Teacher Development Programme (always shown on its own). All time, so the period filter takes the day off here.', [
+      ['#c-mh', 'Headline and filters', 'Tick level tags and trainings in the two dropdowns; every tile, column and popup follows them.'],
+      ['#c-mh-t', 'By sector, school or teacher', 'Click a sector for its schools, a school for its teachers, a teacher for their progress on every level.'],
+      ['#c-mh-l', 'By training level', 'Teachers who finished a module, every module, and were certified on each level.'],
+      ['#c-mh-c', 'By level tag', 'The same figures for Middle, High, Middle + High and the Primary mixes.'],
+    ]],
+    schools: ['All schools', 'Every ICT school with its figures for the period. Search by name or EMIS, sort any column, and Download CSV.', [
+      ['#c-sch', 'The schools table', 'Click a school for its teachers, its calendar, an appreciation card or a School stars poster.'],
+    ]],
+    teachers: ['Teachers', 'Every primary teacher. Search by name or school, or show only teachers missing something (no lesson plan, no DC recording, no quiz…).', [
+      ['#c-tch', 'The teachers table', 'Click a teacher for their scorecard: activity, FICO scores, score trend and HITL debrief reports (strengths, areas of growth, action plan). Read them before the next visit.'],
+    ]],
+    calendar: ['School calendar', 'Exams, sports weeks, holidays, events and closures entered by coaches, plus public holidays, so a dip in engagement comes with an alibi. Anyone with the link can add an entry.', [
+      ['#c-cal0', 'Add an entry', 'Press + Add to calendar: pick the reason, dates and schools (or a whole sector). No passcode needed.'],
+      ['#c-cal1', 'Month view', 'Every entry on a calendar.'],
+      ['#c-cal2', 'Engagement against the calendar', 'Each day: the share of teachers active beside the share of schools with an entry.'],
+      ['#c-cal3', 'Happening now', 'Entries for today.'],
+      ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
+      ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
+    ]],
+    report: ['Monthly report', 'A one-page summary for any month: sectors, FICO, schools leading and needing support, the calendar and children’s learning. Print it or save it as a PDF; meetings love paper.', [
+      ['#c-rep0', 'Pick the month', 'Choose the month and print or save. The figures cover primary teachers.'],
+      ['#c-rep1', 'Sectors', 'Each sector’s key measures and the change from the month before.'],
+      ['#c-rep2', 'FICO section scores', 'The month’s section scores.'],
+      ['#c-rep3', 'Schools leading the way', 'The month’s leading schools.'],
+      ['#c-rep4', 'Where support is needed', 'Schools that would benefit most from support.'],
+      ['#c-rep5', 'School calendar', 'What schools had on that month.'],
+      ['#c-rep6', 'Children’s learning', 'The learning assessment for the month.'],
+    ]],
+    spotlight: ['Leading & support', 'Schools and teachers leading the way, and where support is most needed, on using the tools or on classroom practice, with minimum samples so one lucky lesson can’t top the chart. For celebrating and planning support, not for judging.', [
+      ['#c-sp0', 'How it ranks', 'Switch between using the tools and classroom practice.'],
+      ['#c-sp1', 'Schools leading the way', 'The top schools.'],
+      ['#c-sp2', 'Schools needing support', 'The schools that would benefit most from help.'],
+      ['#c-sp3', 'Teachers leading the way', 'The top teachers. Click one for their scorecard.'],
+      ['#c-sp4', 'Teachers needing support', 'Teachers who would benefit most from a visit.'],
+    ]],
+    cards: ['Appreciation cards', 'Celebrate teachers. Make a thank-you card for one teacher or school, or switch to School stars poster for a school’s top teachers. Pick the time frame and what to show, then download for WhatsApp.', [
+      ['#c-cards', 'The card maker', 'Choose who it is for, a design, up to 6 things to celebrate, your message and name. FICO appears only as a band, never a score. Nothing is saved. I can even pose on it.'],
+    ]],
+    trends: ['Analytics', 'Week-by-week trends of the key measures. Lines going up: good. Lines going down: let’s talk.', [
+      ['#c-a1', 'Lesson plans', 'Teachers who generated a lesson plan.'],
+      ['#c-a2', 'Plans taught', 'DC recordings with a Rumi plan attached.'],
+      ['#c-a3', 'Classroom observations', 'DC and HITL side by side, never added.'],
+      ['#c-a4', 'Teaching practices score', 'FICO teaching practices over time.'],
+      ['#c-a5', 'Subject knowledge score', 'Subject knowledge, with v2 and v3 kept as separate lines.'],
+      ['#c-a7', 'Exam generator', 'Papers and the teachers making them.'],
+      ['#c-a6', 'Quizzes', 'Quizzes and children reached.'],
+    ]],
+    glossary: ['How we count', 'What every number means and where it comes from. Governed = defined by the data rules; Provisional = may change. It’s the boring page that settles every argument.', [
+      ['#c-g0', 'Search', 'Type a word, like engagement or FICO, to find its definition.'],
+    ]],
   };
 
   // [question, answer, tab to open, element to point at]
   const FAQ = [
+    ['How many teachers are in ICT?', 'The <b>ICT teachers</b> strip at the top of the Overview: every teacher at an ICT programme school, counted once, with how many teach Primary, Middle or High, or both. It follows the Sector filter and updates with every refresh.', 'overview', '.hc2'],
     ['What is LP engagement?', 'The share of primary teachers who used at least one grade 1–5 lesson plan in the period: generated with Rumi or opened in the teacher app. Using one counts. Admiring one from afar does not.', 'lp', '#c-lp'],
-    ['What is the difference between DC and HITL?', '<b>DC</b> is the Digital Coach: the teacher records their own lesson and the AI scores it. <b>HITL</b> is a human coach sitting in the classroom with /observe. Both use FICO, but they are never added together. Robot and human, separate tables, like a good wedding.', 'dc', '#c-dc'],
+    ['What is the difference between DC and HITL?', '<b>DC</b> is the Digital Coach: the teacher records their own lesson and the AI scores it. <b>HITL</b> is a human coach in the classroom with /observe. Both use FICO, but they are never added together. Robot and human, separate tables, like a good wedding.', 'dc', '#c-dc'],
     ['What is FICO?', 'The lesson-observation framework with four sections: lesson-plan fidelity, subject knowledge, teaching practices and student engagement. Bands: Exemplary 80%+, Proficient 70–79.9%, Developing 60–69.9%, Needs support under 60%. Not the credit score. Nobody’s getting a loan here.', 'fico', '#c-fico'],
-    ['What is /observe2?', 'The impact team’s pilot where coaches score 17 indicators themselves. It has its own tab and is never added to HITL or FICO. It’s an experiment, so please don’t feed it.', 'observe2', null],
+    ['What is /observe2?', 'The impact team’s pilot where coaches score 17 indicators themselves. It has its own tab and is never added to HITL or FICO.', 'observe2', '#c-o2'],
     ['Where are the debrief reports?', 'Two places: open <b>Teachers</b> and click a teacher (reports are at the bottom of the scorecard), or open <b>HITL observations</b>, scroll to “By coach” and click a coach. Hidden in plain sight, my favourite kind of hiding.', 'teachers', '#c-tch'],
-    ['How do I change the period, sector or school?', 'Use the filter bar at the top. Every number on every tab follows it. “Group charts by” switches trends between daily, weekly and monthly. Yes, it’s that easy. I’m almost offended you asked.', null, '#filters'],
+    ['How do I see middle and high teachers’ training?', 'Open <b>Middle & high training</b> under Growth. Tick level tags (Middle, High, Middle + High, the Primary mixes) and trainings (NIETE Trainings, GBTLA, AI-Powered Subject Pedagogy, Teacher Development Programme) in the two dropdowns. Then click a sector, a school and a teacher to drill in.', 'mhtraining', '#c-mh'],
+    ['What does “done” mean for a training?', 'Certified on every level of that training, except <b>AI-Powered Subject Pedagogy</b>: its four levels are alternatives, so any one certified level completes it. The Teacher Development Programme is always counted on its own.', 'mhtraining', '#c-mh'],
+    ['Why don’t training figures change with the period?', 'Training is counted all time: a certificate earned in September still counts in November. Sector and school filters still apply.', 'training', '#c-tr'],
+    ['How do I change the period, sector or school?', 'Use the filter bar at the top. Every number on every tab follows it (training is all time). “Group charts by” switches trends between daily, weekly and monthly. Yes, it’s that easy.', null, '#filters'],
     ['What do the ▲ and ▼ marks mean?', 'They compare the period you picked with the period of the same length just before it: percentage points for shares, per cent for counts. For “Since 1 Aug” there’s nothing before, so they politely disappear.', 'overview', '.hero'],
-    ['How do I download a chart or table?', '<b>Download image</b> on any section saves a PNG; the button at the top saves the whole page. Tables also have <b>Download CSV</b>, which opens in Excel. <b>Present</b> hides the menus for a meeting screen, so everyone stares at the numbers instead of you.', null, '.top-btns'],
-    ['How fresh is the data?', 'It refreshes by itself every day (the footer says when), and the date under the title says when it was last updated. If a part fails, the page says so and keeps the previous figures for it. Fresher than my jokes, anyway.', null, '.foot'],
+    ['What do the colours on the tiles mean?', 'Tiles with a badge (Exemplary, Proficient, Developing, Needs support) are coloured by their band, so the colour means something. Other tiles just take a colour so they’re easy to tell apart. Pretty, not judgemental.', 'overview', '.hero'],
+    ['How do I download a chart or table?', '<b>Download image</b> on any section saves a picture; the button at the top saves the whole page. Tables also have <b>Download CSV</b> for Excel. <b>Present</b> hides the menus for a meeting screen.', null, '.top-btns'],
+    ['How fresh is the data?', 'It refreshes by itself every day (the footer says when), and the date under the title says when it was last updated. If a part fails, the page says so and keeps the previous figures. Fresher than my jokes, anyway.', null, '.foot'],
     ['Why is a number blank or zero?', 'Usually nothing happened in that period or place. Try “Since 1 Aug” or All sectors. If a refresh had a problem, a yellow note at the top says which part is missing. Zero is a number too, it just has low self-esteem.', null, '#filters'],
-    ['Who counts as a primary teacher?', 'A verified teacher account at an ICT programme school whose teaching level includes primary. Test accounts and teachers with no level recorded are left out. Sorry, Test Teacher 1. You know what you did.', 'glossary', '#c-g0'],
-    ['What is EGRA / the learning assessment?', 'A short reading and maths test for children drawn at random, done on the coach’s phone. Only totals are shown, never a child’s name, and groups under 5 children are hidden. The children are the point, after all.', 'egra', null],
+    ['Who counts as a primary teacher?', 'A verified teacher account at an ICT programme school whose level includes primary. Test accounts and teachers with no level recorded are left out. Middle and high teachers have their own training tab.', 'glossary', '#c-g0'],
+    ['What is EGRA / the learning assessment?', 'A short reading and maths test for children drawn at random, done on the coach’s phone. Only totals are shown, never a child’s name, and groups under 5 children are hidden. The children are the point, after all.', 'egra', '#c-eg0'],
     ['How do coaches add a school calendar entry?', 'Open <b>School calendar</b>, press <b>+ Add to calendar</b>, pick the reason, dates and schools, and save. No passcode needed. Please only add what you actually know; I can’t fact-check holidays, I’m a parrot.', 'calendar', '#c-cal0'],
     ['Who is leading and who needs support?', '<b>Leading & support</b> ranks schools and teachers on using the tools or on classroom practice, with minimum samples so one lesson can’t top the chart. Celebrate the first list; help the second.', 'spotlight', '#c-sp0'],
+    ['How do I get a monthly summary?', 'Open <b>Monthly report</b> under Insights, pick the month, and print it or save it as a PDF.', 'report', '#c-rep0'],
+    ['How do I make an appreciation card or poster?', 'Open <b>Appreciation cards</b> under Insights, or press <b>Make appreciation card</b> or <b>Make school stars poster</b> on a teacher’s or school’s popup. Pick the time frame and what to celebrate, add your message, and download. Spreading joy, one PNG at a time.', 'cards', '#c-cards'],
     ['Can I share this dashboard?', 'Inside the NIETE and Taleemabad team only. Please don’t send the link to teachers, school heads or anyone outside: it shows named teachers’ FICO scores. Loose lips sink ships. And parrots.', null, '.confid'],
-    ['How do I make an appreciation card?', 'Open <b>Appreciation cards</b> (under Insights), or press <b>Make appreciation card</b> on any teacher’s or school’s popup. Tick up to 6 things to celebrate, add your message and name, and download. Spreading joy, one PNG at a time.', 'cards', '#c-cards'],
     ['Something looks wrong. Who do I tell?', 'Press <b>Feedback</b> at the bottom right. Hasnat reads every message. Even the angry ones. Especially the angry ones.', null, '#fb-open'],
   ];
 
-  const TOUR = [
+  // The quick tour: the essentials in about a minute. [tab, element, text]
+  const QUICK = [
     ['overview', '.confid', 'First, the red note. This dashboard is <b>internal only</b>: it shows teachers by name with their FICO scores. Not for teachers, school heads or outsiders. What happens on the dashboard stays on the dashboard.'],
-    [null, '#nav', 'The menu: <b>Teaching</b>, <b>Observation</b>, <b>Children</b>, <b>Growth</b>, <b>Directory</b> and <b>Insights</b>. Seventeen tabs. I’ve memorised them all, which is more than I can say for my own password.'],
-    [null, '#filters', 'The filters. Pick a period, a sector or a school, and <b>every</b> number on every tab obeys. If only my feathers listened like that.'],
-    ['overview', '.hero', 'The four headline cards: lesson-plan engagement, DC coverage, HITL coverage and Teacher Leaders. Green ▲ and red ▼ show the change from the period before. Green good. Red… a conversation.'],
-    ['overview', '#c-ladder', 'The reach ladder: what share of teachers each part of the programme reached. Each rung is counted on its own, so it’s a ladder, not a funnel. Please don’t climb it.'],
-    ['lp', '#c-lp', '<b>Lesson plans</b>: who used a grade 1–5 plan from Rumi or the teacher app. Scroll down for subjects, grades and the most taught lessons.'],
-    ['dc', '#c-dc', '<b>DC observations</b>: teachers record a lesson and the Digital Coach scores it. A robot at the back of the class that never falls asleep. Unlike some of us.'],
-    ['hitl', '#c-hitl', '<b>HITL observations</b>: real coaches observing lessons in person. Click a coach further down to see their schools, teachers, scores and debrief reports.'],
-    ['fico', '#c-fico', '<b>FICO scores</b>: four sections, then all 37 indicators. DC and HITL are kept apart. Apples and mangoes. Both delicious, never in the same basket.'],
-    ['egra', null, '<b>Learning assessment</b>: how children read and do maths. Totals only, groups under 5 children hidden. The whole programme exists for these numbers, so be nice to them.'],
-    ['teachers', '#c-tch', '<b>Teachers</b>: search for anyone and click them for a scorecard with their trend and debrief reports.'],
-    ['spotlight', '#c-sp0', '<b>Leading & support</b>: where to celebrate and where to send help. Kind rankings, I promise. I’d know, I’m very kind.'],
-    ['calendar', '#c-cal0', 'The <b>school calendar</b>: exams, holidays, sports weeks and closures, so a dip in engagement comes with an alibi.'],
-    ['report', '#c-rep0', 'The <b>monthly report</b>: one page per month, ready to print or save as a PDF. Looks great in meetings. Makes you look prepared even if you weren’t.'],
-    ['glossary', '#c-g0', '<b>How we count</b>: what every number means. When in doubt, look here. Or ask me; I’m cheaper than a meeting and I never say “let’s take this offline”.'],
-    [null, '.top-btns', '<b>Download image</b> saves the page as a picture and <b>Present</b> hides the menus for a big screen. Tables also have <b>Download CSV</b>, for the spreadsheet lovers among us.'],
-    [null, '#fb-open', 'And if something is wrong or missing, press <b>Feedback</b>. That’s the tour! You survived. Here, have a backflip.'],
+    [null, '#nav', 'The menu, in six groups: <b>Teaching</b>, <b>Observation</b>, <b>Children</b>, <b>Growth</b>, <b>Directory</b> and <b>Insights</b>. Nineteen tabs, and I know every one of them.'],
+    [null, '#filters', 'The filters. Pick a period, a sector or a school, and every number obeys. “Group charts by” switches between days, weeks and months. Training tabs are all time, so the period takes the day off there.'],
+    ['overview', '.hc2', 'How many teachers ICT has: every teacher at a programme school, counted once, split into Primary, Middle or High, and both.'],
+    ['overview', '.hero', 'The four headline cards for primary teachers. The badge is the band; green ▲ and red ▼ show the change from the period before. Click a sector dot to focus the page.'],
+    ['lp', '#c-lp', '<b>Teaching</b>: lesson plans, quizzes and the exam generator. Every tab follows the same pattern: a headline, a trend, a table by sector → school → teacher, then analytics.'],
+    ['dc', '#c-dc', '<b>Observation</b>: the Digital Coach, coach visits (HITL), the /observe2 pilot and FICO scores, down to all 37 indicators. DC and HITL are never mixed.'],
+    ['egra', null, '<b>Children</b>: the learning assessment, how children read and do maths. Totals only.'],
+    ['mhtraining', '#c-mh', '<b>Growth</b>: primary training, and middle & high training with filters for level tags and trainings.'],
+    ['teachers', '#c-tch', '<b>Directory</b>: all schools, every teacher (click one for their scorecard and debrief reports) and the school calendar.'],
+    ['cards', '#c-cards', '<b>Insights</b>: the monthly report, leading & support, appreciation cards and posters, analytics, and How we count.'],
+    [null, '.top-btns', '<b>Download image</b> saves a picture, <b>Present</b> hides the menus for a big screen, and every table has <b>Download CSV</b>.'],
+    [null, '#fb-open', 'Something wrong or missing? Press <b>Feedback</b>. Hasnat reads every message.'],
+    [null, '#temu-bird', 'And that’s me. Click me on any tab and pick <b>What’s on this page?</b> to walk through every section, or ask me a question. Tour done!'],
   ];
 
   const QUIPS = [
@@ -259,14 +400,16 @@
   function home(first) {
     anim.waveUntil = anim.now + 2.2;
     screen(first
-      ? 'Assalam-o-Alaikum! I’m <b>TEMU</b>, your guide to the ICT Dashboard. Part parrot, part data nerd, fully dressed. New here? I can show you around in about a minute.'
+      ? 'Assalam-o-Alaikum! I’m <b>TEMU</b>, your guide to the ICT Dashboard. Part parrot, part data nerd, fully dressed. New here? Take the <b>quick tour</b> (about a minute) or the <b>full tour</b>, which visits every one of the 19 tabs.'
       : pick(QUIPS),
-    btn('tour', 'Take the tour', 'pri') + btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('headlines', 'Read me the headlines')
+    btn('tour', 'Quick tour', 'pri') + btn('fulltour', 'Full tour') + btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('headlines', 'Read me the headlines')
       + btn('moves', 'Show me a move') + btn('joke', 'Tell me a joke') + (first ? btn('close', 'Not now') : btn('hide', 'Hide TEMU')));
   }
   function page() {
-    const [name, text] = PAGES[currentTab()] || PAGES.overview;
-    screen(`<b>${esc(name)}.</b> ${text}`, btn('faq', 'Ask a question') + (currentTab() !== 'glossary' ? btn('go:glossary', 'How we count') : '') + btn('home', 'Back'));
+    const [name, text, secs] = GUIDE[currentTab()] || GUIDE.overview;
+    const here = secs.filter(([sel]) => $(sel));
+    screen(`<b>${esc(name)}.</b> ${text}${here.length > 1 ? `<ul class="temu-ul">${here.map(([, l]) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}`,
+      (here.length ? btn('pagetour', 'Show me around this page', 'pri') : '') + btn('faq', 'Ask a question') + (currentTab() !== 'glossary' ? btn('go:glossary', 'How we count') : '') + btn('home', 'Back'));
   }
   function faq() {
     screen('What would you like to know? Pick a question, or type a word to search. There are no silly questions. Well, a few. But not yours.',
@@ -333,27 +476,42 @@
       anim.jumpAt = anim.now;
     }, 80);
   }
+  // One tour engine for all three tours: the quick one, the full one (every tab) and "show me around this page".
+  let tourSteps = QUICK, tourName = '';
+  function fullTour() {
+    const tabs = [...document.querySelectorAll('#nav [data-tab]')].map((b) => b.dataset.tab).filter((t) => GUIDE[t]);
+    return [QUICK[0], QUICK[1], QUICK[2],
+      ...tabs.map((t) => { const [name, text, secs] = GUIDE[t]; return [t, secs[0] ? secs[0][0] : null, `<b>${esc(name)}.</b> ${text}<ul class="temu-ul">${secs.map(([, l]) => `<li>${esc(l)}</li>`).join('')}</ul>`]; }),
+      QUICK[QUICK.length - 3], QUICK[QUICK.length - 2],
+      [null, '#temu-bird', 'That’s every tab! Click me on any of them and pick <b>What’s on this page?</b> to walk through each section in detail. You now know more than most people in the meeting.']];
+  }
+  function pageTour() {
+    const [name, , secs] = GUIDE[currentTab()] || GUIDE.overview;
+    return secs.filter(([sel]) => $(sel)).map(([sel, l, txt]) => [null, sel, `<b>${esc(name)} · ${esc(l)}.</b> ${txt}`]);
+  }
+  function startTour(steps, name) { if (!steps.length) return; tourSteps = steps; tourName = name; tourI = -1; tour(0); }
   function tour(i) {
     if (tourI < 0) tourFrom = currentTab();
     tourI = i;
-    const [tab, sel, text] = TOUR[i];
+    const [tab, sel, text] = tourSteps[i], last = i === tourSteps.length - 1;
     open();
     goTab(tab);
-    setTimeout(() => point(sel || '#main'), 60);
-    step.textContent = `${i + 1} / ${TOUR.length}`;
+    // a tab that loads its data late (the learning assessment) gets a second try
+    setTimeout(() => { point(sel || '#main'); if (!hlEl && sel) setTimeout(() => { if (tourI === i) point(sel); }, 1200); }, 60);
+    step.textContent = `${tourName ? `${tourName} · ` : ''}${i + 1} / ${tourSteps.length}`;
     anim.jumpAt = anim.now;
     speak(text);
     acts.innerHTML = (i > 0 ? btn(`tour:${i - 1}`, '‹ Back') : '')
-      + (i < TOUR.length - 1 ? btn(`tour:${i + 1}`, 'Next ›', 'pri') + btn('endtour', 'End tour') : btn('endtour', 'Finish', 'pri'));
-    if (i === TOUR.length - 1) { move('backflip'); setTimeout(confetti, 450); }
+      + (!last ? btn(`tour:${i + 1}`, 'Next ›', 'pri') + btn('endtour', 'End tour') : btn('endtour', 'Finish', 'pri'));
+    if (last) { move(tourName === 'This page' ? 'thumbsup' : 'backflip'); if (tourName !== 'This page') setTimeout(confetti, 450); store.set({ toured: 1 }); }
     store.set({ seen: 1 });
   }
   function endTour(talk = true) {
-    const back = tourFrom;
+    const back = tourFrom, wasPage = tourName === 'This page';
     tourI = -1; point(null); step.textContent = '';
-    goTab(back);
+    if (!wasPage) goTab(back);
     if (talk) {
-      speak('Tour done! You now know more than most people in the meeting. I’ll be right here in the corner. Click me any time.');
+      speak(wasPage ? 'That’s this page! Click me on any other tab and I’ll walk you through it too.' : 'Tour done! You now know more than most people in the meeting. I’ll be right here in the corner. Click me any time.');
       acts.innerHTML = btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('close', 'Close');
     }
   }
@@ -366,7 +524,8 @@
     const [act, arg] = b.dataset.temu.split(':');
     ({
       close, home: () => home(false), page, faq, hide, moves, joke, headlines,
-      tour: () => tour(arg === undefined ? 0 : +arg), endtour: () => endTour(true),
+      tour: () => (arg === undefined ? startTour(QUICK, 'Quick tour') : tour(+arg)), endtour: () => endTour(true),
+      fulltour: () => startTour(fullTour(), 'Full tour'), pagetour: () => startTour(pageTour(), 'This page'),
       ans: () => answer(+arg), show: () => show(+arg), do: () => doMove(arg),
       go: () => { goTab(arg); close(); },
     })[act]();
@@ -746,7 +905,11 @@
     const st = store.get();
     if (st.hidden) { root.hidden = true; chip.hidden = false; return; }
     start();
-    if (!st.seen) setTimeout(() => { if (panel.hidden) home(true); store.set({ seen: 1 }); }, 1500);
+    if (!st.seen) setTimeout(() => { if (panel.hidden) home(true); store.set({ seen: 1, visits: 1 }); }, 1500);
+    else if (!st.toured && (st.visits || 1) < 4) {
+      store.set({ visits: (st.visits || 1) + 1 });
+      setTimeout(() => { if (panel.hidden && !root.hidden) { anim.waveUntil = anim.now + 2.5; toast('New here? Click me for a quick tour. It takes a minute, and I do a backflip at the end.', 9000); } }, 6000);
+    }
   }
   if (document.readyState === 'complete') boot(); else addEventListener('load', boot);
 })();
