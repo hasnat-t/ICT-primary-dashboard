@@ -105,9 +105,11 @@ for (let s = 0; s < 263; s++) {
     mh.teachers.push([si, `MH Teacher ${mh.teachers.length + 1}`, combo, rnd() < 0.995 ? 1 : 0, mods, certs]);
   }
 }
+const hc = { all: { teachers: 6376, schools: 413, primaryOnly: 2626, mhOnly: 3012, both: 647, noLevel: 91 }, sectors: {} };
+sectors.forEach((n, i) => { hc.sectors[n] = { teachers: 1000 + i, schools: 60 + i, primaryOnly: 400, mhOnly: 450 + i, both: 140, noLevel: 10 }; });
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
   coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: i < 5 ? `Head ${i + 1}` : `Coach ${i + 1}`, role: i < 5 ? 'principal' : 'coach', hide: i < 5 })),
-  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, mh, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
+  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, mh, hc, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);

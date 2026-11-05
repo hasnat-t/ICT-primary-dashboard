@@ -83,3 +83,16 @@ test('debriefs: classroom quotes are blanked, advice kept, teachers mapped', () 
   assert.deepStrictEqual(d[1][0].fo, { t: 'F', r: 'R', y: 'Y' });
   assert.throws(() => U.buildDebriefs([{ school_id: 'sB', n: 2, t }], ro), /count mismatch/);
 });
+
+test('headcount: all ICT and sectors, buckets must add up', () => {
+  const { buildHeadcount } = require('../unpack');
+  const rows = [
+    { line: 'B.K', teachers: 868, schools: 79, primary_only: 369, mh_only: 341, both_levels: 150, no_level: 8 },
+    { line: '__ALL__', teachers: 6376, schools: 413, primary_only: 2626, mh_only: 3012, both_levels: 647, no_level: 91 },
+  ];
+  const h = buildHeadcount(rows);
+  assert.deepStrictEqual(h.all, { teachers: 6376, schools: 413, primaryOnly: 2626, mhOnly: 3012, both: 647, noLevel: 91 });
+  assert.strictEqual(h.sectors['B.K'].both, 150);
+  assert.throws(() => buildHeadcount([{ ...rows[1], no_level: 90 }]), /do not add up/);
+  assert.throws(() => buildHeadcount([rows[0]]), /no ICT total/);
+});

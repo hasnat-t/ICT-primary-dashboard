@@ -423,6 +423,19 @@
       <div class="hm-h"><span>Name</span>${heads.map((h) => `<span>${h}</span>`).join('')}</div><div class="hm-list">${rowsHtml}</div></div></div></section>`;
   }
 
+  // Every ICT teacher by level, as of the last refresh (the rest of the dashboard counts primary teachers only).
+  // Follows the Sector filter; with a school chosen it shows that school's sector.
+  function ictTeachers() {
+    const H = S.data.hc;
+    if (!H) return '';
+    const sector = S.sector || (S.school !== '' ? S.data.schools[+S.school].sector : '');
+    const g = sector ? H.sectors[sector] : H.all;
+    if (!g) return '';
+    const cells = [[N(g.teachers), `ICT teachers, all levels · ${esc(sector || 'All ICT')} · ${N(g.schools)} schools`],
+      [N(g.primaryOnly + g.both), 'teach Primary'], [N(g.mhOnly + g.both), 'teach Middle or High'],
+      [N(g.both), 'teach both (counted once in the total)'], [N(g.noLevel), 'no level recorded']];
+    return `<section class="volume hc" aria-label="ICT teachers"><div class="hc-0"><span class="vv">${cells[0][0]}</span><span class="vl">${cells[0][1]}</span></div>${cells.slice(1).map(([v, l]) => `<div><span class="vv">${v}</span><span class="vl">${l}</span></div>`).join('')}</section>`;
+  }
   function viewOverview(R) {
     const RA = Calc.rollup(S.P, { from: S.from, to: S.to });
     const A = RA.all, g = R.all;
@@ -524,7 +537,7 @@
     const drillTable = S.school !== '' ? card('c-over-t', 'Teachers', 'Click a teacher for the scorecard. Contains teacher names — internal use only.',
       table('over', [nameCol(level), COL.g15, COL.taught, COL.dc, COL.hitl, COL.made, COL.exOk, COL.onProg, COL.cert1, COL.cert2, COL.cert3, COL.cert4], rows, { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: R.all })) : '';
 
-    return `${hero}${volume}<div class="flexrow">${ladder}${attention}</div>${momentum(Calc.series(S.P, sel(), S.gran))}
+    return `${ictTeachers()}${hero}${volume}<div class="flexrow">${ladder}${attention}</div>${momentum(Calc.series(S.P, sel(), S.gran))}
       <div class="flexrow">${heat}${focus}</div>${stairs}${drillTable}`;
   }
 
@@ -1739,6 +1752,7 @@
   const GLOSSARY = [
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
+      ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
       ['Sector', 'G', 'The school’s region in the Rumi data: B.K, Nilore, Sihala, Tarnol, Urban-I, Urban-II.', 'schools.region'],
       ['Merged accounts', 'G', 'When a teacher’s phone number was moved to a new account, activity on the old account is credited to the new one.', 'leader_roster_audit'],
       ['Period', '', 'Days are Pakistan days. Data starts on 1 Aug 2026. Weekly views run Monday to Sunday.', ''],
@@ -2432,7 +2446,7 @@
     S.prevLabel = S.prevR ? (len === 1 ? `the day before (${nice(pf)})` : `the previous ${len} days (${nice(pf)} – ${nice(S.from - 1)})`) : '';
     S.curAll = R.all;
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
-    const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training', mh_training: 'middle & high training' };
+    const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training', mh_training: 'middle & high training', headcount: 'ICT teacher count' };
     const what = missing.map((k) => NAMES[k] || k).join(', ');
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`

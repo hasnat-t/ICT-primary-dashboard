@@ -89,7 +89,7 @@
     const modules = data.modules || MODULES;
     return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
       grades: (() => { const g = new Array(nT).fill(null); for (const r of data.tgr || []) g[r[0]] = r[1]; return g; })(),
-      parts: { fico_ind: !!data.fi, pilot: !!data.pilot, observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training, mh_training: !!data.mh } };
+      parts: { fico_ind: !!data.fi, pilot: !!data.pilot, observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training, mh_training: !!data.mh, headcount: !!data.hc } };
   }
 
   function kidsFrom(buckets, sits, b, from, to) {

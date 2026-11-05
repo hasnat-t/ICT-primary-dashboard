@@ -597,3 +597,6 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .msel-p label .dim { margin-left: auto; }
 .msel-a { border-top: 1px solid var(--line); margin-top: 4px; padding: 8px 4px 2px; }
 .mh-f { gap: 10px; flex-wrap: wrap; }
+.volume.hc { margin-bottom: 14px; }
+.volume.hc .hc-0 { background: var(--panel-2); }
+.volume.hc .hc-0 .vv { font-size: 28px; }

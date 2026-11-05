@@ -7,7 +7,7 @@ const path = require('path');
 const zlib = require('zlib');
 const db = require('./db');
 const { buildMh, buildMhCatalog } = require('./mh');
-const { buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
+const { buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
 const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 const FB = require('./feedback');
 const EV = require('./events');
@@ -38,7 +38,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training', 'mh_training', 'mh_catalog'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training', 'mh_training', 'mh_catalog', 'headcount'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false, parts: {}, last_refresh: null };
 const STARTED_AT = new Date().toISOString();
@@ -134,6 +134,7 @@ const QUESTIONS = {
   training: 'scheduled refresh: ICT Primary Teachers dashboard, NIETE primary training per primary teacher, all time',
   mh_training: 'scheduled refresh: ICT Primary Teachers dashboard, middle and high teachers (any level mix including middle or high) per school with their middle/high training: programme, modules and certificates per level, all time',
   mh_catalog: 'scheduled refresh: ICT Primary Teachers dashboard, middle/high training levels and modules per level (NIETE levels 3-4, Oxbridge, Beaconhouse, I-SAPS)',
+  headcount: 'scheduled refresh: ICT Primary Teachers dashboard, total ICT teacher count by level (primary only, middle/high only, both, no level) per sector and all ICT',
 };
 
 // Run a per-school packed query page by page (stable ORDER BY school_id) until a short page comes back.
@@ -201,12 +202,13 @@ async function refresh(reason) {
         return { lpd: buildLpDetail(await runPaged('lp_detail', Math.min(PAGE_SIZE, 25)), ro, lessons) };
       }],
       ['training', async () => ({ training: buildTraining(await runPaged('training'), ro) })],
+      ['headcount', async () => ({ hc: buildHeadcount(await executeQuery(SQL.headcount, QUESTIONS.headcount)) })],
       ['mh_training', async () => {
         const levels = buildMhCatalog(await executeQuery(SQL.mh_catalog, QUESTIONS.mh_catalog));
         return { mh: buildMh(await runPaged('mh_training'), levels) };
       }],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'], mh_training: ['mh'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'], mh_training: ['mh'], headcount: ['hc'] };
     for (const [name, run] of parts) {
       const p0 = Date.now();
       try {
@@ -216,8 +218,8 @@ async function refresh(reason) {
       } catch (e) {
         state.parts[name] = { ok: false, error: String(e.message || e).slice(0, 600), at: new Date().toISOString(), last_ok: (state.parts[name] || {}).last_ok || null };
         // Keep the previous values only when the roster is unchanged (teacher indexes must line up).
-        // mh has its own roster, so its earlier copy stays valid whatever the primary roster did.
-        for (const k of KEYS[name]) next[k] = name === 'mh_training' ? (state.data && state.data.mh) || null : carryPart(prev, k);
+        // mh and hc have their own rosters, so their earlier copies stay valid whatever the primary roster did.
+        for (const k of KEYS[name]) next[k] = name === 'mh_training' || name === 'headcount' ? (state.data && state.data[k]) || null : carryPart(prev, k);
         next.errors.push(`${name}: ${e.message || e}`);
         log(`${name} failed${prev ? ', keeping previous' : ''}: ${e.message || e}`);
       }

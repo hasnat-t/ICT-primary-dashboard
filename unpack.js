@@ -341,4 +341,17 @@ function rosterSig(ro) {
   return `${ro.teachers.length}:${h}`;
 }
 
-module.exports = { records, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, unquote, rosterSig, MIN_SCHOOLS };
+// The Overview's "ICT teachers" strip: every teacher at a programme school by level, per sector and all ICT, counted once.
+// { all: {teachers, schools, primaryOnly, mhOnly, both, noLevel}, sectors: {name: {...}} }
+function buildHeadcount(rows) {
+  const out = { all: null, sectors: {} };
+  for (const r of rows) {
+    const g = { teachers: +r.teachers, schools: +r.schools, primaryOnly: +r.primary_only, mhOnly: +r.mh_only, both: +r.both_levels, noLevel: +r.no_level };
+    if (g.primaryOnly + g.mhOnly + g.both + g.noLevel !== g.teachers) throw new Error(`headcount: level buckets do not add up for ${r.line}`);
+    if (r.line === '__ALL__') out.all = g; else out.sectors[String(r.line)] = g;
+  }
+  if (!out.all || out.all.teachers < 1000) throw new Error('headcount: no ICT total or too few teachers');
+  return out;
+}
+
+module.exports = { records, buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, unquote, rosterSig, MIN_SCHOOLS };
