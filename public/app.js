@@ -1578,6 +1578,13 @@
     if (l.vendor === 'ISAPS') return `${MH_VENDOR.ISAPS} Level ${l.order + 1}`;
     return `${l.vendor} level ${l.order}`;
   }
+  // A training is done when every level is certified, except AI-Powered Subject Pedagogy (Beaconhouse), whose four
+  // levels are alternatives: a certificate in any one completes it (owner, 2026-11-05).
+  const MH_ANY_LEVEL = ['BEACONHOUSE'];
+  function mhDone(v, L, certs) {
+    const lv = L.filter((l) => l.vendor === v);
+    return lv.length > 0 && (MH_ANY_LEVEL.includes(v) ? lv.some((l) => certs.includes(l.id)) : lv.every((l) => certs.includes(l.id)));
+  }
   function mhGroup(list, L) {
     const core = L.filter((l) => l.vendor !== 'ISAPS'), isaps = L.filter((l) => l.vendor === 'ISAPS');
     const vendors = [...new Set(core.map((l) => l.vendor))];
@@ -1588,10 +1595,10 @@
       if (on) g.onProg++;
       if (core.some((l) => mods[l.id])) g.didMod++;
       if (core.some((l) => certs.includes(l.id))) g.certAny++;
-      if (core.length && core.every((l) => certs.includes(l.id))) g.allCore++;
+      if (vendors.length && vendors.every((v) => mhDone(v, core, certs))) g.allCore++;
       if (isaps.some((l) => mods[l.id])) g.isapsMod++;
       if (isaps.some((l) => certs.includes(l.id))) g.isapsCert++;
-      for (const v of vendors) if (core.filter((l) => l.vendor === v).every((l) => certs.includes(l.id))) g.vend[v]++;
+      for (const v of vendors) if (mhDone(v, core, certs)) g.vend[v]++;
       for (const l of L) { const x = g.lv[l.id]; if (mods[l.id]) x.mod++; if (l.modules && mods[l.id] >= l.modules) x.full++; if (certs.includes(l.id)) x.cert++; }
     }
     return g;
@@ -1626,11 +1633,24 @@
         share('on', 'On the programme', (g) => g.onProg, 'Active assignment to the middle/high programme ÷ middle & high teachers'),
         ...(core.length ? [share('mod', 'Finished a module', (g) => g.didMod, `At least one module of ${core.map((l) => mhLevelName(l)).join(', ')}`),
           share('cert', 'Hold a certificate', (g) => g.certAny, 'At least one of those levels certified')] : []),
-        ...vendors.map((v) => share(`v-${v}`, `${MH_VENDOR[v]} done`, (g) => g.vend[v], `Certified on every ${MH_VENDOR[v]} level`)),
-        ...(vendors.length > 1 ? [share('all', `All ${core.length} levels`, (g) => g.allCore, `Certified on all ${core.length} levels of the chosen trainings (the ${MH_VENDOR.ISAPS} is apart)`)] : []),
+        ...vendors.map((v) => share(`v-${v}`, `${MH_VENDOR[v]} done`, (g) => g.vend[v], MH_ANY_LEVEL.includes(v) ? `Certified on any one ${MH_VENDOR[v]} level` : `Certified on every ${MH_VENDOR[v]} level`)),
+        ...(vendors.length > 1 ? [share('all', `All ${vendors.length} trainings done`, (g) => g.allCore, `Done on every chosen training (the ${MH_VENDOR.ISAPS} is apart)`)] : []),
         ...(isaps ? [share('isaps', `${MH_VENDOR.ISAPS} certified`, (g) => g.isapsCert, 'At least one level certified; shown on its own (different pass marks, composite certificate)')] : []),
       ];
     }
+    // one column for a training whose levels are alternatives: certified on any level, else the furthest level reached
+    const anyCell = (v) => {
+      const lv = L.filter((l) => l.vendor === v);
+      const best = (t) => lv.map((l) => [l, t[4][l.id] || 0]).sort((a, b) => b[1] / b[0].modules - a[1] / a[0].modules)[0];
+      return { k: `v-${v}`, label: MH_VENDOR[v], num: true, title: `${MH_VENDOR[v]}: certified on any level, or the furthest level reached`,
+        val: (r) => (lv.some((l) => r.t[5].includes(l.id)) ? 1e6 : best(r.t)[1] / best(r.t)[0].modules),
+        fmt: (r) => {
+          const c = lv.filter((l) => r.t[5].includes(l.id));
+          if (c.length) return `<span class="yes">✓ Certified</span> <span class="dim">Level ${c.map((l) => l.order).join(', ')}</span>`;
+          const [l, m] = best(r.t);
+          return m ? `${N(m)}<span class="dim">/${N(l.modules)} · L${l.order}</span>` : '<span class="zero">—</span>';
+        } };
+    };
     const lvCell = (l) => ({ k: `l${l.id}`, label: mhLevelName(l), num: true, title: `${mhLevelName(l)}: certified, or modules finished of ${l.modules}`,
       val: (r) => (r.t[5].includes(l.id) ? 1e6 : r.t[4][l.id] || 0),
       fmt: (r) => (r.t[5].includes(l.id) ? '<span class="yes">✓ Certified</span>' : r.t[4][l.id] ? `${N(r.t[4][l.id])}<span class="dim">/${N(l.modules)}</span>` : '<span class="zero">—</span>') });
@@ -1638,8 +1658,8 @@
       { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => esc(r.name) },
       { k: 'tag', label: 'Level tag', val: (r) => mhComboName(r.t[2]), fmt: (r) => esc(mhComboName(r.t[2])) },
       { k: 'on', label: 'On the programme', num: true, val: (r) => r.t[3], fmt: (r) => yn(r.t[3]) },
-      ...(core.length ? [{ k: 'certs', label: `Certified levels (of ${core.length})`, num: true, val: (r) => core.filter((l) => r.t[5].includes(l.id)).length, fmt: (r) => N(core.filter((l) => r.t[5].includes(l.id)).length) }] : []),
-      ...L.map(lvCell),
+      ...(vendors.length ? [{ k: 'done', label: `Trainings done (of ${vendors.length})`, num: true, val: (r) => vendors.filter((v) => mhDone(v, core, r.t[5])).length, fmt: (r) => N(vendors.filter((v) => mhDone(v, core, r.t[5])).length) }] : []),
+      ...MH_ORDER.flatMap((v) => (MH_ANY_LEVEL.includes(v) ? (L.some((l) => l.vendor === v) ? [anyCell(v)] : []) : L.filter((l) => l.vendor === v).map(lvCell))),
     ];
   }
   const mhTeacherRows = (list) => list.map(([i, t]) => ({ key: i, t, name: t[1] }));
@@ -1663,7 +1683,7 @@
     const tagN = (k) => M.teachers.filter((t) => t[2] === k && (!S.sector || M.schools[t[0]][1] === S.sector) && (!selEmis || M.schools[t[0]][0] === selEmis)).length;
     const filters = `<div class="row mh-f">${msel('mhtags', 'mhTags', mhTagText(), MH_COMBOS.map(([k, l]) => [k, l, tagN(k)]))}${msel('mhtrain', 'mhTrain', mhTrainText(), MH_ORDER.filter((v) => M.levels.some((l) => l.vendor === v)).map((v) => [v, MH_VENDOR[v] || v]))}</div>`;
     const head = card('c-mh', `Middle & high training · ${scopeName()}${mhTagText() !== 'All level tags' ? ` · ${mhTagText()}` : ''}${mhTrain().length ? ` · ${mhTrainText()}` : ''} · all time`,
-      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too). Levels shown: ${L.map((l) => esc(mhLevelName(l))).join(', ')}. The <b>${MH_VENDOR.ISAPS}</b> is always shown on its own: its pass marks and composite certificate are not comparable. <b>Done</b> = certified on every level of that training. Use the two filters to pick level tags and trainings. Training is all time, so the period filter does not apply.`,
+      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too). Levels shown: ${L.map((l) => esc(mhLevelName(l))).join(', ')}. The <b>${MH_VENDOR.ISAPS}</b> is always shown on its own: its pass marks and composite certificate are not comparable. <b>Done</b> = certified on every level of that training; for <b>${MH_VENDOR.BEACONHOUSE}</b>, any one of its levels. Use the two filters to pick level tags and trainings. Training is all time, so the period filter does not apply.`,
       mhKpis(g, L), filters);
     const byLevel = card('c-mh-t', `By ${level}`, level === 'teacher' ? 'Each level shows ✓ Certified, or modules finished of the level’s total. Click a teacher for their progress. Contains teacher names — internal use only.' : `Click a ${level} to see its ${level === 'sector' ? 'schools' : 'teachers'}.`,
       rows.length ? table('mht', mhCols(level, L), rows, { level, onRow, rowKey: (r) => r.key, foot: level === 'teacher' ? null : { g, name: 'Total' } })
@@ -1701,11 +1721,11 @@
           ${table('m-mht', mhCols('teacher', L), mhTeacherRows(list), { level: 'teacher', onRow: (k) => modalOpen({ kind: 'mhteacher', key: +k }), rowKey: (r) => r.key })}</section>` };
     }
     const t = M.teachers[v.key], sc = M.schools[t[0]];
-    const done = core.filter((l) => t[5].includes(l.id)).length, mods = L.reduce((a, l) => a + (t[4][l.id] || 0), 0);
+    const vendors = [...new Set(core.map((l) => l.vendor))], done = vendors.filter((vv) => mhDone(vv, core, t[5])).length, mods = L.reduce((a, l) => a + (t[4][l.id] || 0), 0);
     const rows = L.map((l) => ({ key: l.id, l, m: t[4][l.id] || 0, c: t[5].includes(l.id) }));
     return { title: t[1], sub: `${MS.length > 1 ? '' : `${sc[2]} · ${sc[1]} · `}${mhComboName(t[2])} · all time`,
       html: `<section class="card" id="m-mh3"><div class="card-h"><h2>Training progress</h2><button class="dl" data-dl="m-mh3">Download image</button></div>
-        <div class="kpis">${kpi('On the middle/high programme', t[3] ? 'Yes' : 'No', '')}${core.length ? kpi('Levels certified', `${N(done)} of ${N(core.length)}`, L.some((l) => l.vendor === 'ISAPS') ? `${MH_VENDOR.ISAPS} apart` : '') : ''}${kpi('Modules finished', N(mods), mhTrain().length ? 'chosen trainings' : 'all levels')}
+        <div class="kpis">${kpi('On the middle/high programme', t[3] ? 'Yes' : 'No', '')}${vendors.length ? kpi('Trainings done', `${N(done)} of ${N(vendors.length)}`, L.some((l) => l.vendor === 'ISAPS') ? `${MH_VENDOR.ISAPS} apart` : '') : ''}${kpi('Modules finished', N(mods), mhTrain().length ? 'chosen trainings' : 'all levels')}
           ${L.some((l) => l.vendor === 'ISAPS') ? kpi(`${MH_VENDOR.ISAPS}`, `${N(L.filter((l) => l.vendor === 'ISAPS' && t[5].includes(l.id)).length)} certified`, `of ${N(L.filter((l) => l.vendor === 'ISAPS').length)} levels`) : ''}</div>
         ${table('m-mhl', [
           { k: 'name', label: 'Level', val: (r) => L.indexOf(r.l), fmt: (r) => `${esc(mhLevelName(r.l))}${r.l.vendor === 'ISAPS' ? ' <span class="dim">(on its own)</span>' : ''}` },
@@ -1757,7 +1777,7 @@
     ['Exams and training', [
       ['Exams generated', 'G', 'Exam requests whose paper came out (WhatsApp: stored and sent; portal: ready to download). Requested = generated + failed + never finished.', 'assessment_requests, assessment_papers · exam-paper-rules §2–§3e'],
       ['FDE board papers', 'P', 'Exams made in the grade 5 FDE board format, read from the paper’s own layout.', 'assessment_papers.exam_json._layout'],
-      ['Middle & high training', 'G', 'Every ICT teacher whose level includes Middle or High, in any combination (Primary too), at a programme school, all time. The niete_middle_high programme: NIETE Trainings (Skilled Practitioner and Teacher Leader), Game-Based Teaching (GBTLA, by Oxbridge) and AI-Powered Subject Pedagogy Levels 1–4 (by Beaconhouse); the Teacher Development Programme (by I-SAPS) is shown on its own (different pass marks and a composite certificate). Finished a module = at least one module at those levels; certified = holds that level’s certificate. There is no “training status” column: these steps are the status. Each partner is reported separately, never blended.', 'users.teacher_level, teacher_training_assignments, teacher_training_progress, training_certificates · training-query-rules §3–§5, teacher-levels §1b'],
+      ['Middle & high training', 'G', 'Every ICT teacher whose level includes Middle or High, in any combination (Primary too), at a programme school, all time. The niete_middle_high programme: NIETE Trainings (Skilled Practitioner and Teacher Leader), Game-Based Teaching (GBTLA, by Oxbridge) and AI-Powered Subject Pedagogy Levels 1–4 (by Beaconhouse); the Teacher Development Programme (by I-SAPS) is shown on its own (different pass marks and a composite certificate). Finished a module = at least one module at those levels; certified = holds that level’s certificate. A training is done when every level is certified, except AI-Powered Subject Pedagogy, whose levels are alternatives: any one level completes it (owner rule, 5 Nov 2026). There is no “training status” column: these steps are the status. Each partner is reported separately, never blended.', 'users.teacher_level, teacher_training_assignments, teacher_training_progress, training_certificates · training-query-rules §3–§5, teacher-levels §1b'],
       ['NIETE primary training', 'G', 'The niete_primary programme, all time: on the programme, modules finished, and Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader).', 'training rules'],
     ]],
     ['Other features', [
