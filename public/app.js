@@ -1554,14 +1554,15 @@
   // (data.mh, the main roster is primary only), all time. Each partner on its own, never one blended completion
   // figure; I-SAPS apart from the "all levels" figure (training-query-rules.md §4, §4b). Certified = holds that level's
   // certificate. Sector and school filters apply; the period does not (training is all time).
-  const MH_VENDOR = { TALEEMABAD: 'NIETE', OXBRIDGE: 'Oxbridge', BEACONHOUSE: 'Beaconhouse', ISAPS: 'I-SAPS' };
+  // the programme names teachers see on the portal's Training programmes tab (owner, 2026-11-05)
+  const MH_VENDOR = { TALEEMABAD: 'NIETE Trainings', OXBRIDGE: 'Game-Based Teaching (GBTLA)', BEACONHOUSE: 'AI-Powered Subject Pedagogy', ISAPS: 'Teacher Development Programme' };
   const MH_COMBOS = [['M', 'Middle'], ['H', 'High'], ['MH', 'Middle + High'], ['PM', 'Primary + Middle'], ['PH', 'Primary + High'], ['PMH', 'Primary + Middle + High']];
   const mhComboName = (c) => (MH_COMBOS.find((x) => x[0] === c) || [c, c])[1];
   function mhLevelName(l) {
     if (l.vendor === 'TALEEMABAD') return `NIETE ${LEVELS[l.order] || `level ${l.order}`}`;
-    if (l.vendor === 'OXBRIDGE') return 'Oxbridge';
-    if (l.vendor === 'BEACONHOUSE') return `Beaconhouse Level ${l.order}`;
-    if (l.vendor === 'ISAPS') return `I-SAPS Level ${l.order + 1}`;
+    if (l.vendor === 'OXBRIDGE') return MH_VENDOR.OXBRIDGE;
+    if (l.vendor === 'BEACONHOUSE') return `${MH_VENDOR.BEACONHOUSE} Level ${l.order}`;
+    if (l.vendor === 'ISAPS') return `${MH_VENDOR.ISAPS} Level ${l.order + 1}`;
     return `${l.vendor} level ${l.order}`;
   }
   function mhGroup(list, L) {
@@ -1598,10 +1599,10 @@
       return `<button type="button" data-mhcombo="${k}" aria-pressed="${(S.mhCombo || '') === k}">${esc(l)} <span class="dim">${N(n)}</span></button>`;
     }).join('')}</div></div>`;
     const head = card('c-mh', `Middle & high training · ${where}${S.mhCombo ? ` · ${mhComboName(S.mhCombo)}` : ''} · all time`,
-      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too), at ICT programme schools. The <b>niete_middle_high</b> programme: ${core.map((l) => `${esc(mhLevelName(l))} (${l.modules} modules)`).join(', ')}. <b>I-SAPS</b> is shown on its own: its pass marks and composite certificate are not comparable. Certified = holds that level’s certificate. Training is all time, so the period filter does not apply.`,
+      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too), at ICT programme schools. The <b>niete_middle_high</b> programme: ${core.map((l) => `${esc(mhLevelName(l))} (${l.modules} modules)`).join(', ')}. The <b>Teacher Development Programme</b> (I-SAPS) is shown on its own: its pass marks and composite certificate are not comparable. Certified = holds that level’s certificate. Training is all time, so the period filter does not apply.`,
       `<div class="kpis">${kpi('Middle & high teachers', N(g.teachers), `in ${N(g.schools)} schools`)}${kpi('On the middle/high programme', P1(ratio(g.onProg, g.teachers)), `${N(g.onProg)} teachers`)}
-        ${kpi('Finished a module', P1(ratio(g.didMod, g.teachers)), `${N(g.didMod)} · NIETE, Oxbridge or Beaconhouse`)}${kpi('Hold a certificate', P1(ratio(g.certAny, g.teachers)), `${N(g.certAny)} · at least one level`)}
-        ${kpi(`All ${core.length} levels certified`, P1(ratio(g.allCore, g.teachers)), `${N(g.allCore)} teachers`)}${kpi('I-SAPS', P1(ratio(g.isapsCert, g.teachers)), `${N(g.isapsCert)} certified · ${N(g.isapsMod)} did a module`)}</div>`, combos);
+        ${kpi('Finished a module', P1(ratio(g.didMod, g.teachers)), `${N(g.didMod)} · NIETE, GBTLA or AI-Powered Subject Pedagogy`)}${kpi('Hold a certificate', P1(ratio(g.certAny, g.teachers)), `${N(g.certAny)} · at least one level`)}
+        ${kpi(`All ${core.length} levels certified`, P1(ratio(g.allCore, g.teachers)), `${N(g.allCore)} teachers`)}${kpi('Teacher Development Programme', P1(ratio(g.isapsCert, g.teachers)), `${N(g.isapsCert)} certified · ${N(g.isapsMod)} did a module`)}</div>`, combos);
 
     // per level
     const lrows = L.map((l) => ({ key: l.id, l, x: g.lv[l.id] }));
@@ -1623,7 +1624,7 @@
       { k: 'cert', label: 'Hold a certificate', num: true, val: (r) => ratio(r.g.certAny, r.g.teachers), fmt: (r) => share(r.g.certAny, r.g.teachers) },
       ...vendors.map((v) => ({ k: `v-${v}`, label: `${MH_VENDOR[v] || v} done`, num: true, title: `Certified on every ${MH_VENDOR[v] || v} level`, val: (r) => ratio(r.g.vend[v], r.g.teachers), fmt: (r) => share(r.g.vend[v], r.g.teachers) })),
       { k: 'all', label: `All ${core.length} levels`, num: true, val: (r) => ratio(r.g.allCore, r.g.teachers), fmt: (r) => share(r.g.allCore, r.g.teachers) },
-      { k: 'isaps', label: 'I-SAPS certified', num: true, val: (r) => ratio(r.g.isapsCert, r.g.teachers), fmt: (r) => share(r.g.isapsCert, r.g.teachers) },
+      { k: 'isaps', label: 'Teacher Development Programme certified', num: true, val: (r) => ratio(r.g.isapsCert, r.g.teachers), fmt: (r) => share(r.g.isapsCert, r.g.teachers) },
     ];
     const foot = { g, name: 'Total' };
     const crow = MH_COMBOS.map(([k, l]) => ({ key: k, name: l, g: mhGroup(inScope.filter((t) => t[2] === k), L) })).filter((r) => r.g.teachers);
@@ -1704,7 +1705,7 @@
     ['Exams and training', [
       ['Exams generated', 'G', 'Exam requests whose paper came out (WhatsApp: stored and sent; portal: ready to download). Requested = generated + failed + never finished.', 'assessment_requests, assessment_papers · exam-paper-rules §2–§3e'],
       ['FDE board papers', 'P', 'Exams made in the grade 5 FDE board format, read from the paper’s own layout.', 'assessment_papers.exam_json._layout'],
-      ['Middle & high training', 'G', 'Every ICT teacher whose level includes Middle or High, in any combination (Primary too), at a programme school, all time. The niete_middle_high programme: NIETE Level 2 and Level 3, Oxbridge and Beaconhouse Levels 1–4; I-SAPS is shown on its own (different pass marks and a composite certificate). Finished a module = at least one module at those levels; certified = holds that level’s certificate. There is no “training status” column: these steps are the status. Each partner is reported separately, never blended.', 'users.teacher_level, teacher_training_assignments, teacher_training_progress, training_certificates · training-query-rules §3–§5, teacher-levels §1b'],
+      ['Middle & high training', 'G', 'Every ICT teacher whose level includes Middle or High, in any combination (Primary too), at a programme school, all time. The niete_middle_high programme: NIETE Trainings (Skilled Practitioner and Teacher Leader), Game-Based Teaching (GBTLA, by Oxbridge) and AI-Powered Subject Pedagogy Levels 1–4 (by Beaconhouse); the Teacher Development Programme (by I-SAPS) is shown on its own (different pass marks and a composite certificate). Finished a module = at least one module at those levels; certified = holds that level’s certificate. There is no “training status” column: these steps are the status. Each partner is reported separately, never blended.', 'users.teacher_level, teacher_training_assignments, teacher_training_progress, training_certificates · training-query-rules §3–§5, teacher-levels §1b'],
       ['NIETE primary training', 'G', 'The niete_primary programme, all time: on the programme, modules finished, and Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader).', 'training rules'],
     ]],
     ['Other features', [
