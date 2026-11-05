@@ -18,7 +18,7 @@
     ['Teaching', [['lp', 'Lesson plans'], ['quiz', 'Quizzes'], ['exams', 'Exam generator']]],
     ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
     ['Children', [['egra', 'Learning assessment']]],
-    ['Growth', [['training', 'Training']]],
+    ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar']]],
     ['Insights', [['report', 'Monthly report'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
   ];
@@ -1549,6 +1549,118 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
 
+  // ---------- middle & high training ----------
+  // Every ICT teacher whose level includes MIDDLE or HIGH, in any combination (primary too), from their own roster
+  // (data.mh, the main roster is primary only), all time. Each partner on its own, never one blended completion
+  // figure; I-SAPS apart from the "all levels" figure (training-query-rules.md §4, §4b). Certified = holds that level's
+  // certificate. Sector and school filters apply; the period does not (training is all time).
+  const MH_VENDOR = { TALEEMABAD: 'NIETE', OXBRIDGE: 'Oxbridge', BEACONHOUSE: 'Beaconhouse', ISAPS: 'I-SAPS' };
+  const MH_COMBOS = [['M', 'Middle'], ['H', 'High'], ['MH', 'Middle + High'], ['PM', 'Primary + Middle'], ['PH', 'Primary + High'], ['PMH', 'Primary + Middle + High']];
+  const mhComboName = (c) => (MH_COMBOS.find((x) => x[0] === c) || [c, c])[1];
+  function mhLevelName(l) {
+    if (l.vendor === 'TALEEMABAD') return `NIETE ${LEVELS[l.order] || `level ${l.order}`}`;
+    if (l.vendor === 'OXBRIDGE') return 'Oxbridge';
+    if (l.vendor === 'BEACONHOUSE') return `Beaconhouse Level ${l.order}`;
+    if (l.vendor === 'ISAPS') return `I-SAPS Level ${l.order + 1}`;
+    return `${l.vendor} level ${l.order}`;
+  }
+  function mhGroup(list, L) {
+    const core = L.filter((l) => l.vendor !== 'ISAPS'), isaps = L.filter((l) => l.vendor === 'ISAPS');
+    const vendors = [...new Set(core.map((l) => l.vendor))];
+    const g = { teachers: list.length, schools: new Set(list.map((t) => t[0])).size, onProg: 0, didMod: 0, certAny: 0, allCore: 0, isapsMod: 0, isapsCert: 0, lv: {}, vend: {} };
+    for (const l of L) g.lv[l.id] = { mod: 0, full: 0, cert: 0 };
+    for (const v of vendors) g.vend[v] = 0;
+    for (const [, , , on, mods, certs] of list) {
+      if (on) g.onProg++;
+      if (core.some((l) => mods[l.id])) g.didMod++;
+      if (core.some((l) => certs.includes(l.id))) g.certAny++;
+      if (core.length && core.every((l) => certs.includes(l.id))) g.allCore++;
+      if (isaps.some((l) => mods[l.id])) g.isapsMod++;
+      if (isaps.some((l) => certs.includes(l.id))) g.isapsCert++;
+      for (const v of vendors) if (core.filter((l) => l.vendor === v).every((l) => certs.includes(l.id))) g.vend[v]++;
+      for (const l of L) { const x = g.lv[l.id]; if (mods[l.id]) x.mod++; if (l.modules && mods[l.id] >= l.modules) x.full++; if (certs.includes(l.id)) x.cert++; }
+    }
+    return g;
+  }
+  function viewMh() {
+    const M = S.data.mh;
+    if (!M) return card('c-mh', 'Middle & high training', '', '<p class="note">Middle & high training could not be loaded in the last refresh. It will appear after the next one.</p>');
+    const L = M.levels.slice().sort((a, b) => ['TALEEMABAD', 'OXBRIDGE', 'BEACONHOUSE', 'ISAPS'].indexOf(a.vendor) - ['TALEEMABAD', 'OXBRIDGE', 'BEACONHOUSE', 'ISAPS'].indexOf(b.vendor) || a.order - b.order);
+    const core = L.filter((l) => l.vendor !== 'ISAPS'), vendors = [...new Set(core.map((l) => l.vendor))];
+    const selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
+    const inScope = M.teachers.filter((t) => { const sc = M.schools[t[0]]; return (!S.sector || sc[1] === S.sector) && (!selEmis || sc[0] === selEmis); });
+    const list = inScope.filter((t) => !S.mhCombo || t[2] === S.mhCombo);
+    const g = mhGroup(list, L);
+    const share = (n, of) => `${P1(ratio(n, of))} <span class="dim">${N(n)}</span>`;
+    const where = selEmis ? `${S.data.schools[+S.school].name}` : S.sector || 'All ICT';
+    const combos = `<div class="row mh-combos"><span class="lbl">Level tag</span><div class="seg" role="group" aria-label="Level tag">${[['', 'All']].concat(MH_COMBOS).map(([k, l]) => {
+      const n = k ? inScope.filter((t) => t[2] === k).length : inScope.length;
+      return `<button type="button" data-mhcombo="${k}" aria-pressed="${(S.mhCombo || '') === k}">${esc(l)} <span class="dim">${N(n)}</span></button>`;
+    }).join('')}</div></div>`;
+    const head = card('c-mh', `Middle & high training · ${where}${S.mhCombo ? ` · ${mhComboName(S.mhCombo)}` : ''} · all time`,
+      `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too), at ICT programme schools. The <b>niete_middle_high</b> programme: ${core.map((l) => `${esc(mhLevelName(l))} (${l.modules} modules)`).join(', ')}. <b>I-SAPS</b> is shown on its own: its pass marks and composite certificate are not comparable. Certified = holds that level’s certificate. Training is all time, so the period filter does not apply.`,
+      `<div class="kpis">${kpi('Middle & high teachers', N(g.teachers), `in ${N(g.schools)} schools`)}${kpi('On the middle/high programme', P1(ratio(g.onProg, g.teachers)), `${N(g.onProg)} teachers`)}
+        ${kpi('Finished a module', P1(ratio(g.didMod, g.teachers)), `${N(g.didMod)} · NIETE, Oxbridge or Beaconhouse`)}${kpi('Hold a certificate', P1(ratio(g.certAny, g.teachers)), `${N(g.certAny)} · at least one level`)}
+        ${kpi(`All ${core.length} levels certified`, P1(ratio(g.allCore, g.teachers)), `${N(g.allCore)} teachers`)}${kpi('I-SAPS', P1(ratio(g.isapsCert, g.teachers)), `${N(g.isapsCert)} certified · ${N(g.isapsMod)} did a module`)}</div>`, combos);
+
+    // per level
+    const lrows = L.map((l) => ({ key: l.id, l, x: g.lv[l.id] }));
+    const lcols = [
+      { k: 'name', label: 'Level', val: (r) => L.indexOf(r.l), fmt: (r) => `${esc(mhLevelName(r.l))}${r.l.vendor === 'ISAPS' ? ' <span class="dim">(on its own)</span>' : ''}` },
+      { k: 'mods', label: 'Modules', num: true, val: (r) => r.l.modules, fmt: (r) => N(r.l.modules) },
+      { k: 'pass', label: 'Pass mark', num: true, title: 'The partner’s pass mark for the level', val: (r) => r.l.pass, fmt: (r) => `${r.l.pass}%` },
+      { k: 'mod', label: 'Finished a module', num: true, val: (r) => r.x.mod, fmt: (r) => share(r.x.mod, g.teachers) },
+      { k: 'full', label: 'Finished every module', num: true, val: (r) => r.x.full, fmt: (r) => share(r.x.full, g.teachers) },
+      { k: 'cert', label: 'Certified', num: true, val: (r) => r.x.cert, fmt: (r) => share(r.x.cert, g.teachers) },
+    ];
+    const levels = card('c-mh-l', 'By level', `Share of the ${N(g.teachers)} middle & high teachers in view. A teacher can finish every module and not be certified yet (NIETE needs the grand quiz).`, table('mhl', lcols, lrows, { noLegend: true }));
+
+    // group tables: level tag, sector, school
+    const gcols = (first) => [first,
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
+      { k: 'on', label: 'On the programme', num: true, val: (r) => ratio(r.g.onProg, r.g.teachers), fmt: (r) => share(r.g.onProg, r.g.teachers) },
+      { k: 'mod', label: 'Finished a module', num: true, val: (r) => ratio(r.g.didMod, r.g.teachers), fmt: (r) => share(r.g.didMod, r.g.teachers) },
+      { k: 'cert', label: 'Hold a certificate', num: true, val: (r) => ratio(r.g.certAny, r.g.teachers), fmt: (r) => share(r.g.certAny, r.g.teachers) },
+      ...vendors.map((v) => ({ k: `v-${v}`, label: `${MH_VENDOR[v] || v} done`, num: true, title: `Certified on every ${MH_VENDOR[v] || v} level`, val: (r) => ratio(r.g.vend[v], r.g.teachers), fmt: (r) => share(r.g.vend[v], r.g.teachers) })),
+      { k: 'all', label: `All ${core.length} levels`, num: true, val: (r) => ratio(r.g.allCore, r.g.teachers), fmt: (r) => share(r.g.allCore, r.g.teachers) },
+      { k: 'isaps', label: 'I-SAPS certified', num: true, val: (r) => ratio(r.g.isapsCert, r.g.teachers), fmt: (r) => share(r.g.isapsCert, r.g.teachers) },
+    ];
+    const foot = { g, name: 'Total' };
+    const crow = MH_COMBOS.map(([k, l]) => ({ key: k, name: l, g: mhGroup(inScope.filter((t) => t[2] === k), L) })).filter((r) => r.g.teachers);
+    const combosT = card('c-mh-c', 'By level tag', 'The level tags on each teacher’s account. Primary + Middle, Primary + High and Primary + Middle + High teachers also count in primary training.',
+      table('mhc', gcols({ k: 'name', label: 'Level tag', val: (r) => r.name, fmt: (r) => esc(r.name) }), crow, { noLegend: true, foot: { g: mhGroup(inScope, L) } }));
+    const bySector = new Map();
+    for (const t of list) { const sec = M.schools[t[0]][1]; if (!bySector.has(sec)) bySector.set(sec, []); bySector.get(sec).push(t); }
+    const srow = [...bySector.entries()].map(([k, ts]) => ({ key: k, name: k, g: mhGroup(ts, L) }));
+    const sectorsT = selEmis ? '' : card('c-mh-s', 'By sector', '', table('mhs', gcols({ k: 'name', label: 'Sector', val: (r) => r.name, fmt: (r) => esc(r.name) }), srow, { noLegend: true, foot }));
+    const bySchool = new Map();
+    for (const t of list) { if (!bySchool.has(t[0])) bySchool.set(t[0], []); bySchool.get(t[0]).push(t); }
+    const schRows = [...bySchool.entries()].map(([si, ts]) => ({ key: si, name: M.schools[si][2], emis: M.schools[si][0], sector: M.schools[si][1], g: mhGroup(ts, L) }));
+    const schoolsT = card('c-mh-sch', `By school · ${N(schRows.length)} schools`, 'Click a school to list its teachers below.',
+      table('mhsch', gcols({ k: 'name', label: 'School', val: (r) => r.name, fmt: (r) => `${esc(r.name)} <span class="dim">${esc(r.sector)} · EMIS ${esc(r.emis)}</span>` }), schRows,
+        { noLegend: true, foot, onRow: (k) => { S.mhSchool = +k; render(); const el = document.getElementById('c-mh-t'); if (el) el.scrollIntoView({ block: 'start' }); }, rowKey: (r) => r.key }));
+
+    // teachers
+    const q = (S.mhq || '').toLowerCase();
+    const one = S.mhSchool !== null && S.mhSchool !== undefined && bySchool.has(S.mhSchool) ? S.mhSchool : null;
+    const trows = list.filter((t) => (one === null || t[0] === one) && (!q || t[1].toLowerCase().includes(q) || M.schools[t[0]][2].toLowerCase().includes(q)))
+      .map((t, i) => ({ key: i, t, name: t[1], school: M.schools[t[0]][2], sector: M.schools[t[0]][1], certs: core.filter((l) => t[5].includes(l.id)).length }));
+    const lvCell = (l) => ({ k: `l${l.id}`, label: mhLevelName(l), num: true, title: `${mhLevelName(l)}: certified, or modules finished of ${l.modules}`,
+      val: (r) => (r.t[5].includes(l.id) ? 1e6 : r.t[4][l.id] || 0),
+      fmt: (r) => (r.t[5].includes(l.id) ? '<span class="yes">✓ Certified</span>' : r.t[4][l.id] ? `${N(r.t[4][l.id])}<span class="dim">/${N(l.modules)}</span>` : '<span class="zero">—</span>') });
+    const tcols = [
+      { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => esc(r.name) },
+      { k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => `${esc(r.school)} <span class="dim">${esc(r.sector)}</span>` },
+      { k: 'tag', label: 'Level tag', val: (r) => mhComboName(r.t[2]), fmt: (r) => esc(mhComboName(r.t[2])) },
+      { k: 'on', label: 'On the programme', num: true, val: (r) => r.t[3], fmt: (r) => yn(r.t[3]) },
+      { k: 'certs', label: `Certified levels (of ${core.length})`, num: true, val: (r) => r.certs, fmt: (r) => N(r.certs) },
+      ...L.map(lvCell),
+    ];
+    const tools = `<div class="row"><input class="inp" type="search" id="mhq" placeholder="Search teacher or school" value="${esc(S.mhq || '')}">${one !== null ? `<span class="chip-on">${esc(M.schools[one][2])} <button class="dl" type="button" data-mhclear>Show all schools</button></span>` : ''}</div>`;
+    const teachersT = card('c-mh-t', `Teachers · ${N(trows.length)}`, 'Each level shows ✓ Certified, or modules finished of the level’s total. Contains teacher names — internal use only.', table('mht', tcols, trows, { noLegend: true }), tools);
+    return head + levels + combosT + sectorsT + schoolsT + teachersT;
+  }
+
   // ---------- how we count (glossary) ----------
   // G = governed by the Taleemabad data rules; P = provisional (owner-defined or ungoverned, may change).
   const GLOSSARY = [
@@ -1592,6 +1704,7 @@
     ['Exams and training', [
       ['Exams generated', 'G', 'Exam requests whose paper came out (WhatsApp: stored and sent; portal: ready to download). Requested = generated + failed + never finished.', 'assessment_requests, assessment_papers · exam-paper-rules §2–§3e'],
       ['FDE board papers', 'P', 'Exams made in the grade 5 FDE board format, read from the paper’s own layout.', 'assessment_papers.exam_json._layout'],
+      ['Middle & high training', 'G', 'Every ICT teacher whose level includes Middle or High, in any combination (Primary too), at a programme school, all time. The niete_middle_high programme: NIETE Level 2 and Level 3, Oxbridge and Beaconhouse Levels 1–4; I-SAPS is shown on its own (different pass marks and a composite certificate). Finished a module = at least one module at those levels; certified = holds that level’s certificate. There is no “training status” column: these steps are the status. Each partner is reported separately, never blended.', 'users.teacher_level, teacher_training_assignments, teacher_training_progress, training_certificates · training-query-rules §3–§5, teacher-levels §1b'],
       ['NIETE primary training', 'G', 'The niete_primary programme, all time: on the programme, modules finished, and Level 0–3 certificates (Aspiring Teacher, Emerging Practitioner, Skilled Practitioner, Teacher Leader).', 'training rules'],
     ]],
     ['Other features', [
@@ -2244,13 +2357,13 @@
     S.prevLabel = S.prevR ? (len === 1 ? `the day before (${nice(pf)})` : `the previous ${len} days (${nice(pf)} – ${nice(S.from - 1)})`) : '';
     S.curAll = R.all;
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
-    const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training' };
+    const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training', mh_training: 'middle & high training' };
     const what = missing.map((k) => NAMES[k] || k).join(', ');
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
-    const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const fid = document.activeElement && ['search', 'gsearch', 'mhq'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
@@ -2359,6 +2472,8 @@
     else if (b.dataset.caladd !== undefined) { calendarForm(); }
     else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
+    else if (b.dataset.mhcombo !== undefined) { S.mhCombo = b.dataset.mhcombo; render(); }
+    else if (b.dataset.mhclear !== undefined) { S.mhSchool = null; render(); }
     else if (b.dataset.card) { const [k, v] = b.dataset.card.split(':'); openCard(k, +v); }
     else if (b.dataset.cmkind) { cardState().kind = b.dataset.cmkind; render(); }
     else if (b.dataset.cmmode) { cardState().mode = b.dataset.cmmode; render(); }
@@ -2435,7 +2550,7 @@
     const pk = { 'p-head': 'pHead', 'p-msg': 'pMsg', 'p-foot': 'pFoot', 'p-minplans': 'pMinPlans', 'p-mindc': 'pMinDc' }[e.target.id];
     if (c && pk) { c[pk] = pk.startsWith('pMin') ? Math.max(0, Math.min(999, Math.floor(+e.target.value || 0))) : e.target.value; refreshPoster(); }
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } else if (e.target.id === 'gsearch') { S.gq = e.target.value; render(); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } else if (e.target.id === 'gsearch') { S.gq = e.target.value; render(); } else if (e.target.id === 'mhq') { S.mhq = e.target.value; render(); } });
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.close(); });
   // A pasted or edited link (replaceState in writeHash does not fire this).
   window.addEventListener('hashchange', () => {

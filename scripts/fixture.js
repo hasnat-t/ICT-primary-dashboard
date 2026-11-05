@@ -90,9 +90,24 @@ const deb = {};
 for (const r of obs) if (r[2] === 'H') (deb[r[0]] = deb[r[0]] || []).push({ d: r[1], c: r[14], s: r[3], su: 'A well-paced lesson with clear explanations; questioning stayed mostly at recall level.',
   st: [{ t: 'Clear explanations', i: 'Students followed each step of the worked example.' }], gr: [{ a: 'Quality Questioning (C1)', o: 'Most questions were recall; answers were one word (e.g. “…”).', s: ['Ask two open why/how questions and wait 5 seconds.'] }],
   rec: ['Plan two open-ended questions before the lesson.', 'Use Think-Pair-Share once.'], fo: { t: 'Increase open-ended questioning', r: 'Moves student thinking beyond recall.', y: 'Write two why-questions on the board.' } });
+// middle & high teachers: their own made-up roster with training per level (same levels as the live catalogue)
+const mhLevels = [[3, 'TALEEMABAD', 2, 40, 80], [4, 'TALEEMABAD', 3, 39, 80], [17, 'OXBRIDGE', 4, 7, 70], [18, 'BEACONHOUSE', 1, 55, 70], [19, 'BEACONHOUSE', 2, 51, 70],
+  [20, 'BEACONHOUSE', 3, 48, 70], [21, 'BEACONHOUSE', 4, 52, 70], [27, 'ISAPS', 0, 54, 60], [31, 'ISAPS', 1, 53, 60]].map(([id, vendor, order, modules, pass]) => ({ id, vendor, order, modules, pass }));
+const mh = { levels: mhLevels, schools: [], teachers: [] };
+for (let s = 0; s < 263; s++) {
+  const si = mh.schools.push([String(2000 + s), sectors[s % 6], `Middle/High School ${s + 1}`]) - 1;
+  for (let k = 0, n = 4 + Math.floor(rnd() * 20); k < n; k++) {
+    const combo = pick(['M', 'H', 'MH', 'MH', 'H', 'PM', 'PH', 'PMH']);
+    const mods = {}, certs = [];
+    for (const l of mhLevels) {
+      if (rnd() < (l.vendor === 'ISAPS' ? 0.08 : 0.5)) { const done = rnd() < 0.6 ? l.modules : 1 + Math.floor(rnd() * l.modules); mods[l.id] = done; if (done === l.modules && rnd() < 0.85) certs.push(l.id); }
+    }
+    mh.teachers.push([si, `MH Teacher ${mh.teachers.length + 1}`, combo, rnd() < 0.995 ? 1 : 0, mods, certs]);
+  }
+}
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
   coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: i < 5 ? `Head ${i + 1}` : `Coach ${i + 1}`, role: i < 5 ? 'principal' : 'coach', hide: i < 5 })),
-  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
+  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, mh, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);
