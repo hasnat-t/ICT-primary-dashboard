@@ -584,3 +584,15 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 @media (max-width: 64rem) { .poster-wrap { zoom: .78; } }
 @media (max-width: 40rem) { .poster-wrap { zoom: .46; } .cm-grid2, .cm-two { grid-template-columns: 1fr !important; } }
 
+
+/* tick-box dropdown (middle & high level tags) */
+.msel { position: relative; }
+.msel > summary { list-style: none; cursor: pointer; min-width: 220px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.msel > summary::-webkit-details-marker { display: none; }
+.msel > summary::after { content: ""; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); flex: none; }
+.msel[open] > summary::after { transform: rotate(-135deg) translateY(-2px); }
+.msel-p { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 280px; background: var(--panel); border: 1px solid var(--ctl); border-radius: 12px; box-shadow: var(--shadow); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.msel-p label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+.msel-p label:hover { background: var(--panel-2); }
+.msel-p label .dim { margin-left: auto; }
+.msel-a { border-top: 1px solid var(--line); margin-top: 4px; padding: 8px 4px 2px; }

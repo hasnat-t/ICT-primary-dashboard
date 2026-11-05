@@ -1558,6 +1558,9 @@
   const MH_VENDOR = { TALEEMABAD: 'NIETE Trainings', OXBRIDGE: 'Game-Based Teaching (GBTLA)', BEACONHOUSE: 'AI-Powered Subject Pedagogy', ISAPS: 'Teacher Development Programme' };
   const MH_COMBOS = [['M', 'Middle'], ['H', 'High'], ['MH', 'Middle + High'], ['PM', 'Primary + Middle'], ['PH', 'Primary + High'], ['PMH', 'Primary + Middle + High']];
   const mhComboName = (c) => (MH_COMBOS.find((x) => x[0] === c) || [c, c])[1];
+  // Level tags chosen in the tick-box dropdown; none ticked = all of them.
+  const mhTags = () => (S.mhTags = S.mhTags || []);
+  const mhTagText = () => { const t = mhTags(); return !t.length || t.length === MH_COMBOS.length ? 'All level tags' : t.length <= 2 ? t.map(mhComboName).join(', ') : `${t.length} level tags`; };
   function mhLevelName(l) {
     if (l.vendor === 'TALEEMABAD') return `NIETE ${LEVELS[l.order] || `level ${l.order}`}`;
     if (l.vendor === 'OXBRIDGE') return MH_VENDOR.OXBRIDGE;
@@ -1590,7 +1593,7 @@
     const M = S.data.mh, selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
     return M.teachers.map((t, i) => [i, t]).filter(([, t]) => {
       const sc = M.schools[t[0]];
-      return (!S.sector || sc[1] === S.sector) && (!selEmis || sc[0] === selEmis) && (!S.mhCombo || t[2] === S.mhCombo) && (!extra || extra(t, sc));
+      return (!S.sector || sc[1] === S.sector) && (!selEmis || sc[0] === selEmis) && (!mhTags().length || mhTags().includes(t[2])) && (!extra || extra(t, sc));
     });
   }
   function mhKpis(g, L) {
@@ -1645,8 +1648,13 @@
     const level = S.school !== '' ? 'teacher' : S.sector ? 'school' : 'sector';
     const rows = level === 'teacher' ? mhTeacherRows(list) : mhGroupRows(list, level === 'school' ? (t) => t[0] : (t) => M.schools[t[0]][1], L);
     const onRow = (k) => modalOpen(level === 'sector' ? { kind: 'mhsector', key: k } : level === 'school' ? { kind: 'mhschool', key: +k } : { kind: 'mhteacher', key: +k });
-    const tagSel = `<div class="row"><select class="sel" id="mhcombo" aria-label="Level tag"><option value="">All level tags</option>${MH_COMBOS.map(([k, l]) => `<option value="${k}" ${S.mhCombo === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
-    const head = card('c-mh', `Middle & high training · ${scopeName()}${S.mhCombo ? ` · ${mhComboName(S.mhCombo)}` : ''} · all time`,
+    // counts per tag inside the sector / school filters, whatever is ticked
+    const selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
+    const tagN = (k) => M.teachers.filter((t) => t[2] === k && (!S.sector || M.schools[t[0]][1] === S.sector) && (!selEmis || M.schools[t[0]][0] === selEmis)).length;
+    const tagSel = `<div class="row"><details class="msel" id="mhtags" ${S.mhTagsOpen ? 'open' : ''}><summary class="sel" aria-label="Level tags">${esc(mhTagText())}</summary>
+      <div class="msel-p" role="group" aria-label="Level tags">${MH_COMBOS.map(([k, l]) => `<label><input type="checkbox" data-mhtag="${k}" ${mhTags().includes(k) ? 'checked' : ''}> ${esc(l)} <span class="dim">${N(tagN(k))}</span></label>`).join('')}
+        <div class="row msel-a"><button class="dl" type="button" data-mhtags="all" ${mhTags().length ? '' : 'disabled'}>Show all level tags</button></div></div></details></div>`;
+    const head = card('c-mh', `Middle & high training · ${scopeName()}${mhTagText() !== 'All level tags' ? ` · ${mhTagText()}` : ''} · all time`,
       `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too). The middle/high programme: ${core.map((l) => esc(mhLevelName(l))).join(', ')}. The <b>${MH_VENDOR.ISAPS}</b> is shown on its own: its pass marks and composite certificate are not comparable. <b>Done</b> = certified on every level of that programme. Training is all time, so the period filter does not apply.`,
       mhKpis(g, L), tagSel);
     const byLevel = card('c-mh-t', `By ${level}`, level === 'teacher' ? 'Each level shows ✓ Certified, or modules finished of the level’s total. Click a teacher for their progress. Contains teacher names — internal use only.' : `Click a ${level} to see its ${level === 'sector' ? 'schools' : 'teachers'}.`,
@@ -1664,7 +1672,7 @@
         pct('mod', 'Finished a module', (r) => r.x.mod), pct('full', 'Finished every module', (r) => r.x.full), pct('cert', 'Certified', (r) => r.x.cert),
       ], lrows, { noLegend: true }));
     const tagRows = MH_COMBOS.map(([k, l]) => ({ key: k, name: l, g: mhGroup(list.map((x) => x[1]).filter((t) => t[2] === k), L) })).filter((r) => r.g.teachers);
-    const tags = S.mhCombo ? '' : card('c-mh-c', 'By level tag', 'The level tags on each teacher’s account. Teachers tagged Primary as well also count in primary training.',
+    const tags = tagRows.length < 2 ? '' : card('c-mh-c', 'By level tag', 'The level tags on each teacher’s account. Teachers tagged Primary as well also count in primary training.',
       table('mhc', mhCols('sector', L).map((c, i) => (i === 0 ? { ...c, label: 'Level tag' } : c)), tagRows, { level: 'sector', foot: { g, name: 'Total' } }));
     return head + byLevel + levels + tags;
   }
@@ -2511,6 +2519,7 @@
     else if (b.dataset.caladd !== undefined) { calendarForm(); }
     else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
+    else if (b.dataset.mhtags) { S.mhTags = []; S.mhTagsOpen = false; render(); }
 
     else if (b.dataset.card) { const [k, v] = b.dataset.card.split(':'); openCard(k, +v); }
     else if (b.dataset.cmkind) { cardState().kind = b.dataset.cmkind; render(); }
@@ -2546,13 +2555,20 @@
     else if (b.id === 'm-back') { MS.pop(); renderModal(); }
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('tr.click')) e.target.click(); });
+  document.addEventListener('toggle', (e) => { if (e.target.id === 'mhtags') S.mhTagsOpen = e.target.open; }, true);
+  document.addEventListener('pointerdown', (e) => { const d = document.getElementById('mhtags'); if (d && d.open && !d.contains(e.target)) { d.open = false; S.mhTagsOpen = false; } });
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (t.id === 'presetSel') { if (t.value === 'custom') { S.preset = 'custom'; render(); } else setPreset(t.value); }
     else if (t.id === 'sector') { S.sector = t.value; S.school = ''; render(); }
     else if (t.id === 'school') { S.school = t.value; if (t.value !== '') S.sector = S.data.schools[+t.value].sector; render(); }
     else if (t.id === 'missing') { S.missing = t.value; render(); }
-    else if (t.id === 'mhcombo') { S.mhCombo = t.value; render(); }
+    else if (t.dataset.mhtag) {
+      const k = t.dataset.mhtag, tags = mhTags();
+      S.mhTags = t.checked ? [...tags.filter((x) => x !== k), k] : tags.filter((x) => x !== k);
+      if (S.mhTags.length === MH_COMBOS.length) S.mhTags = [];   // every tag ticked = all
+      S.mhTagsOpen = true; render();
+    }
     else if (t.id === 'from' || t.id === 'to') {
       let f = Calc.dateToDay(S.data.window_start, $('#from').value || iso(0)), to = Calc.dateToDay(S.data.window_start, $('#to').value || iso(S.data.today));
       f = Math.max(0, Math.min(f, S.data.today)); to = Math.max(0, Math.min(to, S.data.today));
