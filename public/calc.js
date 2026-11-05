@@ -1,4 +1,4 @@
-// Roll-ups for the ICT Primary dashboard, shared by the page and the Node tests. Every figure is built from the
+// Roll-ups for the ICT Dashboard, shared by the page and the Node tests. Every figure is built from the
 // compact arrays in /api/data for a chosen date range (day indexes since data.window_start, Pakistan dates):
 //   lp   [teacher, day, g15, g612, plans, taught, answered]
 //   obs  [teacher, day, src D|H, stage L|-|C|P|A (DC L = taught a recent Rumi plan), tsk_s, tsk_m, hlp_s, hlp_m, se_s, se_m, lpf_s, lpf_m]

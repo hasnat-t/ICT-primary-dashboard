@@ -1,4 +1,4 @@
-# ICT Primary Dashboard
+# ICT Dashboard
 
 > **New here (person or AI agent)? Read [`CLAUDE.md`](CLAUDE.md) first** — the full context: hosting, deployment, data rules, code map, every tab, the owner's decisions and open items. Health and fixes: [`MAINTENANCE.md`](MAINTENANCE.md).
 

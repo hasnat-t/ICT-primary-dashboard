@@ -1,4 +1,6 @@
-# ICT Primary Dashboard — full context for any agent or developer
+# ICT Dashboard — full context for any agent or developer
+
+> Renamed from "ICT Primary Dashboard" on 2026-11-05 (owner), since it now covers middle & high training too. The repo, folder and live URL keep their old names.
 
 Read this first. It is the single source of truth for what this project is, how it is built and deployed, every
 decision the owner has made, and what is still open. Keep it up to date when you change something important.

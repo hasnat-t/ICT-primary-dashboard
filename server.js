@@ -1,4 +1,4 @@
-// ICT Primary Teachers dashboard: serves the page and refreshes its data from the Taleemabad data service
+// ICT Dashboard: serves the page and refreshes its data from the Taleemabad data service
 // (MCP over HTTP) at set times each day. Every sql/*.sql query is run, unpacked and checked here; the page
 // does the date filtering and roll-ups in the browser from the compact arrays in /api/data.
 const http = require('http');
@@ -113,28 +113,28 @@ async function executeQueryOnce(sql, question) {
 }
 
 const QUESTIONS = {
-  roster: 'scheduled refresh: ICT Primary Teachers dashboard, primary teachers per programme school (teacher headcount 1e, PRIMARY level)',
-  lp: 'scheduled refresh: ICT Primary Teachers dashboard, lesson plans got and taught per primary teacher per day since 1 Aug 2026',
-  observations: 'scheduled refresh: ICT Primary Teachers dashboard, Digital Coach and coach-visit observations with FICO section scores per primary teacher since 1 Aug 2026',
-  quizzes: 'scheduled refresh: ICT Primary Teachers dashboard, quizzes made and children taking quizzes per primary teacher since 1 Aug 2026 (counts only)',
-  quiz_sectors: 'scheduled refresh: ICT Primary Teachers dashboard, distinct children taking quizzes per sector since 1 Aug 2026 (counts only)',
-  lp_detail: 'scheduled refresh: ICT Primary Teachers dashboard, lesson plans generated per primary teacher by day, hour and curriculum lesson, and lessons taught in DC, since 1 Aug 2026',
-  lp_lessons: 'scheduled refresh: ICT Primary Teachers dashboard, curriculum lesson catalogue (lesson, grade, subject, title)',
-  quiz_scores: 'scheduled refresh: ICT Primary Teachers dashboard, children\'s finished lesson-quiz scores per primary teacher, day, grade and subject since 1 Aug 2026 (aggregates only, provisional)',
-  egra: 'scheduled refresh: ICT Primary Teachers dashboard, learning assessment (EGRA / EGMA) tests at programme schools - kept on the server, page shows masked counts only',
-  egra_draws: 'scheduled refresh: ICT Primary Teachers dashboard, learning assessment random sample per programme school (drawn, tested, absent, refused) - counts only',
-  fico_ind: 'scheduled refresh: ICT Primary Teachers dashboard, FICO v3 indicator scores per school, DC vs HITL, by week since 8 Sep 2026',
-  pilot: 'scheduled refresh: ICT Primary Teachers dashboard, FICO /observe2 pilot field forms - provisional, DC and final levels, evidence check marks, priorities (study design of 7 Oct 2026)',
-  observe2: 'scheduled refresh: ICT Primary Teachers dashboard, /observe2 (fico17) coach visits of primary teachers since 1 Aug 2026 - levels, priorities, children\'s thinking',
-  debriefs: 'scheduled refresh: ICT Primary Teachers dashboard, HITL debrief reports per primary teacher since 1 Aug 2026 (summary, strengths, growth areas, action plan, focus area; no verbatim classroom quotes)',
-  coaches: 'scheduled refresh: ICT Primary Teachers dashboard, coaches who held HITL observations of primary teachers since 1 Aug 2026, with names (internal use only)',
-  teacher_grades: 'scheduled refresh: ICT Primary Teachers dashboard, the grades each primary teacher teaches on the class roster, for DC observations by grade',
-  exam_detail: 'scheduled refresh: ICT Primary Teachers dashboard, exam papers per primary teacher by day, hour, grade, subject, seen/unseen, surface and chapter since 1 Aug 2026',
-  exams: 'scheduled refresh: ICT Primary Teachers dashboard, exam papers from the /assessment generator per primary teacher per day since 1 Aug 2026',
-  training: 'scheduled refresh: ICT Primary Teachers dashboard, NIETE primary training per primary teacher, all time',
-  mh_training: 'scheduled refresh: ICT Primary Teachers dashboard, middle and high teachers (any level mix including middle or high) per school with their middle/high training: programme, modules and certificates per level, all time',
-  mh_catalog: 'scheduled refresh: ICT Primary Teachers dashboard, middle/high training levels and modules per level (NIETE levels 3-4, Oxbridge, Beaconhouse, I-SAPS)',
-  headcount: 'scheduled refresh: ICT Primary Teachers dashboard, total ICT teacher count by level (primary only, middle/high only, both, no level) per sector and all ICT',
+  roster: 'scheduled refresh: ICT Dashboard, primary teachers per programme school (teacher headcount 1e, PRIMARY level)',
+  lp: 'scheduled refresh: ICT Dashboard, lesson plans got and taught per primary teacher per day since 1 Aug 2026',
+  observations: 'scheduled refresh: ICT Dashboard, Digital Coach and coach-visit observations with FICO section scores per primary teacher since 1 Aug 2026',
+  quizzes: 'scheduled refresh: ICT Dashboard, quizzes made and children taking quizzes per primary teacher since 1 Aug 2026 (counts only)',
+  quiz_sectors: 'scheduled refresh: ICT Dashboard, distinct children taking quizzes per sector since 1 Aug 2026 (counts only)',
+  lp_detail: 'scheduled refresh: ICT Dashboard, lesson plans generated per primary teacher by day, hour and curriculum lesson, and lessons taught in DC, since 1 Aug 2026',
+  lp_lessons: 'scheduled refresh: ICT Dashboard, curriculum lesson catalogue (lesson, grade, subject, title)',
+  quiz_scores: 'scheduled refresh: ICT Dashboard, children\'s finished lesson-quiz scores per primary teacher, day, grade and subject since 1 Aug 2026 (aggregates only, provisional)',
+  egra: 'scheduled refresh: ICT Dashboard, learning assessment (EGRA / EGMA) tests at programme schools - kept on the server, page shows masked counts only',
+  egra_draws: 'scheduled refresh: ICT Dashboard, learning assessment random sample per programme school (drawn, tested, absent, refused) - counts only',
+  fico_ind: 'scheduled refresh: ICT Dashboard, FICO v3 indicator scores per school, DC vs HITL, by week since 8 Sep 2026',
+  pilot: 'scheduled refresh: ICT Dashboard, FICO /observe2 pilot field forms - provisional, DC and final levels, evidence check marks, priorities (study design of 7 Oct 2026)',
+  observe2: 'scheduled refresh: ICT Dashboard, /observe2 (fico17) coach visits of primary teachers since 1 Aug 2026 - levels, priorities, children\'s thinking',
+  debriefs: 'scheduled refresh: ICT Dashboard, HITL debrief reports per primary teacher since 1 Aug 2026 (summary, strengths, growth areas, action plan, focus area; no verbatim classroom quotes)',
+  coaches: 'scheduled refresh: ICT Dashboard, coaches who held HITL observations of primary teachers since 1 Aug 2026, with names (internal use only)',
+  teacher_grades: 'scheduled refresh: ICT Dashboard, the grades each primary teacher teaches on the class roster, for DC observations by grade',
+  exam_detail: 'scheduled refresh: ICT Dashboard, exam papers per primary teacher by day, hour, grade, subject, seen/unseen, surface and chapter since 1 Aug 2026',
+  exams: 'scheduled refresh: ICT Dashboard, exam papers from the /assessment generator per primary teacher per day since 1 Aug 2026',
+  training: 'scheduled refresh: ICT Dashboard, NIETE primary training per primary teacher, all time',
+  mh_training: 'scheduled refresh: ICT Dashboard, middle and high teachers (any level mix including middle or high) per school with their middle/high training: programme, modules and certificates per level, all time',
+  mh_catalog: 'scheduled refresh: ICT Dashboard, middle/high training levels and modules per level (NIETE levels 3-4, Oxbridge, Beaconhouse, I-SAPS)',
+  headcount: 'scheduled refresh: ICT Dashboard, total ICT teacher count by level (primary only, middle/high only, both, no level) per sector and all ICT',
 };
 
 // Run a per-school packed query page by page (stable ORDER BY school_id) until a short page comes back.

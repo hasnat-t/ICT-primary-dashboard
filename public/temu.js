@@ -259,7 +259,7 @@
   function home(first) {
     anim.waveUntil = anim.now + 2.2;
     screen(first
-      ? 'Assalam-o-Alaikum! I’m <b>TEMU</b>, your guide to the ICT Primary Dashboard. Part parrot, part data nerd, fully dressed. New here? I can show you around in about a minute.'
+      ? 'Assalam-o-Alaikum! I’m <b>TEMU</b>, your guide to the ICT Dashboard. Part parrot, part data nerd, fully dressed. New here? I can show you around in about a minute.'
       : pick(QUIPS),
     btn('tour', 'Take the tour', 'pri') + btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('headlines', 'Read me the headlines')
       + btn('moves', 'Show me a move') + btn('joke', 'Tell me a joke') + (first ? btn('close', 'Not now') : btn('hide', 'Hide TEMU')));

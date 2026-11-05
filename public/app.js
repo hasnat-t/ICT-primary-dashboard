@@ -1,4 +1,4 @@
-// ICT Primary Dashboard page. Loads /api/data once, then every view is computed in the browser by
+// ICT Dashboard page. Loads /api/data once, then every view is computed in the browser by
 // calc.js for the chosen period (preset or custom dates), sector and school.
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
@@ -1354,7 +1354,7 @@
     const c = cardState(), d = CARD_DESIGNS[c.design];
     const picked = f.items.filter((i) => c.picks.has(i.k)).slice(0, CARD_MAX);
     return `<div class="acard ac-${c.design}" id="acard">
-      <div class="ac-top"><span class="ac-logo"><img src="/assets/niete-logo.png" alt="NIETE"></span><span>ICT Primary · Teacher programme</span></div>
+      <div class="ac-top"><span class="ac-logo"><img src="/assets/niete-logo.png" alt="NIETE"></span><span>ICT Dashboard · Teacher programme</span></div>
       <div class="ac-title">${esc(c.title || d.title[c.kind])}</div>
       <div class="ac-to">${c.kind === 'teacher' ? 'presented to' : 'presented to the whole team at'}</div>
       <div class="ac-name">${esc(f.name)}</div><div class="ac-sub">${esc(f.sub)}</div>
