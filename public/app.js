@@ -431,10 +431,18 @@
     const sector = S.sector || (S.school !== '' ? S.data.schools[+S.school].sector : '');
     const g = sector ? H.sectors[sector] : H.all;
     if (!g) return '';
-    const cells = [[N(g.teachers), `ICT teachers, all levels · ${esc(sector || 'All ICT')} · ${N(g.schools)} schools`],
-      [N(g.primaryOnly + g.both), 'teach Primary'], [N(g.mhOnly + g.both), 'teach Middle or High'],
-      [N(g.both), 'teach both (counted once in the total)'], [N(g.noLevel), 'no level recorded']];
-    return `<section class="volume hc" aria-label="ICT teachers"><div class="hc-0"><span class="vv">${cells[0][0]}</span><span class="vl">${cells[0][1]}</span></div>${cells.slice(1).map(([v, l]) => `<div><span class="vv">${v}</span><span class="vl">${l}</span></div>`).join('')}</section>`;
+    const pc = (n) => (g.teachers ? (100 * n) / g.teachers : 0);
+    const tiles = [['p', 'teach Primary', g.primaryOnly + g.both], ['mh', 'teach Middle or High', g.mhOnly + g.both],
+      ['both', 'teach both, counted once', g.both], ['none', 'no level recorded', g.noLevel]];
+    // the four groups below do not overlap, so the bar adds up to the total
+    const parts = [['p', 'Primary only', g.primaryOnly], ['both', 'Both', g.both], ['mh', 'Middle/High only', g.mhOnly], ['none', 'No level', g.noLevel]];
+    return `<section class="hc2" aria-label="ICT teachers">
+      <div class="hc2-total"><span class="hc2-k">ICT teachers · ${esc(sector || 'All ICT')}</span><span class="hc2-v">${N(g.teachers)}</span><span class="hc2-s">all levels, in ${N(g.schools)} schools</span></div>
+      <div class="hc2-main">
+        <div class="hc2-tiles">${tiles.map(([c, l, n]) => `<div class="hc2-t ${c}"><span class="hc2-n">${N(n)}</span><span class="hc2-l">${esc(l)}</span><span class="hc2-p">${pc(n).toFixed(0)}% of ICT teachers</span></div>`).join('')}</div>
+        <div class="hc2-bar" role="img" aria-label="${parts.map(([, l, n]) => `${l} ${N(n)}`).join(', ')}">${parts.map(([c, l, n]) => (n ? `<span class="${c}" style="width:${pc(n).toFixed(2)}%" data-tip="${esc(l)}: ${N(n)} (${pc(n).toFixed(1)}%)"></span>` : '')).join('')}</div>
+        <div class="hc2-key">${parts.map(([c, l, n]) => `<span><i class="${c}"></i>${esc(l)} <b>${N(n)}</b></span>`).join('')}</div>
+      </div></section>`;
   }
   function viewOverview(R) {
     const RA = Calc.rollup(S.P, { from: S.from, to: S.to });

@@ -597,6 +597,26 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .msel-p label .dim { margin-left: auto; }
 .msel-a { border-top: 1px solid var(--line); margin-top: 4px; padding: 8px 4px 2px; }
 .mh-f { gap: 10px; flex-wrap: wrap; }
-.volume.hc { margin-bottom: 14px; }
-.volume.hc .hc-0 { background: var(--panel-2); }
-.volume.hc .hc-0 .vv { font-size: 28px; }
+/* overview: ICT teachers strip */
+.hc2 { --hp: var(--c1); --hm: var(--c2); --hb: #2E7DB8; --hn: var(--grey); display: grid; grid-template-columns: minmax(200px, 250px) 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin-bottom: 14px; }
+.hc2-total { background: var(--navy); color: var(--on-navy); padding: 20px 22px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.hc2-k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--on-navy-2); font-weight: 600; }
+.hc2-v { font-family: var(--display); font-weight: 700; font-size: 42px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.hc2-s { font-size: 13px; color: var(--on-navy-3); }
+.hc2-main { padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px; }
+.hc2-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.hc2-t { border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 9%, var(--panel)); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.hc2-t.p { --c: var(--hp); } .hc2-t.mh { --c: var(--hm); } .hc2-t.both { --c: var(--hb); } .hc2-t.none { --c: var(--hn); }
+.hc2-n { font-family: var(--display); font-weight: 700; font-size: 26px; color: var(--c); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.hc2-l { font-size: 13px; font-weight: 600; color: var(--fg); }
+.hc2-p { font-size: 12px; color: var(--muted); }
+.hc2-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--line-2); }
+.hc2-bar span { height: 100%; } .hc2-bar span + span { box-shadow: -2px 0 0 var(--panel); }
+.hc2-bar .p, .hc2-key .p { background: var(--hp); } .hc2-bar .mh, .hc2-key .mh { background: var(--hm); }
+.hc2-bar .both, .hc2-key .both { background: var(--hb); } .hc2-bar .none, .hc2-key .none { background: var(--hn); }
+.hc2-key { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); }
+.hc2-key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.hc2-key b { color: var(--fg); font-weight: 600; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hc2 { --hb: #6BB8E6; } }
+:root[data-theme="dark"] .hc2 { --hb: #6BB8E6; }
+@media (max-width: 52rem) { .hc2 { grid-template-columns: 1fr; } .hc2-tiles { grid-template-columns: repeat(2, 1fr); } }
