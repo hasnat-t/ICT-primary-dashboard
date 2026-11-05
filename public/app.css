@@ -620,3 +620,19 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hc2 { --hb: #6BB8E6; } }
 :root[data-theme="dark"] .hc2 { --hb: #6BB8E6; }
 @media (max-width: 52rem) { .hc2 { grid-template-columns: 1fr; } .hc2-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* colourful tiles everywhere (owner, 2026-11-05): plain tiles take a rotating accent; band tiles keep their band colour */
+:root { --a1: #1F7A4C; --a2: #C4741C; --a3: #2E7DB8; --a4: #7A55C2; --a5: #138A82; --a6: #C2477A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --a1: #4FC387; --a2: #E09A4A; --a3: #6BB8E6; --a4: #B49BEA; --a5: #4CC9BE; --a6: #EC8DB4; } }
+:root[data-theme="dark"] { --a1: #4FC387; --a2: #E09A4A; --a3: #6BB8E6; --a4: #B49BEA; --a5: #4CC9BE; --a6: #EC8DB4; }
+.kpis > .kpi:not(.kb):nth-child(6n+1) { --ac: var(--a1); } .kpis > .kpi:not(.kb):nth-child(6n+2) { --ac: var(--a2); }
+.kpis > .kpi:not(.kb):nth-child(6n+3) { --ac: var(--a3); } .kpis > .kpi:not(.kb):nth-child(6n+4) { --ac: var(--a4); }
+.kpis > .kpi:not(.kb):nth-child(6n+5) { --ac: var(--a5); } .kpis > .kpi:not(.kb):nth-child(6n+6) { --ac: var(--a6); }
+.kpi:not(.kb) { border-left: 4px solid var(--ac, var(--a1)); background: color-mix(in srgb, var(--ac, var(--a1)) 8%, var(--panel)); }
+.kpi:not(.kb) .v { color: var(--ac, var(--a1)); }
+.kpi.kb.b4 { background: color-mix(in srgb, var(--t4) 10%, var(--panel)); } .kpi.kb.b3 { background: color-mix(in srgb, var(--t3) 14%, var(--panel)); }
+.kpi.kb.b2 { background: color-mix(in srgb, var(--t2) 12%, var(--panel)); } .kpi.kb.b1 { background: color-mix(in srgb, var(--t1) 10%, var(--panel)); }
+.volume > div:nth-child(6n+1) { --ac: var(--a1); } .volume > div:nth-child(6n+2) { --ac: var(--a2); } .volume > div:nth-child(6n+3) { --ac: var(--a3); }
+.volume > div:nth-child(6n+4) { --ac: var(--a4); } .volume > div:nth-child(6n+5) { --ac: var(--a5); } .volume > div:nth-child(6n+6) { --ac: var(--a6); }
+.volume > div { border-top: 4px solid var(--ac); background: color-mix(in srgb, var(--ac) 7%, var(--panel)); }
+.volume .vv { color: var(--ac); }
