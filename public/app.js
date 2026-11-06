@@ -504,49 +504,30 @@
         ${x.streak > 1 || x.record ? `<span class="champ-b">${x.streak > 1 ? `<i>${x.streak}-day streak</i>` : ''}${x.record ? '<i>Best day since August</i>' : ''}</span>` : ''}
         ${mine >= 0 ? `<span class="champ-m">${esc(S.sector)}: ${['1st', '2nd', '3rd', '4th', '5th', '6th'][mine] || `#${mine + 1}`} · ${pc(x.ranks[mine].sh)}</span>` : ''}</button>`;
     }).join('');
-    return `${champBanner(C)}<section class="champs" aria-label="Champions"><div class="champs-h"><span class="champs-t">${TROPHY} Champions of ${esc(C.label)}${C.yesterday ? ' · yesterday' : ' · the last school day'}</span>${cbHiddenDay() === String(C.day) ? '<button type="button" class="cb-show" data-cbshow>Show celebration</button>' : ''}
+    return `<section class="champs" aria-label="Champions"><div class="champs-h"><span class="champs-t">${TROPHY} Champions of ${esc(C.label)}${C.yesterday ? ' · yesterday' : ' · the last school day'}</span>${cbHiddenDay() === String(C.day) ? '<button type="button" class="cb-show" data-cbshow>Show celebration</button>' : ''}
       <span class="champs-n">The sector that did best on each feature, as a share of its primary teachers. Click a card to see that day.</span></div><div class="champs-g">${cards}</div></section>`;
   }
-  // The celebration banner above the champions strip: a moving gradient, falling confetti, a bouncing trophy, the
-  // winners rotating in a spotlight, and the champion of the day (most wins). Hidden for the day with ×.
-  let cbI = 0;
+  // The champions headline bar across the top of every tab: a moving gradient, a bouncing trophy, all the day's winners
+  // scrolling like a news ticker (hover pauses, click opens that day), and the champion(s) of the day (most wins).
+  // × hides it for the day; "Show celebration" on the Overview's champions strip brings it back.
   const cbHiddenDay = () => { try { return localStorage.getItem('cbHidden'); } catch (e) { return null; } };
-  function champBanner(C) {
-    const wins = C.cats.filter((x) => x.winner);
-    if (!wins.length) return '';
-    if (cbHiddenDay() === String(C.day)) return '';
+  function champBar() {
+    if (!S.data || !S.P) return '';
+    const C = champData(), wins = C.cats.filter((x) => x.winner);
+    if (!wins.length || cbHiddenDay() === String(C.day)) return '';
     const count = {};
     wins.forEach((x) => { count[x.winner] = (count[x.winner] || 0) + 1; });
     const most = Math.max(...Object.values(count)), kings = Object.keys(count).filter((k) => count[k] === most);
     const pc = (v) => `${(100 * v).toFixed(v < 0.1 ? 1 : 0)}%`;
-    cbI %= wins.length;
-    const colors = ['#FFD23F', '#35C03F', '#4D74E0', '#E2566A', '#FF8A1C', '#B49BEA', '#4CC9BE'];
-    const confetti = Array.from({ length: 26 }, (_, i) => `<i style="left:${(i * 37) % 100}%;--dx:${((i * 53) % 60) - 30}px;--r:${(i * 97) % 720}deg;background:${colors[i % colors.length]};animation-delay:-${((i * 0.73) % 6).toFixed(2)}s;animation-duration:${(4 + ((i * 1.3) % 4)).toFixed(1)}s"></i>`).join('');
-    const slides = wins.map((x, i) => `<div class="cb-slide${i === cbI ? ' on' : ''}" data-cat="${x.c}">
-      <span class="cb-sector">${esc(x.winner)}</span>
-      <span class="cb-what"><b>${esc(x.label)}</b> · ${pc(x.sh)} of its teachers ${esc(x.verb)} <span class="cb-dim">(ICT ${pc(x.ict)})</span></span>
-      ${x.streak > 1 || x.record ? `<span class="cb-badges">${x.streak > 1 ? `<i>🔥 ${x.streak}-day streak</i>` : ''}${x.record ? '<i>⭐ Best day since August</i>' : ''}</span>` : ''}</div>`).join('');
-    return `<section class="cb" aria-label="Celebration: ${esc(C.label)} champions"><div class="cb-cf" aria-hidden="true">${confetti}</div>
-      <div class="cb-trophy" aria-hidden="true"><svg viewBox="0 0 64 64"><defs><linearGradient id="cbg1" x1="0" x2="1"><stop offset="0" stop-color="#FFE58A"/><stop offset=".5" stop-color="#F2B632"/><stop offset="1" stop-color="#C88A12"/></linearGradient></defs>
-        <path fill="url(#cbg1)" d="M18 6h28v6h9v8c0 7-5 12-12 12h-1a14 14 0 0 1-8 8v7h8v7H22v-7h8v-7a14 14 0 0 1-8-8h-1C14 32 9 27 9 20v-8h9V6Zm28 12v8c3 0 5-3 5-6v-2h-5Zm-28 0h-5v2c0 3 2 6 5 6v-8Z"/><path fill="#fff" opacity=".45" d="M24 10h4v18c-2-2-4-5-4-9V10Z"/></svg></div>
-      <div class="cb-mid"><span class="cb-eyebrow">🏆 ${C.yesterday ? 'Yesterday’s champions' : `Champions of ${esc(C.label)}`}</span>
-        <div class="cb-slides" aria-live="polite">${slides}</div>
-        <div class="cb-dots">${wins.map((x, i) => `<button type="button" class="cb-dot" data-cbdot="${i}" aria-label="${esc(x.label)}" aria-current="${i === cbI}"></button>`).join('')}</div></div>
-      <div class="cb-king"><span class="cb-crown" aria-hidden="true">👑</span><span class="cb-k">Champion${kings.length > 1 ? 's' : ''} of the day</span>
-        <span class="cb-kname">${kings.map(esc).join(' & ')}</span><span class="cb-k2">won ${most} of ${wins.length}</span>
-        <button type="button" class="cb-go" data-champ="${wins[cbI].c}">See the day ›</button></div>
-      <button type="button" class="cb-x" data-cbx="${C.day}" aria-label="Hide the celebration for today">×</button></section>`;
+    const items = wins.map((x) => `<button type="button" class="cbar-i" data-champ="${x.c}" title="Open ${esc(x.label)} for ${esc(x.winner)} on ${esc(C.label)}"><b>${esc(x.winner)}</b> led <span class="cbar-c">${esc(x.label.replace(/^(?!DC)\w/, (ch) => ch.toLowerCase()))}</span> · ${pc(x.sh)} of its teachers${x.streak > 1 ? ` <em>🔥 ${x.streak}-day streak</em>` : ''}${x.record ? ' <em>⭐ best day since August</em>' : ''}</button>`).join('<span class="cbar-sep" aria-hidden="true">✦</span>');
+    // the list twice, so the ticker loops without a gap; its speed follows its length
+    const secs = Math.max(24, Math.round(wins.length * 9));
+    return `<div class="cbar" role="region" aria-label="${esc(C.yesterday ? 'Yesterday’s champions' : `Champions of ${C.label}`)}">
+      <span class="cbar-l"><span class="cbar-t" aria-hidden="true">🏆</span><span class="cbar-lt">${C.yesterday ? 'Yesterday’s champions' : `Champions · ${esc(C.label)}`}</span></span>
+      <div class="cbar-win"><div class="cbar-track" style="--d:${secs}s">${items}<span class="cbar-sep" aria-hidden="true">✦</span><span class="cbar-dup" aria-hidden="true">${items}<span class="cbar-sep">✦</span></span></div></div>
+      <span class="cbar-k" title="Champion${kings.length > 1 ? 's' : ''} of the day: most wins (${most} of ${wins.length})"><span aria-hidden="true">👑</span> ${kings.map(esc).join(' & ')}</span>
+      <button type="button" class="cbar-x" data-cbx="${C.day}" aria-label="Hide the champions bar for today">×</button></div>`;
   }
-  function cbShow(i) {
-    const sl = document.querySelectorAll('.cb-slide');
-    if (!sl.length) return;
-    cbI = ((i % sl.length) + sl.length) % sl.length;
-    sl.forEach((e, k) => e.classList.toggle('on', k === cbI));
-    document.querySelectorAll('.cb-dot').forEach((e, k) => e.setAttribute('aria-current', String(k === cbI)));
-    const go = document.querySelector('.cb-go');
-    if (go) go.dataset.champ = sl[cbI].dataset.cat;
-  }
-  setInterval(() => { if (!document.hidden && !document.querySelector('.cb:hover')) cbShow(cbI + 1); }, 4000);
   function openChamp(c) {
     const C = champData(), x = C.cats.find((k) => k.c === c);
     if (!x || !x.winner) return;
@@ -2543,6 +2524,7 @@
       if (S.preset === 'today' || S.preset === 'yesterday') { const p = presets().find((x) => x[0] === '30'); S.preset = '30'; S.from = Math.max(p[2], 0); S.to = p[3]; }
     }
     writeHash();
+    $('#cbar').innerHTML = champBar();
     $('#nav').innerHTML = NAV.map(([t, items]) => `<div class="nav-g">${t ? `<span class="nav-t">${t}</span>` : ''}${items.map(([k, l]) => `<button type="button" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</div>`).join('');
     $('#h1').textContent = TABS.find((t) => t[0] === S.tab)[1];
     $('#crumbs').innerHTML = crumbs();
@@ -2688,7 +2670,6 @@
     else if (b.dataset.part) { cardState().pArt = b.dataset.part; render(); }
     else if (b.dataset.poster) openPoster(+b.dataset.poster);
     else if (b.dataset.champ) openChamp(b.dataset.champ);
-    else if (b.dataset.cbdot !== undefined) cbShow(+b.dataset.cbdot);
     else if (b.dataset.cbx !== undefined) { try { localStorage.setItem('cbHidden', b.dataset.cbx); } catch (err) { /* storage blocked */ } render(); }
     else if (b.dataset.cbshow !== undefined) { try { localStorage.removeItem('cbHidden'); } catch (err) { /* storage blocked */ } render(); }
     else if (b.dataset.psave !== undefined || b.dataset.pshare !== undefined) {

@@ -20,7 +20,6 @@
   const GUIDE = {
     overview: ['Overview', 'The big picture for the period, sector and school you pick in the filters. Start here every morning, with chai.', [
       ['.hc2', 'ICT teachers', 'Every teacher at an ICT programme school, whatever they teach, counted once, as of the last data refresh. Green teach Primary, orange teach Middle or High, blue teach both; the bar shows the split without overlap. Follows the Sector filter. The rest of the dashboard counts primary teachers only.'],
-      ['.cb', 'Celebration', 'The banner for yesterday’s winners: each winning sector takes the spotlight in turn (hover to pause, or use the dots), with streaks and records, and the champion of the day is the sector with the most wins. × hides it for the day.'],
       ['.champs', 'Champions', 'Which sector did best yesterday (or the last school day) on lesson plans, DC recordings, coach visits, quizzes and exam papers, as a share of its teachers, so big sectors don’t always win. Badges show streaks and records. With your Sector filter set, each card shows where your sector ranked. Click a card to see that day.'],
       ['.hero', 'Headline cards', 'Four headline measures for primary teachers: lesson-plan engagement, Digital Coach coverage, HITL coverage and Teacher Leader certificates. The badge is the performance band, ▲/▼ compare with the period before, and each dot on the strip is a sector: click one to focus the page on it.'],
       ['.volume', 'Activity counts', 'How much happened in the period: DC and HITL observations, plans taught, quizzes made, children quizzed and exams generated.'],
@@ -208,6 +207,7 @@
 
   // The quick tour: the essentials in about a minute. [tab, element, text]
   const QUICK = [
+    ['overview', '.cbar', 'Up top, on every tab: yesterday’s <b>champions</b>, the sectors that did best on each feature, scrolling past like the news. Hover to pause, click one to see that day. × hides it until tomorrow.'],
     ['overview', '.confid', 'First, the red note. This dashboard is <b>internal only</b>: it shows teachers by name with their FICO scores. Not for teachers, school heads or outsiders. What happens on the dashboard stays on the dashboard.'],
     [null, '#nav', 'The menu, in six groups: <b>Teaching</b>, <b>Observation</b>, <b>Children</b>, <b>Growth</b>, <b>Directory</b> and <b>Insights</b>. Nineteen tabs, and I know every one of them.'],
     [null, '#filters', 'The filters. Pick a period, a sector or a school, and every number obeys. “Group charts by” switches between days, weeks and months. Training tabs are all time, so the period takes the day off there.'],
