@@ -188,7 +188,7 @@
     ['What do the ▲ and ▼ marks mean?', 'They compare the period you picked with the period of the same length just before it: percentage points for shares, per cent for counts. For “Since 1 Aug” there’s nothing before, so they politely disappear.', 'overview', '.hero'],
     ['What do the colours on the tiles mean?', 'Tiles with a badge (Exemplary, Proficient, Developing, Needs support) are coloured by their band, so the colour means something. Other tiles just take a colour so they’re easy to tell apart. Pretty, not judgemental.', 'overview', '.hero'],
     ['How do I download a chart or table?', '<b>Download image</b> on any section saves a picture; the button at the top saves the whole page. Tables also have <b>Download CSV</b> for Excel. <b>Present</b> hides the menus for a meeting screen.', null, '.top-btns'],
-    ['How fresh is the data?', 'It refreshes by itself every day (the footer says when), and the date under the title says when it was last updated. If a part fails, the page says so and keeps the previous figures. Fresher than my jokes, anyway.', null, '.foot'],
+    ['How fresh is the data?', 'It refreshes by itself every day (the footer says when), and the date under the title says when it was last updated. If a part fails, the page says so and keeps the previous figures.', null, '.foot'],
     ['Why is a number blank or zero?', 'Usually nothing happened in that period or place. Try “Since 1 Aug” or All sectors. If a refresh had a problem, a yellow note at the top says which part is missing. Zero is a number too, it just has low self-esteem.', null, '#filters'],
     ['Who counts as a primary teacher?', 'A verified teacher account at an ICT programme school whose level includes primary. Test accounts and teachers with no level recorded are left out. Middle and high teachers have their own training tab.', 'glossary', '#c-g0'],
     ['What is EGRA / the learning assessment?', 'A short reading and maths test for children drawn at random, done on the coach’s phone. Only totals are shown, never a child’s name, and groups under 5 children are hidden. The children are the point, after all.', 'egra', '#c-eg0'],
@@ -225,41 +225,6 @@
     'Need a hand? I only have wings, but they’re very supportive.',
     'Back again? I’m flattered. Mildly concerned, but flattered.',
     'You clicked a parrot. Bold move. How can I help?',
-  ];
-  const JOKES = [
-    'Why did the lesson plan go to therapy? Too many unresolved objectives.',
-    'I told the dashboard a secret. Now it’s in the CSV.',
-    'My doctor says I need more green in my life. I said, have you seen me?',
-    'Why did the pie chart go to the gym? It wanted to lose a few slices.',
-    'I don’t always read the footnotes. But when I do, it’s the governed rules. Thrilling stuff.',
-    'What do you call a teacher who never misses a lesson plan? Exemplary. I checked the band.',
-    'I tried to download myself as a PNG. Came out a bit cropped. Story of my life.',
-    'Why was the spreadsheet so tired? Too many late nights in the cells.',
-    'I asked for a raise. They gave me a higher perch.',
-    'Why don’t bar charts ever lie? They’re too upfront about their values.',
-    'My favourite filter? “Since 1 Aug”. It never judges where I’ve been.',
-    'What did the zero say to the eight? Nice belt.',
-    'I’m not saying I’m smart, but I wear glasses and a tie. Draw your own conclusions.',
-    'Why did the line chart break up with the bar chart? It needed to see some trends.',
-    'Chai first, data second. Even parrots have priorities.',
-    'They asked me to be more data-driven. I don’t have a licence.',
-    'Why did the observation go well? Somebody brought their FICO face.',
-    'I counted every teacher twice to be sure. Then the data team told me about DISTINCT.',
-    'What’s a parrot’s favourite subject? Repeat-ition. Ask me again.',
-    'I’d tell you a joke about the data refresh, but you’d have to wait for the next update.',
-    'Why did the median feel left out? Everyone kept talking about the average.',
-    'My tail is green, my beak is orange, my numbers are governed. I contain multitudes.',
-    'I tried load shedding my workload. The dashboard kept running anyway.',
-    'Why was the heatmap so popular? It knew how to bring the warmth.',
-    'Fun fact: I’ve never once said “let’s circle back”. You’re welcome.',
-    'I asked the database out. It said I’m not in its schema.',
-    'My favourite exercise? Running queries. My second favourite? Skipping meetings.',
-    'Why was the FICO score so calm? It had perfect student engagement with itself.',
-    'A coach, a robot and a parrot walk into a classroom. Only the coach brought a debrief.',
-    'I tried to count the teachers by hand. I have wings. It went badly.',
-    'Why don’t parrots make good data analysts? We just repeat what we hear. Wait…',
-    'The dashboard refreshes twice a day. I wish I could say the same about myself.',
-    'What’s a parrot’s favourite chart? A pie chart. Obviously. Have you seen me eat?',
   ];
   const MOVES = [
     ['dance', 'Dance', 'Unlocking my secret talent. Please don’t film this.'],
@@ -403,7 +368,7 @@
       ? 'Assalam-o-Alaikum! I’m <b>TEMU</b>, your guide to the ICT Dashboard. Part parrot, part data nerd, fully dressed. New here? Take the <b>quick tour</b> (about a minute) or the <b>full tour</b>, which visits every one of the 19 tabs.'
       : pick(QUIPS),
     btn('tour', 'Quick tour', 'pri') + btn('fulltour', 'Full tour') + btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('headlines', 'Read me the headlines')
-      + btn('moves', 'Show me a move') + btn('joke', 'Tell me a joke') + (first ? btn('close', 'Not now') : btn('hide', 'Hide TEMU')));
+      + btn('moves', 'Show me a move') + (first ? btn('close', 'Not now') : btn('hide', 'Hide TEMU')));
   }
   function page() {
     const [name, text, secs] = GUIDE[currentTab()] || GUIDE.overview;
@@ -445,16 +410,6 @@
     move(k);
     if (k === 'celebrate') setTimeout(confetti, 300);
     if (k === 'nap') { napGrace = Date.now() + 2500; setTimeout(() => { if (anim.move && anim.move.name === 'nap') close(); }, 900); }
-  }
-  // Jokes come from a shuffled deck, so none repeats until every one has been told.
-  let deck = [];
-  function nextJoke() {
-    if (!deck.length) deck = JOKES.slice().sort(() => Math.random() - 0.5);
-    return deck.pop();
-  }
-  function joke() {
-    screen(nextJoke(), btn('joke', 'Another one', 'pri') + btn('home', 'Back'));
-    setTimeout(() => { if (!reduced) move(pick(['spin', 'dance', 'rockstar', 'clap', 'shrug', 'wink'])); }, 900);
   }
   // Read the four headline cards off the Overview, as they are drawn for the current filters.
   function headlines() {
@@ -523,7 +478,7 @@
     if (!b) return;
     const [act, arg] = b.dataset.temu.split(':');
     ({
-      close, home: () => home(false), page, faq, hide, moves, joke, headlines,
+      close, home: () => home(false), page, faq, hide, moves, headlines,
       tour: () => (arg === undefined ? startTour(QUICK, 'Quick tour') : tour(+arg)), endtour: () => endTour(true),
       fulltour: () => startTour(fullTour(), 'Full tour'), pagetour: () => startTour(pageTour(), 'This page'),
       ans: () => answer(+arg), show: () => show(+arg), do: () => doMove(arg),
@@ -565,23 +520,15 @@
     }
   }
   ['pointermove', 'keydown', 'wheel', 'touchmove', 'pointerdown'].forEach((ev) => addEventListener(ev, wake, { passive: true, capture: true }));
-  // While the panel is closed: a random move every 15-30 s, a random joke every 2-3.5 min, and a nap after
-  // three quiet minutes. Nothing while TEMU is busy, asleep, or the browser tab is in the background.
+  // While the panel is closed: a random move every 15-30 s and a nap after three quiet minutes. Nothing while TEMU is busy, asleep, or the browser tab is in the background.
   const AMBIENT = ['dance', 'backflip', 'fly', 'spin', 'wave', 'preen', 'look', 'stretch', 'dizzy', 'thumbsup', 'clap', 'salute', 'shrug', 'moonwalk', 'rockstar', 'peekaboo', 'wink', 'breakdance'];
-  let nextMoveAt = Date.now() + 10000 + Math.random() * 10000, nextJokeAt = Date.now() + 90000 + Math.random() * 60000;
+  let nextMoveAt = Date.now() + 10000 + Math.random() * 10000;
   setInterval(() => {
     if (root.hidden || document.hidden || !panel.hidden || tourI >= 0) return;
     const now = Date.now();
     if (anim.move && anim.move.name === 'nap') return;
     if (now - lastActive > 180000) { if (!anim.move) move('nap'); return; }
     if (anim.move) return;
-    if (now > nextJokeAt && toastEl.hidden) {
-      const j = nextJoke();
-      toast(j, 5000 + j.length * 45);
-      move(pick(['spin', 'dance', 'wave', 'rockstar', 'clap', 'shrug']));
-      nextJokeAt = now + 120000 + Math.random() * 90000; nextMoveAt = now + 15000;
-      return;
-    }
     if (now > nextMoveAt) {
       let m = pick(AMBIENT);
       if (m === lastAmbient) m = pick(AMBIENT);
