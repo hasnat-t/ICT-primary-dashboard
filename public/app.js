@@ -450,7 +450,13 @@
   // Streak = the same sector won the days before; record = its best day on that feature since 1 Aug. Owner idea,
   // 2026-11-06. The same figures feed TEMU's once-a-day announcement through window.Dash.champions().
   const CHAMP_CATS = [['lp', 'Lesson plans', 'used a lesson plan', 'a1', 'lp'], ['dc', 'DC recordings', 'recorded a lesson on the Digital Coach', 'a5', 'dc'],
-    ['hitl', 'Coach visits', 'were observed by a coach', 'a2', 'hitl'], ['quiz', 'Quizzes', 'made a lesson quiz', 'a4', 'quiz'], ['exam', 'Exam papers', 'made an exam paper', 'a3', 'exams']];
+    ['hitl', 'Coach visits', 'were observed by a coach', 'a2', 'hitl'], ['quiz', 'Quizzes', 'made a lesson quiz', 'a4', 'quiz'], ['exam', 'Exam papers', 'made an exam paper', 'a3', 'exams'],
+    ['fico', 'FICO score', 'Digital Coach lessons', 'a6', 'fico']];
+  // The FICO trophy (owner, 2026-11-06): one combined score per sector and day, from Digital Coach lessons only (DC and
+  // coach visits are never pooled), pooling teaching practices, student engagement and subject knowledge (v3): all
+  // points scored ÷ all points possible. Lesson-plan fidelity is left out (it only counts lessons with a plan). A sector
+  // needs at least 10 scored lessons that day, all its teachers together. Provisional: not a governed measure.
+  const FICO_MIN = 10;
   let champCache = null;
   function champData() {
     if (champCache && champCache.key === S.data.as_of) return champCache;
@@ -460,6 +466,8 @@
     secOf.forEach((x) => { size[x]++; });
     const active = {};   // active[category][sector][day] = teachers who did it that day
     for (const [c] of CHAMP_CATS) { active[c] = {}; for (const x of sectors) active[c][x] = new Array(T + 1).fill(0); }
+    const pts = {}, pmax = {};   // FICO: points scored and possible per sector and day (active.fico = lessons)
+    for (const x of sectors) { pts[x] = new Array(T + 1).fill(0); pmax[x] = new Array(T + 1).fill(0); }
     S.data.teachers.forEach((t, ti) => {
       const sec = secOf[ti];
       const add = (c, dayList) => { for (const d of new Set(dayList)) if (d >= 0 && d <= T) active[c][sec][d]++; };
@@ -468,22 +476,35 @@
       add('hitl', (S.P.obs[ti] || []).filter((r) => r[2] === 'H').map((r) => r[1]));
       add('quiz', (S.P.made[ti] || []).filter((r) => r[2] > 0).map((r) => r[1]));
       add('exam', (S.P.ex[ti] || []).filter((r) => r[3] > 0).map((r) => r[1]));
+      // obs: [teacher, day, src, stage, tsk_s, tsk_m, hlp_s, hlp_m, se_s, se_m, ...]; only the known maxima count
+      for (const r of S.P.obs[ti] || []) {
+        if (r[2] !== 'D' || r[1] < 0 || r[1] > T) continue;
+        let sc = 0, mx = 0;
+        if (+r[7] === 48 && r[6] !== null && r[6] !== '') { sc += +r[6]; mx += 48; }
+        if (+r[9] === 28 && r[8] !== null && r[8] !== '') { sc += +r[8]; mx += 28; }
+        if ([20, 24, 28].includes(+r[5]) && r[4] !== null && r[4] !== '') { sc += +r[4]; mx += +r[5]; }
+        if (!mx) continue;
+        pts[sec][r[1]] += sc; pmax[sec][r[1]] += mx; active.fico[sec][r[1]]++;
+      }
     });
     const total = secOf.length;
     const schoolDay = (d) => total && sectors.reduce((a, x) => a + active.lp[x][d], 0) / total >= 0.03;   // 3%+ of teachers planned
     let d = T - 1;
     while (d > 0 && d > T - 8 && !schoolDay(d)) d--;
-    const share = (c, x, day) => (size[x] ? active[c][x][day] / size[x] : 0);
+    // a share of teachers, or for FICO the pooled score (0 when the sector has too few lessons that day)
+    const share = (c, x, day) => (c === 'fico' ? (active.fico[x][day] >= FICO_MIN && pmax[x][day] ? pts[x][day] / pmax[x][day] : 0) : size[x] ? active[c][x][day] / size[x] : 0);
     const rank = (c, day) => sectors.map((x) => ({ x, sh: share(c, x, day), n: active[c][x][day] })).sort((a, b) => b.sh - a.sh || b.n - a.n);
     const cats = CHAMP_CATS.map(([c, label, verb, color, tab]) => {
       const r = rank(c, d), w = r[0];
       if (!w || !w.n) return { c, label, verb, color, tab, winner: null };
       let streak = 1;
-      for (let k = d - 1, seen = 0; k >= 0 && seen < 30; k--) { if (!schoolDay(k)) continue; seen++; const rk = rank(c, k); if (rk[0].n && rk[0].x === w.x) streak++; else break; }
+      for (let k = d - 1, seen = 0; k >= 0 && seen < 30; k--) { if (!schoolDay(k)) continue; seen++; const rk = rank(c, k); if (rk[0].n && rk[0].sh > 0 && rk[0].x === w.x) streak++; else break; }
       let best = 0, days = 0;
       for (let k = 0; k < d; k++) if (schoolDay(k)) { days++; best = Math.max(best, share(c, w.x, k)); }
-      const ict = sectors.reduce((a, x) => a + active[c][x][d], 0) / total;
-      return { c, label, verb, color, tab, winner: w.x, sh: w.sh, n: w.n, ict, streak, record: days >= 10 && w.sh > best, ranks: r };
+      if (c === 'fico' && !w.sh) return { c, label, verb, color, tab, winner: null };   // no sector had 10+ scored lessons
+      const pm = sectors.reduce((a, x) => a + pmax[x][d], 0);
+      const ict = c === 'fico' ? (pm ? sectors.reduce((a, x) => a + pts[x][d], 0) / pm : 0) : sectors.reduce((a, x) => a + active[c][x][d], 0) / total;
+      return { c, label, verb, color, tab, score: c === 'fico', winner: w.x, sh: w.sh, n: w.n, ict, streak, record: days >= 10 && w.sh > best, ranks: r };
     });
     const [y, m, dd] = iso(d).split('-').map(Number);
     const wd = new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
@@ -496,16 +517,16 @@
     if (!C.cats.some((x) => x.winner)) return '';
     const pc = (v) => `${(100 * v).toFixed(v < 0.1 ? 1 : 0)}%`;
     const cards = C.cats.map((x) => {
-      if (!x.winner) return `<div class="champ quiet" style="--cc:var(--${x.color})"><span class="champ-k">${esc(x.label)}</span><span class="champ-w">No activity</span><span class="champ-s">a quiet day</span></div>`;
+      if (!x.winner) return `<div class="champ quiet" style="--cc:var(--${x.color})"><span class="champ-k">${esc(x.label)}</span><span class="champ-w">${x.c === 'fico' ? 'No winner' : 'No activity'}</span><span class="champ-s">${x.c === 'fico' ? `no sector had ${FICO_MIN}+ scored DC lessons` : 'a quiet day'}</span></div>`;
       const mine = S.sector && S.sector !== x.winner ? x.ranks.findIndex((r) => r.x === S.sector) : -1;
       return `<button type="button" class="champ" style="--cc:var(--${x.color})" data-champ="${x.c}" title="Open ${esc(x.label)} for ${esc(x.winner)} on ${esc(C.label)}">
         <span class="champ-k">${TROPHY}${esc(x.label)}</span><span class="champ-w">${esc(x.winner)}</span>
-        <span class="champ-s"><b>${pc(x.sh)}</b> of its teachers ${esc(x.verb)} · ICT ${pc(x.ict)}</span>
+        <span class="champ-s">${x.score ? `<b>${pc(x.sh)}</b> · ${esc(bandName(100 * x.sh))} · ${N(x.n)} DC lessons · ICT ${pc(x.ict)}` : `<b>${pc(x.sh)}</b> of its teachers ${esc(x.verb)} · ICT ${pc(x.ict)}`}</span>
         ${x.streak > 1 || x.record ? `<span class="champ-b">${x.streak > 1 ? `<i>${x.streak}-day streak</i>` : ''}${x.record ? '<i>Best day since August</i>' : ''}</span>` : ''}
-        ${mine >= 0 ? `<span class="champ-m">${esc(S.sector)}: ${['1st', '2nd', '3rd', '4th', '5th', '6th'][mine] || `#${mine + 1}`} · ${pc(x.ranks[mine].sh)}</span>` : ''}</button>`;
+        ${mine >= 0 ? `<span class="champ-m">${esc(S.sector)}: ${x.score && !x.ranks[mine].sh ? `too few scored lessons (${N(x.ranks[mine].n)})` : `${['1st', '2nd', '3rd', '4th', '5th', '6th'][mine] || `#${mine + 1}`} · ${pc(x.ranks[mine].sh)}`}</span>` : ''}</button>`;
     }).join('');
     return `<section class="champs" aria-label="Champions"><div class="champs-h"><span class="champs-t">${TROPHY} Champions of ${esc(C.label)}${C.yesterday ? ' · yesterday' : ' · the last school day'}</span>${cbHiddenDay() === String(C.day) ? '<button type="button" class="cb-show" data-cbshow>Show celebration</button>' : ''}
-      <span class="champs-n">The sector that did best on each feature, as a share of its primary teachers. Click a card to see that day.</span></div><div class="champs-g">${cards}</div></section>`;
+      <span class="champs-n">The sector that did best on each feature, as a share of its primary teachers; for FICO, the highest combined Digital Coach score (10+ scored lessons). Click a card to see that day.</span></div><div class="champs-g">${cards}</div></section>`;
   }
   // The champions headline bar across the top of every tab: a moving gradient, a bouncing trophy, all the day's winners
   // scrolling like a news ticker (hover pauses, click opens that day), and the champion(s) of the day (most wins).
@@ -519,7 +540,7 @@
     wins.forEach((x) => { count[x.winner] = (count[x.winner] || 0) + 1; });
     const most = Math.max(...Object.values(count)), kings = Object.keys(count).filter((k) => count[k] === most);
     const pc = (v) => `${(100 * v).toFixed(v < 0.1 ? 1 : 0)}%`;
-    const items = wins.map((x) => `<button type="button" class="cbar-i" data-champ="${x.c}" title="Open ${esc(x.label)} for ${esc(x.winner)} on ${esc(C.label)}"><b>${esc(x.winner)}</b> led <span class="cbar-c">${esc(x.label.replace(/^(?!DC)\w/, (ch) => ch.toLowerCase()))}</span> · ${pc(x.sh)} of its teachers${x.streak > 1 ? ` <em>🔥 ${x.streak}-day streak</em>` : ''}${x.record ? ' <em>⭐ best day since August</em>' : ''}</button>`).join('<span class="cbar-sep" aria-hidden="true">✦</span>');
+    const items = wins.map((x) => `<button type="button" class="cbar-i" data-champ="${x.c}" title="Open ${esc(x.label)} for ${esc(x.winner)} on ${esc(C.label)}"><b>${esc(x.winner)}</b> led <span class="cbar-c">${esc(x.label.replace(/^(?![A-Z]{2})\w/, (ch) => ch.toLowerCase()))}</span> · ${x.score ? `${pc(x.sh)} ${esc(bandName(100 * x.sh))} on ${N(x.n)} DC lessons` : `${pc(x.sh)} of its teachers`}${x.streak > 1 ? ` <em>🔥 ${x.streak}-day streak</em>` : ''}${x.record ? ' <em>⭐ best day since August</em>' : ''}</button>`).join('<span class="cbar-sep" aria-hidden="true">✦</span>');
     // the list twice, so the ticker loops without a gap; its speed follows its length
     const secs = Math.max(24, Math.round(wins.length * 9));
     return `<div class="cbar" role="region" aria-label="${esc(C.yesterday ? 'Yesterday’s champions' : `Champions of ${C.label}`)}">
@@ -1878,6 +1899,7 @@
       ['FICO v2 / v3 subject knowledge', 'G', 'From 8 Sep 2026 subject items count only when they apply (v3), so subject knowledge before and after that date is shown separately and must not be compared.', 'fico-scores-rules (v3)'],
       ['Lesson-plan fidelity', 'G', 'Counted only for lessons with a plan attached — lessons without a plan are scored higher by the system, which would inflate it.', 'has_lesson_plan'],
       ['Indicator score', 'G', 'The average 1–4 score of one indicator ÷ 4, FICO v3 only (from 8 Sep). Subject pedagogy (F5–F7) only where the subject applied, and Digital Coach only.', 'domains.*.indicators · fico-scores-rules §2c'],
+      ['Champions: FICO score', 'P', 'The day’s FICO trophy: each sector’s Digital Coach lessons that day, pooling teaching practices, student engagement and subject knowledge (v3) — all points scored ÷ all points possible. Lesson-plan fidelity is left out, coach visits are never pooled with DC, and a sector needs at least 10 scored lessons that day (all its teachers together). Our own combined score, not a governed measure.', 'analysis_data.domains · owner rule, 6 Nov 2026'],
       ['Performance bands', '', 'Exemplary 80% and above, Proficient 70–79.9%, Developing 60–69.9%, Needs support below 60%.', ''],
     ]],
     ['Children', [

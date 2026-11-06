@@ -20,7 +20,7 @@
   const GUIDE = {
     overview: ['Overview', 'The big picture for the period, sector and school you pick in the filters. Start here every morning, with chai.', [
       ['.hc2', 'ICT teachers', 'Every teacher at an ICT programme school, whatever they teach, counted once, as of the last data refresh. Green teach Primary, orange teach Middle or High, blue teach both; the bar shows the split without overlap. Follows the Sector filter. The rest of the dashboard counts primary teachers only.'],
-      ['.champs', 'Champions', 'Which sector did best yesterday (or the last school day) on lesson plans, DC recordings, coach visits, quizzes and exam papers, as a share of its teachers, so big sectors don’t always win. Badges show streaks and records. With your Sector filter set, each card shows where your sector ranked. Click a card to see that day.'],
+      ['.champs', 'Champions', 'Which sector did best yesterday (or the last school day) on lesson plans, DC recordings, coach visits, quizzes and exam papers, as a share of its teachers, so big sectors don’t always win, plus the best combined FICO score on Digital Coach lessons (10+ scored lessons in the sector). Badges show streaks and records. With your Sector filter set, each card shows where your sector ranked. Click a card to see that day.'],
       ['.hero', 'Headline cards', 'Four headline measures for primary teachers: lesson-plan engagement, Digital Coach coverage, HITL coverage and Teacher Leader certificates. The badge is the performance band, ▲/▼ compare with the period before, and each dot on the strip is a sector: click one to focus the page on it.'],
       ['.volume', 'Activity counts', 'How much happened in the period: DC and HITL observations, plans taught, quizzes made, children quizzed and exams generated.'],
       ['#c-ladder', 'Teacher reach ladder', 'The share of primary teachers each part of the programme reached. Each rung is counted on its own, so it’s a ladder, not a funnel. Please don’t climb it.'],
@@ -970,7 +970,7 @@
     setTimeout(() => {
       if (root.hidden || !panel.hidden) return;
       move('celebrate'); confetti();
-      const top = c.wins.map(([cat, sec]) => `${sec} in ${cat.replace(/^(?!DC)\w/, (ch) => ch.toLowerCase())}`).slice(0, 3).join(', ');
+      const top = c.wins.map(([cat, sec]) => `${sec} in ${cat.replace(/^(?![A-Z]{2})\w/, (ch) => ch.toLowerCase())}`).slice(0, 3).join(', ');
       const extra = c.wins.find((w) => w[3] > 2) ? ` ${c.wins.find((w) => w[3] > 2)[1]} is on a ${c.wins.find((w) => w[3] > 2)[3]}-day streak!` : '';
       toast(`🏆 ${c.yesterday ? 'Yesterday’s' : `${c.label}’s`} champions: ${top}.${extra}`, 12000);
     }, 3500);
