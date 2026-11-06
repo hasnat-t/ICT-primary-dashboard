@@ -674,8 +674,8 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .cb-trophy svg { width: 100%; height: 100%; display: block; }
 .cb-mid { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .cb-eyebrow { font-size: 12.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #FFE58A; }
-.cb-slides { position: relative; min-height: 92px; }
-.cb-slide { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 4px; opacity: 0; transform: translateY(16px) scale(.98); transition: opacity .6s ease, transform .6s ease; pointer-events: none; }
+.cb-slides { display: grid; }   /* every slide in the same cell: the box is as tall as the tallest winner */
+.cb-slide { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 4px; opacity: 0; transform: translateY(16px) scale(.98); transition: opacity .6s ease, transform .6s ease; pointer-events: none; }
 .cb-slide.on { opacity: 1; transform: none; pointer-events: auto; }
 .cb-sector { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1.05; letter-spacing: -.01em; width: max-content; max-width: 100%;
   background: linear-gradient(90deg, #FFE58A, #F2B632 30%, #FFF6C8 50%, #F2B632 70%, #FFE58A); background-size: 220% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -705,5 +705,5 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 @keyframes cb-tilt { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
 @media (prefers-reduced-motion: reduce) { .cb, .cb::after, .cb-trophy, .cb-sector, .cb-badges i, .cb-crown { animation: none; } .cb::after { display: none; } .cb-cf { display: none; } .cb-slide { transition: none; } }
 @media (max-width: 52rem) { .cb { grid-template-columns: auto 1fr; padding-right: 48px; } .cb-king { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px; } .cb-go { margin-top: 0; } }
-@media (max-width: 40rem) { .cb { grid-template-columns: 1fr; text-align: left; gap: 10px; } .cb-trophy { width: 60px; height: 60px; } .cb-sector { font-size: 32px; } .cb-slides { min-height: 112px; } }
+@media (max-width: 40rem) { .cb { grid-template-columns: 1fr; text-align: left; gap: 10px; } .cb-trophy { width: 60px; height: 60px; } .cb-sector { font-size: 32px; } }
 @media print { .cb { display: none !important; } }
