@@ -197,6 +197,9 @@
     ['How do I get a monthly summary?', 'Open <b>Monthly report</b> under Insights, pick the month, and print it or save it as a PDF.', 'report', '#c-rep0'],
     ['How do I make an appreciation card or poster?', 'Open <b>Appreciation cards</b> under Insights, or press <b>Make appreciation card</b> or <b>Make school stars poster</b> on a teacher’s or school’s popup. Pick the time frame and what to celebrate, add your message, and download. Spreading joy, one PNG at a time.', 'cards', '#c-cards'],
     ['Can I share this dashboard?', 'Inside the NIETE and Taleemabad team only. Please don’t send the link to teachers, school heads or anyone outside: it shows named teachers’ FICO scores. Loose lips sink ships. And parrots.', null, '.confid'],
+    ['How do I find a teacher or a school quickly?', 'Click me and pick <b>Find or go</b>. Type part of a name or an EMIS and click the result. It works for middle & high teachers too. You can also type where to go, like <b>DC Urban-II last week</b>, and I’ll set the tab and filters.', null, '#temu-bird'],
+    ['Which teachers should a coach visit next?', 'Click me and pick <b>Who to visit next</b>. I list the teachers in your sector or school with no coach visit yet or the longest gap since the last one, or the lowest score at the last visit. Click one for their scorecard and debriefs.', null, '#temu-bird'],
+    ['Who should we thank this week?', 'Click me and pick <b>Who deserves a thank-you</b>. I pick the standout teachers for your filters and make their appreciation card in one click, or a School stars poster for a school.', null, '#temu-bird'],
     ['Something looks wrong. Who do I tell?', 'Press <b>Feedback</b> at the bottom right. Hasnat reads every message. Even the angry ones. Especially the angry ones.', null, '#fb-open'],
   ];
 
@@ -215,7 +218,7 @@
     ['cards', '#c-cards', '<b>Insights</b>: the monthly report, leading & support, appreciation cards and posters, analytics, and How we count.'],
     [null, '.top-btns', '<b>Download image</b> saves a picture, <b>Present</b> hides the menus for a big screen, and every table has <b>Download CSV</b>.'],
     [null, '#fb-open', 'Something wrong or missing? Press <b>Feedback</b>. Hasnat reads every message.'],
-    [null, '#temu-bird', 'And that’s me. Click me on any tab and pick <b>What’s on this page?</b> to walk through every section, or ask me a question. Tour done!'],
+    [null, '#temu-bird', 'And that’s me. Click me any time to <b>find</b> a teacher or school, <b>go</b> somewhere (“DC Urban-II last week”), see <b>who to visit next</b> or <b>who deserves a thank-you</b>, or walk through any page. Tour done!'],
   ];
 
   const QUIPS = [
@@ -353,6 +356,107 @@
   addEventListener('scroll', placeHl, { passive: true, capture: true });
   addEventListener('resize', placeHl);
 
+  // ---------- find, go, who to visit next, who deserves a thank-you ----------
+  // These ask the dashboard through window.Dash (its bridge in app.js) and only use data already on the page.
+  const GO_TABS = [   // first match wins, so the specific phrases come before the general ones
+    ['mhtraining', ['middle and high training', 'middle & high training', 'middle high training', 'middle training', 'high training', 'mh training', 'middle and high', 'middle high']],
+    ['training', ['primary training', 'niete training', 'training', 'certificates']],
+    ['observe2', ['observe2', '/observe2', 'pilot']],
+    ['dc', ['dc', 'digital coach', 'recordings']],
+    ['hitl', ['hitl', 'coach visits', 'coach visit', 'observations']],
+    ['fico', ['fico', 'indicators']],
+    ['lp', ['lesson plans', 'lesson plan', 'plans', 'lp']],
+    ['quiz', ['quizzes', 'quiz']],
+    ['exams', ['exam generator', 'exams', 'exam', 'fde']],
+    ['egra', ['learning assessment', 'egra', 'egma', 'reading test']],
+    ['calendar', ['calendar', 'holidays']],
+    ['report', ['monthly report', 'report']],
+    ['spotlight', ['leading and support', 'leading & support', 'leading', 'needs support', 'spotlight']],
+    ['cards', ['appreciation', 'cards', 'card', 'poster']],
+    ['trends', ['analytics', 'trends']],
+    ['glossary', ['how we count', 'glossary', 'definitions']],
+    ['schools', ['all schools', 'schools']],
+    ['teachers', ['teachers']],
+    ['overview', ['overview', 'home']],
+  ];
+  const GO_SECTORS = [['Urban-II', ['urban-ii', 'urban ii', 'urban 2', 'urban2', 'u2']], ['Urban-I', ['urban-i', 'urban i', 'urban 1', 'urban1', 'u1']],
+    ['B.K', ['b.k', 'bk', 'barakahu', 'bhara kahu']], ['Nilore', ['nilore']], ['Sihala', ['sihala']], ['Tarnol', ['tarnol']]];
+  const GO_PERIODS = [['yesterday', ['yesterday'], 'Yesterday'], ['today', ['today'], 'Today'], ['lastweek', ['last week'], 'Last week'], ['week', ['this week'], 'This week'],
+    ['lastmonth', ['last month'], 'Last month'], ['month', ['this month'], 'This month'], ['30', ['last 30 days', '30 days'], 'Last 30 days'],
+    ['all', ['since 1 aug', 'since august', 'all time', 'since the start'], 'Since 1 Aug']];
+  const MONTH_WORDS = [['january', 'jan'], ['february', 'feb'], ['march', 'mar'], ['april', 'apr'], ['may'], ['june', 'jun'], ['july', 'jul'], ['august', 'aug'],
+    ['september', 'sept', 'sep'], ['october', 'oct'], ['november', 'nov'], ['december', 'dec']];
+  const has = (q, phrase) => new RegExp(`(^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}($|[^a-z0-9])`).test(q);
+  // "DC Urban-II last week" -> { tab: 'dc', sector: 'Urban-II', preset: 'lastweek' }; null when nothing is recognised.
+  function parseGo(text) {
+    const q = text.toLowerCase(), o = {};
+    const t = GO_TABS.find(([, ws]) => ws.some((w) => has(q, w)));
+    if (t) o.tab = t[0];
+    if (has(q, 'all sectors') || has(q, 'all ict')) o.sector = '';
+    else { const sc = GO_SECTORS.find(([, ws]) => ws.some((w) => has(q, w))); if (sc) o.sector = sc[0]; }
+    const per = GO_PERIODS.find(([, ws]) => ws.some((w) => has(q, w)));
+    if (per) o.preset = per[0];
+    else { const mi = MONTH_WORDS.findIndex((ws) => ws.some((w) => has(q, w))); if (mi >= 0 && !has(q, 'since 1 aug')) o.month = mi; }
+    return Object.keys(o).length ? o : null;
+  }
+  function goLabel(o) {
+    const tab = o.tab ? (($(`#nav [data-tab="${o.tab}"]`) || {}).textContent || o.tab) : 'this tab';
+    const where = o.sector === undefined ? '' : ` · ${o.sector || 'All ICT'}`;
+    const when = o.preset ? ` · ${GO_PERIODS.find((x) => x[0] === o.preset)[2]}` : o.month !== undefined ? ` · ${MONTH_WORDS[o.month][0].replace(/^./, (c) => c.toUpperCase())}` : '';
+    return `${tab}${where}${when}`;
+  }
+  const dashOk = () => {
+    if (window.Dash && window.Dash.ready()) return true;
+    screen('The data is still loading. Give me a second and try again.', btn('home', 'Back'));
+    return false;
+  };
+  let findHits = [], goPlan = null, findT = null;
+  function findgo() {
+    if (!dashOk()) return;
+    screen('Type a teacher’s or a school’s name, or an EMIS, to open it. Or tell me where to go, like <b>DC Urban-II last week</b>, <b>middle high training Tarnol</b> or <b>lesson plans October</b>.',
+      `<input class="temu-q" id="temu-find" type="search" placeholder="A name, an EMIS, or e.g. quizzes Sihala this month" aria-label="Find or go"><div class="temu-list" id="temu-fl"></div>${btn('home', 'Back')}`);
+    if (!matchMedia('(pointer: coarse)').matches) $('#temu-find').focus();
+  }
+  function findList(q) {
+    goPlan = parseGo(q);
+    findHits = q.trim().length >= 2 ? window.Dash.find(q) : [];
+    $('#temu-fl').innerHTML = (goPlan ? btn('dogo', `Go to ${esc(goLabel(goPlan))}`, 'pri') : '')
+      + findHits.map((h, i) => btn(`open:${i}`, `${esc(h.name)} <span class="dim">${esc(h.sub)}</span>`, 'q')).join('')
+      + (!goPlan && !findHits.length && q.trim().length >= 2 ? '<p class="temu-none">Nothing matches. Try part of a name, an EMIS, or a tab with a sector and a period.</p>' : '');
+  }
+  function doGo() {
+    const r = window.Dash.go(goPlan);
+    if (r.error) { speak(r.error); return; }
+    anim.jumpAt = anim.now;
+    speak(`Done: <b>${esc(r.tab)}</b> · ${esc(r.scope)} · ${esc(r.period)}.`);
+    acts.innerHTML = btn('page', 'What’s on this page?') + btn('findgo', 'Find or go again') + btn('close', 'Close');
+  }
+  function openHit(i) { const h = findHits[i]; if (!h) return; close(); window.Dash.open(h.kind, h.key); }
+
+  let visitMode = 'gap';
+  const days = (n) => (n === 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`);
+  function visit(mode) {
+    if (!dashOk()) return;
+    if (mode) visitMode = mode;
+    const v = window.Dash.visits(visitMode);
+    const why = (r) => (visitMode === 'low'
+      ? `${Math.round(r.score)}% at the last visit${r.band ? ` · ${r.band}` : ''} · ${days(r.since)}`
+      : r.visits ? `last visit ${days(r.since)} · ${r.visits} visit${r.visits === 1 ? '' : 's'} so far` : 'no coach visit since 1 Aug');
+    const scopes = [['', 'All ICT'], ...window.Dash.sectors().map((x) => [x, x])];
+    screen(`<b>Who to visit next · ${esc(v.scope)}.</b> ${v.never.toLocaleString()} of ${v.teachers.toLocaleString()} primary teachers here have had no coach visit since 1 Aug. ${visitMode === 'low' ? 'Sorted by the lowest teaching practices and student engagement score at their last visit.' : 'Sorted with no visit first, then the longest since the last one.'} Click a teacher for their scorecard and debrief reports.`,
+      btn('vmode:gap', 'Longest since a visit', visitMode === 'gap' ? 'pri' : '') + btn('vmode:low', 'Lowest last score', visitMode === 'low' ? 'pri' : '')
+      + `<div class="temu-list">${v.rows.map((r) => btn(`vt:${r.ti}`, `${esc(r.name)} <span class="dim">${esc(r.school)} · ${esc(why(r))}</span>`, 'q')).join('') || '<p class="temu-none">No teachers with a scored visit here yet.</p>'}</div>`
+      + `<div class="temu-scopes">${scopes.map(([k, l]) => btn(`vscope:${k}`, esc(l))).join('')}</div>` + btn('home', 'Back'));
+  }
+  function thanks() {
+    if (!dashOk()) return;
+    const t = window.Dash.thanks();
+    screen(`<b>Who deserves a thank-you · ${esc(t.scope)} · ${esc(t.period)}.</b> The standout teachers for the filters you picked. Click one to make their appreciation card, or change the period or sector at the top and ask again.`,
+      `<div class="temu-list">${t.rows.map((r) => btn(`tc:${r.ti}`, `${esc(r.name)} <span class="dim">${esc(r.school)} · ${esc(r.why)}</span>`, 'q')).join('') || '<p class="temu-none">No activity in this period yet. Try a longer period, like Last 30 days.</p>'}</div>`
+      + (t.school !== null ? btn(`tp:${t.school}`, 'School stars poster for this school', 'pri') : '<p class="temu-none">Pick a school in the filter at the top and I’ll offer a School stars poster too.</p>')
+      + btn('home', 'Back'));
+  }
+
   // ---------- screens ----------
   let tourI = -1, tourFrom = 'overview';
   function open() { hideToast(); panel.hidden = false; bird.setAttribute('aria-expanded', 'true'); }
@@ -367,7 +471,8 @@
     screen(first
       ? 'Assalam-o-Alaikum! I’m <b>TEMU</b>, your guide to the ICT Dashboard. Part parrot, part data nerd, fully dressed. New here? Take the <b>quick tour</b> (about a minute) or the <b>full tour</b>, which visits every one of the 19 tabs.'
       : pick(QUIPS),
-    btn('tour', 'Quick tour', 'pri') + btn('fulltour', 'Full tour') + btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('headlines', 'Read me the headlines')
+    btn('tour', 'Quick tour', 'pri') + btn('fulltour', 'Full tour') + btn('findgo', 'Find or go') + btn('visit', 'Who to visit next') + btn('thanks', 'Who deserves a thank-you')
+      + btn('page', 'What’s on this page?') + btn('faq', 'Ask a question') + btn('headlines', 'Read me the headlines')
       + btn('moves', 'Show me a move') + (first ? btn('close', 'Not now') : btn('hide', 'Hide TEMU')));
   }
   function page() {
@@ -481,11 +586,18 @@
       close, home: () => home(false), page, faq, hide, moves, headlines,
       tour: () => (arg === undefined ? startTour(QUICK, 'Quick tour') : tour(+arg)), endtour: () => endTour(true),
       fulltour: () => startTour(fullTour(), 'Full tour'), pagetour: () => startTour(pageTour(), 'This page'),
+      findgo, dogo: doGo, open: () => openHit(+arg), thanks,
+      visit: () => visit(), vmode: () => visit(arg), vscope: () => { window.Dash.go({ sector: arg }); visit(); },
+      vt: () => { close(); window.Dash.open('teacher', +arg); }, tc: () => { close(); window.Dash.card(+arg); }, tp: () => { close(); window.Dash.poster(+arg); },
       ans: () => answer(+arg), show: () => show(+arg), do: () => doMove(arg),
       go: () => { goTab(arg); close(); },
     })[act]();
   });
-  root.addEventListener('input', (e) => { if (e.target.id === 'temu-q') list(e.target.value); });
+  root.addEventListener('input', (e) => {
+    if (e.target.id === 'temu-q') list(e.target.value);
+    else if (e.target.id === 'temu-find') { clearTimeout(findT); const v = e.target.value; findT = setTimeout(() => findList(v), 150); }
+  });
+  root.addEventListener('keydown', (e) => { if (e.target.id === 'temu-find' && e.key === 'Enter' && goPlan && !findHits.length) doGo(); });
 
   // ---------- reactions ----------
   let clicks = [], hopAt = 0, lastActive = Date.now(), napGrace = 0, typed = '';

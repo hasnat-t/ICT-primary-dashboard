@@ -2576,7 +2576,7 @@
     else if (b.dataset.cmmode) { cardState().mode = b.dataset.cmmode; render(); }
     else if (b.dataset.psrc) { cardState().pSrc = b.dataset.psrc; render(); }
     else if (b.dataset.part) { cardState().pArt = b.dataset.part; render(); }
-    else if (b.dataset.poster) { const c = cardState(); c.mode = 'poster'; c.si = b.dataset.poster; if (S.sector && S.data.schools[+c.si].sector !== S.sector) { S.sector = ''; S.school = ''; } if ($('#modal').open) $('#modal').close(); S.tab = 'cards'; S.search = ''; render(); window.scrollTo(0, 0); }
+    else if (b.dataset.poster) openPoster(+b.dataset.poster);
     else if (b.dataset.psave !== undefined || b.dataset.pshare !== undefined) {
       const lbl = b.textContent; b.disabled = true; b.textContent = 'Preparing…';
       posterSave(b.dataset.pshare !== undefined).catch((err) => { console.error(err); alert('Could not make the picture. Please try again.'); }).finally(() => { b.disabled = false; b.textContent = lbl; });
@@ -2678,6 +2678,88 @@
 
   let rz;
   window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => drawCharts(), 150); });
+
+  function openPoster(si) {
+    const c = cardState(); c.mode = 'poster'; c.si = String(si);
+    if (S.sector && S.data.schools[si].sector !== S.sector) { S.sector = ''; S.school = ''; }
+    if ($('#modal').open) $('#modal').close();
+    S.tab = 'cards'; S.search = ''; render(); window.scrollTo(0, 0);
+  }
+
+  // ---------- a bridge for TEMU (temu.js) ----------
+  // TEMU cannot see inside this file, so it asks through window.Dash: find a teacher or school, go to a tab with
+  // filters, list teachers to visit next, list teachers who deserve a thank-you, and open popups, cards or posters.
+  window.Dash = {
+    ready: () => !!S.data,
+    sectors: () => [...new Set(S.data.schools.map((s) => s.sector))].sort(),
+    // Teachers and schools whose name (or EMIS) holds every word typed. Primary teachers and schools open their
+    // usual popups; middle/high-only teachers and schools (not in the primary roster) open their training popups.
+    find(q) {
+      const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+      if (!words.length) return [];
+      const hit = (txt) => words.every((w) => txt.includes(w));
+      const out = [];
+      S.data.teachers.forEach((t, ti) => { const sc = S.data.schools[t.s]; if (hit(t.name.toLowerCase())) out.push({ kind: 'teacher', key: ti, name: t.name, sub: `Teacher · ${sc.name} · ${sc.sector}` }); });
+      S.data.schools.forEach((sc, si) => { if (hit(`${sc.name} ${sc.emis}`.toLowerCase())) out.push({ kind: 'school', key: si, name: sc.name, sub: `School · EMIS ${sc.emis} · ${sc.sector}` }); });
+      const M = S.data.mh;
+      if (M) {
+        const primaryEmis = new Set(S.data.schools.map((sc) => String(sc.emis)));
+        M.teachers.forEach((t, i) => { if (!t[2].includes('P') && hit(t[1].toLowerCase())) out.push({ kind: 'mhteacher', key: i, name: t[1], sub: `Middle & high teacher · ${M.schools[t[0]][2]} · ${M.schools[t[0]][1]}` }); });
+        M.schools.forEach((sc, si) => { if (!primaryEmis.has(String(sc[0])) && hit(`${sc[2]} ${sc[0]}`.toLowerCase())) out.push({ kind: 'mhschool', key: si, name: sc[2], sub: `Middle & high school · EMIS ${sc[0]} · ${sc[1]}` }); });
+      }
+      const first = words.join(' ');
+      return out.sort((a, b) => (b.name.toLowerCase().startsWith(first) - a.name.toLowerCase().startsWith(first)) || a.name.localeCompare(b.name)).slice(0, 15);
+    },
+    open(kind, key) { modalOpen({ kind, key }); },
+    // Go to a tab with a sector and a period: { tab, sector ('' = all), preset, month (0-11) }.
+    go(o) {
+      if (o.sector !== undefined) { S.sector = o.sector; S.school = ''; }
+      if (o.preset) { const p = presets().find((x) => x[0] === o.preset); if (p && p[2] !== null) { S.preset = o.preset; S.from = Math.max(p[2], 0); S.to = p[3]; } }
+      if (o.month !== undefined) {
+        const today = iso(S.data.today), m = o.month + 1, y = +today.slice(0, 4) - (m > +today.slice(5, 7) ? 1 : 0);
+        const mm = String(m).padStart(2, '0'), last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const f = Calc.dateToDay(S.data.window_start, `${y}-${mm}-01`), t = Calc.dateToDay(S.data.window_start, `${y}-${mm}-${last}`);
+        if (t < 0) return { error: `There is no data for ${MONTHS[o.month]} ${y}: it starts on 1 Aug 2026.` };
+        S.preset = 'custom'; S.from = Math.max(0, f); S.to = Math.min(S.data.today, t);
+      }
+      if (o.tab) { S.tab = o.tab; S.search = ''; }
+      render(); window.scrollTo(0, 0);
+      return { tab: TABS.find((t) => t[0] === S.tab)[1], scope: scopeName(), period: periodText() };
+    },
+    // Primary teachers in the Sector / School filter, for the next coach visit. 'gap': no visit since 1 Aug first,
+    // then the longest since the last one; 'low': the lowest teaching practices + student engagement at the last visit.
+    visits(mode) {
+      const T = S.data.today;
+      const rows = [];
+      S.data.teachers.forEach((t, ti) => {
+        const sc = S.data.schools[t.s];
+        if ((S.sector && sc.sector !== S.sector) || (S.school !== '' && t.s !== +S.school)) return;
+        const h = S.P.obs[ti].filter((o) => o[2] === 'H').sort((a, b) => a[1] - b[1]), last = h[h.length - 1];
+        const num = (v) => (Number.isFinite(+v) && v !== null && v !== '' ? +v : 0);
+        const mx = last ? num(last[7]) + num(last[9]) : 0;
+        rows.push({ ti, name: t.name, school: sc.name, visits: h.length, since: last ? T - last[1] : null, score: mx ? (100 * (num(last[6]) + num(last[8]))) / mx : null });
+      });
+      const never = rows.filter((r) => !r.visits).length;
+      const sorted = mode === 'low'
+        ? rows.filter((r) => r.score !== null).sort((a, b) => a.score - b.score)
+        : rows.slice().sort((a, b) => (a.visits ? 1 : 0) - (b.visits ? 1 : 0) || (b.since ?? 0) - (a.since ?? 0) || (a.score ?? 999) - (b.score ?? 999));
+      return { scope: scopeName(), teachers: rows.length, never, rows: sorted.slice(0, 12).map((r) => ({ ...r, band: r.score === null ? '' : bandName(r.score) })) };
+    },
+    // Standout primary teachers for the current filters: lesson plans, DC recordings, quizzes and exam papers, each
+    // scaled to the best in scope, plus DC teaching practices when scored, averaged.
+    thanks() {
+      const R = Calc.rollup(S.P, sel());
+      const rows = R.teachers.map((t) => { const g = Calc.asGroup(t); const tp = g.ficoD.hlp && g.ficoD.hlp[2] ? fpct(g.ficoD.hlp) : null; return { ti: t.i, name: t.name, school: S.data.schools[t.s].name, g, tp }; });
+      const keys = ['plans', 'dc', 'made', 'exOk'], max = Object.fromEntries(keys.map((k) => [k, Math.max(0, ...rows.map((r) => r.g[k] || 0))]));
+      for (const r of rows) { const parts = keys.map((k) => (max[k] ? (r.g[k] || 0) / max[k] : 0)); if (r.tp !== null) parts.push(r.tp / 100); r.score = parts.reduce((a, b) => a + b, 0) / parts.length; }
+      const why = (r) => [[r.g.plans, 'lesson plan'], [r.g.dc, 'DC recording'], [r.g.made, 'quiz'], [r.g.exOk, 'exam paper']].filter(([n]) => n > 0)
+        .map(([n, w]) => `${N(n)} ${w}${n === 1 ? '' : w === 'quiz' ? 'zes' : 's'}`).concat(r.tp !== null && r.tp >= 70 ? [`${bandName(r.tp)} teaching practices`] : []).join(' · ');
+      const top = rows.filter((r) => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 6).map((r) => ({ ti: r.ti, name: r.name, school: r.school, why: why(r) }));
+      return { scope: scopeName(), period: periodText(), school: S.school !== '' ? +S.school : null, rows: top };
+    },
+    card(ti) { openCard('teacher', ti); },
+    poster(si) { openPoster(si); },
+  };
 
   // ---------- load ----------
   async function load() {

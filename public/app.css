@@ -636,3 +636,5 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .volume > div:nth-child(6n+4) { --ac: var(--a4); } .volume > div:nth-child(6n+5) { --ac: var(--a5); } .volume > div:nth-child(6n+6) { --ac: var(--a6); }
 .volume > div { border-top: 4px solid var(--ac); background: color-mix(in srgb, var(--ac) 7%, var(--panel)); }
 .volume .vv { color: var(--ac); }
+.temu-scopes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; padding-top: 6px; border-top: 1px solid var(--line); }
+.temu-b .dim { display: block; font-weight: 400; font-size: 12.5px; }
