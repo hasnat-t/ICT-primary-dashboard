@@ -689,3 +689,5 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 @media (max-width: 52rem) { .cbar-k { display: none; } }
 @media (max-width: 40rem) { .cbar { height: 40px; gap: 8px; } .cbar-lt { display: none; } .cbar-l { padding-right: 8px; } .cbar-i { font-size: 13px; } }
 @media print { .cbar { display: none !important; } }
+.cbar-back { border-color: #F2B632 !important; background: color-mix(in srgb, #F2B632 16%, var(--panel)) !important; font-weight: 700; }
+.cbar-back[hidden] { display: none !important; }

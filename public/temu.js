@@ -207,7 +207,7 @@
 
   // The quick tour: the essentials in about a minute. [tab, element, text]
   const QUICK = [
-    ['overview', '.cbar', 'Up top, on every tab: yesterday’s <b>champions</b>, the sectors that did best on each feature, scrolling past like the news. Hover to pause, click one to see that day. × hides it until tomorrow.'],
+    ['overview', '.cbar', 'Up top, on every tab: yesterday’s <b>champions</b>, the sectors that did best on each feature, scrolling past like the news. Hover to pause, click one to see that day. × hides it until tomorrow; the gold 🏆 Show champions button at the top right brings it back.'],
     ['overview', '.confid', 'First, the red note. This dashboard is <b>internal only</b>: it shows teachers by name with their FICO scores. Not for teachers, school heads or outsiders. What happens on the dashboard stays on the dashboard.'],
     [null, '#nav', 'The menu, in six groups: <b>Teaching</b>, <b>Observation</b>, <b>Children</b>, <b>Growth</b>, <b>Directory</b> and <b>Insights</b>. Nineteen tabs, and I know every one of them.'],
     [null, '#filters', 'The filters. Pick a period, a sector or a school, and every number obeys. “Group charts by” switches between days, weeks and months. Training tabs are all time, so the period takes the day off there.'],

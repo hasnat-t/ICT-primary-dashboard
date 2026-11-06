@@ -2547,6 +2547,9 @@
     }
     writeHash();
     $('#cbar').innerHTML = champBar();
+    // after × on the bar, a button in the top-right corner of every tab brings it back
+    const cbOff = S.P && cbHiddenDay() === String(champData().day) && champData().cats.some((x) => x.winner);
+    document.querySelectorAll('.cbar-back').forEach((b) => { b.hidden = !cbOff; });
     $('#nav').innerHTML = NAV.map(([t, items]) => `<div class="nav-g">${t ? `<span class="nav-t">${t}</span>` : ''}${items.map(([k, l]) => `<button type="button" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</div>`).join('');
     $('#h1').textContent = TABS.find((t) => t[0] === S.tab)[1];
     $('#crumbs').innerHTML = crumbs();
