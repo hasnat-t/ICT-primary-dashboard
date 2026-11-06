@@ -20,6 +20,7 @@
   const GUIDE = {
     overview: ['Overview', 'The big picture for the period, sector and school you pick in the filters. Start here every morning, with chai.', [
       ['.hc2', 'ICT teachers', 'Every teacher at an ICT programme school, whatever they teach, counted once, as of the last data refresh. Green teach Primary, orange teach Middle or High, blue teach both; the bar shows the split without overlap. Follows the Sector filter. The rest of the dashboard counts primary teachers only.'],
+      ['.champs', 'Champions', 'Which sector did best yesterday (or the last school day) on lesson plans, DC recordings, coach visits, quizzes and exam papers, as a share of its teachers, so big sectors don’t always win. Badges show streaks and records. With your Sector filter set, each card shows where your sector ranked. Click a card to see that day.'],
       ['.hero', 'Headline cards', 'Four headline measures for primary teachers: lesson-plan engagement, Digital Coach coverage, HITL coverage and Teacher Leader certificates. The badge is the performance band, ▲/▼ compare with the period before, and each dot on the strip is a sector: click one to focus the page on it.'],
       ['.volume', 'Activity counts', 'How much happened in the period: DC and HITL observations, plans taught, quizzes made, children quizzed and exams generated.'],
       ['#c-ladder', 'Teacher reach ladder', 'The share of primary teachers each part of the programme reached. Each rung is counted on its own, so it’s a ladder, not a funnel. Please don’t climb it.'],
@@ -176,6 +177,7 @@
   // [question, answer, tab to open, element to point at]
   const FAQ = [
     ['How many teachers are in ICT?', 'The <b>ICT teachers</b> strip at the top of the Overview: every teacher at an ICT programme school, counted once, with how many teach Primary, Middle or High, or both. It follows the Sector filter and updates with every refresh.', 'overview', '.hc2'],
+    ['What are the champions?', 'The trophy cards on the Overview: the sector that did best yesterday on each feature, as a share of its teachers. Streak = it also won the days before; “Best day since August” = its record. I throw confetti for them once a day.', 'overview', '.champs'],
     ['What is LP engagement?', 'The share of primary teachers who used at least one grade 1–5 lesson plan in the period: generated with Rumi or opened in the teacher app. Using one counts. Admiring one from afar does not.', 'lp', '#c-lp'],
     ['What is the difference between DC and HITL?', '<b>DC</b> is the Digital Coach: the teacher records their own lesson and the AI scores it. <b>HITL</b> is a human coach in the classroom with /observe. Both use FICO, but they are never added together. Robot and human, separate tables, like a good wedding.', 'dc', '#c-dc'],
     ['What is FICO?', 'The lesson-observation framework with four sections: lesson-plan fidelity, subject knowledge, teaching practices and student engagement. Bands: Exemplary 80%+, Proficient 70–79.9%, Developing 60–69.9%, Needs support under 60%. Not the credit score. Nobody’s getting a loan here.', 'fico', '#c-fico'],
@@ -958,12 +960,28 @@
     document.head.appendChild(s);
   }
 
+  // Once a day, the first time someone opens the dashboard: confetti and the day's champions.
+  function celebrateChampions(tries = 0) {
+    if (!window.Dash || !window.Dash.ready()) { if (tries < 40) setTimeout(() => celebrateChampions(tries + 1), 500); return; }
+    const c = window.Dash.champions();
+    if (!c.wins.length || store.get().champDay === `${c.day}`) return;
+    store.set({ champDay: `${c.day}` });
+    setTimeout(() => {
+      if (root.hidden || !panel.hidden) return;
+      move('celebrate'); confetti();
+      const top = c.wins.map(([cat, sec]) => `${sec} in ${cat.replace(/^(?!DC)\w/, (ch) => ch.toLowerCase())}`).slice(0, 3).join(', ');
+      const extra = c.wins.find((w) => w[3] > 2) ? ` ${c.wins.find((w) => w[3] > 2)[1]} is on a ${c.wins.find((w) => w[3] > 2)[3]}-day streak!` : '';
+      toast(`🏆 ${c.yesterday ? 'Yesterday’s' : `${c.label}’s`} champions: ${top}.${extra}`, 12000);
+    }, 3500);
+  }
+
   // Wait for the dashboard to draw its menu, then appear; greet first-time visitors.
   function boot() {
     if (!$('#nav [data-tab]')) { setTimeout(boot, 500); return; }
     const st = store.get();
     if (st.hidden) { root.hidden = true; chip.hidden = false; return; }
     start();
+    if (st.seen) celebrateChampions();
     if (!st.seen) setTimeout(() => { if (panel.hidden) home(true); store.set({ seen: 1, visits: 1 }); }, 1500);
     else if (!st.toured && (st.visits || 1) < 4) {
       store.set({ visits: (st.visits || 1) + 1 });

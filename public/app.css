@@ -638,3 +638,25 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .volume .vv { color: var(--ac); }
 .temu-scopes { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; padding-top: 6px; border-top: 1px solid var(--line); }
 .temu-b .dim { display: block; font-weight: 400; font-size: 12.5px; }
+
+/* overview: daily champions */
+.champs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px 16px; margin-bottom: 14px;
+  background-image: radial-gradient(circle at 6% 0%, color-mix(in srgb, #F2B632 16%, transparent) 0, transparent 40%); }
+.champs-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 12px; }
+.champs-t { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 17px; }
+.champs-n { font-size: 12.5px; color: var(--muted); }
+.champs-g { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.champ { text-align: left; font: inherit; color: var(--fg); cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--cc) 30%, var(--line)); border-top: 4px solid var(--cc); background: color-mix(in srgb, var(--cc) 9%, var(--panel)); transition: transform .15s, box-shadow .15s; }
+.champ:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.champ.quiet { cursor: default; opacity: .7; } .champ.quiet:hover { transform: none; box-shadow: none; }
+.champ-k { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.champ-k svg { width: 18px; height: 18px; }
+.champ-w { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.15; color: var(--cc); }
+.champ-s { font-size: 12.5px; color: var(--fg-2); line-height: 1.4; } .champ-s b { color: var(--fg); }
+.champ-b { display: flex; flex-wrap: wrap; gap: 4px; }
+.champ-b i { font-style: normal; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #F2B632; color: #4A3200; }
+.champ-m { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 4px; margin-top: 2px; }
+@media (max-width: 64rem) { .champs-g { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 40rem) { .champs-g { grid-template-columns: 1fr 1fr; } }
+@media print { .champ:hover { transform: none; } }

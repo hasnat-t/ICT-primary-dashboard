@@ -444,6 +444,76 @@
         <div class="hc2-key">${parts.map(([c, l, n]) => `<span><i class="${c}"></i>${esc(l)} <b>${N(n)}</b></span>`).join('')}</div>
       </div></section>`;
   }
+  // ---------- daily champions ----------
+  // Which sector did best yesterday on each feature, as the share of its primary teachers who did it that day (so
+  // big sectors don't always win). If yesterday was a quiet day (Sunday, holiday), the last school day instead.
+  // Streak = the same sector won the days before; record = its best day on that feature since 1 Aug. Owner idea,
+  // 2026-11-06. The same figures feed TEMU's once-a-day announcement through window.Dash.champions().
+  const CHAMP_CATS = [['lp', 'Lesson plans', 'used a lesson plan', 'a1', 'lp'], ['dc', 'DC recordings', 'recorded a lesson on the Digital Coach', 'a5', 'dc'],
+    ['hitl', 'Coach visits', 'were observed by a coach', 'a2', 'hitl'], ['quiz', 'Quizzes', 'made a lesson quiz', 'a4', 'quiz'], ['exam', 'Exam papers', 'made an exam paper', 'a3', 'exams']];
+  let champCache = null;
+  function champData() {
+    if (champCache && champCache.key === S.data.as_of) return champCache;
+    const T = S.data.today, sectors = [...new Set(S.data.schools.map((x) => x.sector))].sort();
+    const secOf = S.data.teachers.map((t) => S.data.schools[t.s].sector);
+    const size = Object.fromEntries(sectors.map((x) => [x, 0]));
+    secOf.forEach((x) => { size[x]++; });
+    const active = {};   // active[category][sector][day] = teachers who did it that day
+    for (const [c] of CHAMP_CATS) { active[c] = {}; for (const x of sectors) active[c][x] = new Array(T + 1).fill(0); }
+    S.data.teachers.forEach((t, ti) => {
+      const sec = secOf[ti];
+      const add = (c, dayList) => { for (const d of new Set(dayList)) if (d >= 0 && d <= T) active[c][sec][d]++; };
+      add('lp', (S.P.lp[ti] || []).filter((r) => r[2]).map((r) => r[1]));
+      add('dc', (S.P.obs[ti] || []).filter((r) => r[2] === 'D').map((r) => r[1]));
+      add('hitl', (S.P.obs[ti] || []).filter((r) => r[2] === 'H').map((r) => r[1]));
+      add('quiz', (S.P.made[ti] || []).filter((r) => r[2] > 0).map((r) => r[1]));
+      add('exam', (S.P.ex[ti] || []).filter((r) => r[3] > 0).map((r) => r[1]));
+    });
+    const total = secOf.length;
+    const schoolDay = (d) => total && sectors.reduce((a, x) => a + active.lp[x][d], 0) / total >= 0.03;   // 3%+ of teachers planned
+    let d = T - 1;
+    while (d > 0 && d > T - 8 && !schoolDay(d)) d--;
+    const share = (c, x, day) => (size[x] ? active[c][x][day] / size[x] : 0);
+    const rank = (c, day) => sectors.map((x) => ({ x, sh: share(c, x, day), n: active[c][x][day] })).sort((a, b) => b.sh - a.sh || b.n - a.n);
+    const cats = CHAMP_CATS.map(([c, label, verb, color, tab]) => {
+      const r = rank(c, d), w = r[0];
+      if (!w || !w.n) return { c, label, verb, color, tab, winner: null };
+      let streak = 1;
+      for (let k = d - 1, seen = 0; k >= 0 && seen < 30; k--) { if (!schoolDay(k)) continue; seen++; const rk = rank(c, k); if (rk[0].n && rk[0].x === w.x) streak++; else break; }
+      let best = 0, days = 0;
+      for (let k = 0; k < d; k++) if (schoolDay(k)) { days++; best = Math.max(best, share(c, w.x, k)); }
+      const ict = sectors.reduce((a, x) => a + active[c][x][d], 0) / total;
+      return { c, label, verb, color, tab, winner: w.x, sh: w.sh, n: w.n, ict, streak, record: days >= 10 && w.sh > best, ranks: r };
+    });
+    const [y, m, dd] = iso(d).split('-').map(Number);
+    const wd = new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+    champCache = { key: S.data.as_of, day: d, label: `${wd} ${dd} ${MONTHS[m - 1]}`, yesterday: d === T - 1, cats };
+    return champCache;
+  }
+  const TROPHY = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="#F2B632" d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v3H8v-3h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3Zm10 4v3a2 2 0 0 0 1-1.7V7h-1ZM6 7v1.3A2 2 0 0 0 7 10V7H6Z"/></svg>';
+  function champions() {
+    const C = champData();
+    if (!C.cats.some((x) => x.winner)) return '';
+    const pc = (v) => `${(100 * v).toFixed(v < 0.1 ? 1 : 0)}%`;
+    const cards = C.cats.map((x) => {
+      if (!x.winner) return `<div class="champ quiet" style="--cc:var(--${x.color})"><span class="champ-k">${esc(x.label)}</span><span class="champ-w">No activity</span><span class="champ-s">a quiet day</span></div>`;
+      const mine = S.sector && S.sector !== x.winner ? x.ranks.findIndex((r) => r.x === S.sector) : -1;
+      return `<button type="button" class="champ" style="--cc:var(--${x.color})" data-champ="${x.c}" title="Open ${esc(x.label)} for ${esc(x.winner)} on ${esc(C.label)}">
+        <span class="champ-k">${TROPHY}${esc(x.label)}</span><span class="champ-w">${esc(x.winner)}</span>
+        <span class="champ-s"><b>${pc(x.sh)}</b> of its teachers ${esc(x.verb)} · ICT ${pc(x.ict)}</span>
+        ${x.streak > 1 || x.record ? `<span class="champ-b">${x.streak > 1 ? `<i>${x.streak}-day streak</i>` : ''}${x.record ? '<i>Best day since August</i>' : ''}</span>` : ''}
+        ${mine >= 0 ? `<span class="champ-m">${esc(S.sector)}: ${['1st', '2nd', '3rd', '4th', '5th', '6th'][mine] || `#${mine + 1}`} · ${pc(x.ranks[mine].sh)}</span>` : ''}</button>`;
+    }).join('');
+    return `<section class="champs" aria-label="Champions"><div class="champs-h"><span class="champs-t">${TROPHY} Champions of ${esc(C.label)}${C.yesterday ? ' · yesterday' : ' · the last school day'}</span>
+      <span class="champs-n">The sector that did best on each feature, as a share of its primary teachers. Click a card to see that day.</span></div><div class="champs-g">${cards}</div></section>`;
+  }
+  function openChamp(c) {
+    const C = champData(), x = C.cats.find((k) => k.c === c);
+    if (!x || !x.winner) return;
+    S.sector = x.winner; S.school = ''; S.preset = 'custom'; S.from = C.day; S.to = C.day; S.tab = x.tab; S.search = '';
+    render(); window.scrollTo(0, 0);
+  }
+
   function viewOverview(R) {
     const RA = Calc.rollup(S.P, { from: S.from, to: S.to });
     const A = RA.all, g = R.all;
@@ -545,7 +615,7 @@
     const drillTable = S.school !== '' ? card('c-over-t', 'Teachers', 'Click a teacher for the scorecard. Contains teacher names — internal use only.',
       table('over', [nameCol(level), COL.g15, COL.taught, COL.dc, COL.hitl, COL.made, COL.exOk, COL.onProg, COL.cert1, COL.cert2, COL.cert3, COL.cert4], rows, { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: R.all })) : '';
 
-    return `${ictTeachers()}${hero}${volume}<div class="flexrow">${ladder}${attention}</div>${momentum(Calc.series(S.P, sel(), S.gran))}
+    return `${ictTeachers()}${champions()}${hero}${volume}<div class="flexrow">${ladder}${attention}</div>${momentum(Calc.series(S.P, sel(), S.gran))}
       <div class="flexrow">${heat}${focus}</div>${stairs}${drillTable}`;
   }
 
@@ -2577,6 +2647,7 @@
     else if (b.dataset.psrc) { cardState().pSrc = b.dataset.psrc; render(); }
     else if (b.dataset.part) { cardState().pArt = b.dataset.part; render(); }
     else if (b.dataset.poster) openPoster(+b.dataset.poster);
+    else if (b.dataset.champ) openChamp(b.dataset.champ);
     else if (b.dataset.psave !== undefined || b.dataset.pshare !== undefined) {
       const lbl = b.textContent; b.disabled = true; b.textContent = 'Preparing…';
       posterSave(b.dataset.pshare !== undefined).catch((err) => { console.error(err); alert('Could not make the picture. Please try again.'); }).finally(() => { b.disabled = false; b.textContent = lbl; });
@@ -2758,6 +2829,11 @@
       return { scope: scopeName(), period: periodText(), school: S.school !== '' ? +S.school : null, rows: top };
     },
     card(ti) { openCard('teacher', ti); },
+    // the day's winners for TEMU's announcement: { day, label, yesterday, wins: [[category, sector, share %]] }
+    champions() {
+      const C = champData();
+      return { day: C.day, label: C.label, yesterday: C.yesterday, wins: C.cats.filter((x) => x.winner).map((x) => [x.label, x.winner, Math.round(100 * x.sh), x.streak, x.record]) };
+    },
     poster(si) { openPoster(si); },
   };
 
