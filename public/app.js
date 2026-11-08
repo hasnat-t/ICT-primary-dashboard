@@ -2886,6 +2886,21 @@
     poster(si) { openPoster(si); },
   };
 
+  // ---------- install as an app (PWA) ----------
+  // sw.js keeps the app files and, for 24 hours at most, the last data on the device. Android and desktop Chrome offer
+  // an install prompt we keep for the "Install app" button; iPhone has no prompt, so the button explains Share → Add.
+  if ('serviceWorker' in navigator) addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+  let installEvt = null;
+  const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; $('#install-app').hidden = false; });
+  addEventListener('appinstalled', () => { installEvt = null; $('#install-app').hidden = true; });
+  if (isIOS && !standalone()) $('#install-app').hidden = false;
+  $('#install-app').addEventListener('click', () => {
+    if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; $('#install-app').hidden = true; }); }
+    else alert('To install on iPhone or iPad: tap the Share button in Safari, then “Add to Home Screen”.');
+  });
+
   // ---------- load ----------
   async function load() {
     try {

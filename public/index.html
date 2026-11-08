@@ -6,6 +6,12 @@
 <title>ICT Dashboard</title>
 <meta name="description" content="NIETE ICT teachers: lesson plans, DC and HITL observations, FICO scores, children's quizzes, the exam generator, primary and middle & high training, per sector, school and teacher.">
 <link rel="icon" type="image/png" href="/assets/niete-logo.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1F2632">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ICT Dashboard">
 <link rel="stylesheet" href="/app.css?v=__V_CSS__">
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js" defer></script>
 <script src="/calc.js?v=__V_CALC__" defer></script>
@@ -36,6 +42,7 @@
         <p class="sub" id="headline">Loading the latest data…</p>
       </div>
       <div class="top-btns">
+        <button class="btn install-app" type="button" id="install-app" hidden title="Install the dashboard as an app on this device">⬇ Install app</button>
         <button class="btn cbar-back" type="button" data-cbshow hidden title="Show the champions bar again">🏆 Show champions</button>
         <button class="btn" type="button" data-dl="main-content">Download image</button>
         <button class="btn dark" type="button" id="present">Present</button>

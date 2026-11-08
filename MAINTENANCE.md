@@ -83,3 +83,8 @@ commit (`git revert`) and push.
   apart. These come from the data rules (`v0.39.x`) quoted at the top of each `sql/` file.
 - Don't change what a figure means to make an error go away. If the right fix changes a definition, open an issue.
 - UI text inside single-quoted JS strings uses a typographic apostrophe (’) — a plain `'` breaks the page.
+
+## Installed app (service worker)
+
+- `public/sw.js` keeps app files and the last `/api/data` (max 24 hours) on users' devices. If you change what it stores or how, rename the cache names (`ict-shell-v1`, `ict-data-v1`) so every device drops the old copies on its next visit.
+- A user who wants to wipe the copy: browser settings → Site data for the dashboard → Clear, or uninstall the app.

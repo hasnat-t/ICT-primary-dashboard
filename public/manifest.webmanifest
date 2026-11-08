@@ -1,0 +1,15 @@
+{
+  "name": "ICT Dashboard",
+  "short_name": "ICT Dashboard",
+  "description": "NIETE ICT teachers: lesson plans, observations, FICO, children's learning and training. Internal use only.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F4F1",
+  "theme_color": "#1F2632",
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

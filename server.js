@@ -276,7 +276,7 @@ function scheduleDaily() {
 }
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.png': 'image/png', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.json': 'application/json' };
+  '.png': 'image/png', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 
 function send(res, code, body, type, extra = {}) {
   res.writeHead(code, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', ...extra });
@@ -422,7 +422,7 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(file);
     // Page and scripts change with each deploy, so browsers must revalidate them; fonts and images rarely change.
     send(res, 200, buf, TYPES[ext] || 'application/octet-stream',
-      { 'Cache-Control': ['.html', '.js', '.css', '.json'].includes(ext) ? 'no-cache' : 'public, max-age=604800' });
+      { 'Cache-Control': ['.html', '.js', '.css', '.json', '.webmanifest'].includes(ext) ? 'no-cache' : 'public, max-age=604800' });
   });
 });
 
