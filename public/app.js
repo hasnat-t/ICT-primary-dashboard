@@ -1913,18 +1913,31 @@
     const nSch = (k) => schools.filter(([, sc]) => dqSchoolIssues(sc).includes(k)).length;
     const scores = dqScores(), allIct = !S.sector && S.school === '';
     const nTeach = schools.reduce((a, [, sc]) => a + sc[3], 0);
-    const kpis = `<div class="kpis">${kpi('No level recorded', N(has('L')), `teachers of ${N(nTeach)} · left out of primary figures`)}
-      ${kpi('Possible duplicate accounts', N(has('D')), 'teacher accounts sharing a name at one school')}
-      ${kpi('Blank names', N(has('N')), 'teacher accounts')}
-      ${kpi('Schools with no coach', N(nSch('nocoach')), `of ${N(schools.length)} programme schools`)}
-      ${kpi('Schools with no teachers', N(nSch('empty')), 'no teacher account at all')}
-      ${kpi('Schools with 1–2 teachers', N(nSch('few')), 'probably not all registered')}
-      ${kpi('Impossible scores', N(scores.length), 'observation sections outside 0–maximum')}
-      ${allIct ? kpi('Coach accounts with no school', N(D.coaches.length), 'not counted as coaches') : ''}</div>`;
-    const why = `<div class="dq-why">${[...DQ_FLAGS.map(([, l, w, f]) => [l, w, f]), ...DQ_SCHOOL.map(([, l, w, f]) => [l, w, f])].map(([l, w, f]) => `<div><b>${esc(l)}</b><span>${esc(w)}</span><span class="dim">Fix: ${esc(f)}</span></div>`).join('')}</div>`;
-    const head = card('c-dq', `Data quality · ${scopeName()} · as of the last refresh`,
-      'Gaps in the data that make the figures on this dashboard less accurate. Every one is fixed at the source (the Rumi portal or app), and the dashboard picks the fix up at the next refresh. Counts teachers at every level, not only primary. The period filter does not apply. Contains teacher and coach names — internal use only.',
-      kpis + `<details class="dq-d"><summary>Why each one matters, and how to fix it</summary>${why}</details>`);
+    const clean = Math.max(0, nTeach - teachers.length), pClean = nTeach ? (100 * clean) / nTeach : 100;
+    const why = (k) => (DQ_FLAGS.find((x) => x[0] === k) || DQ_SCHOOL.find((x) => x[0] === k));
+    // [key, label, count, unit, reason, fix, section to jump to, issue filter]
+    const item = ([k, label, n, unit, reason, fix, go, f]) => `<button type="button" class="dq-i ${n ? 'bad' : 'ok'}" ${go ? `data-dqgo="${go}"` : 'disabled'} ${f ? `data-dqf="${f}"` : ''} title="${esc(`${(why(k) || [])[2] || reason} Fix: ${fix}`)}">
+        <span class="dq-ic" aria-hidden="true">${n ? '!' : '✓'}</span>
+        <span class="dq-m"><b>${esc(label)}</b><span>${esc(n ? reason : 'Nothing to fix.')}</span></span>
+        <span class="dq-n">${N(n)}<small>${esc(unit)}</small></span>${go && n ? '<span class="dq-go" aria-hidden="true">›</span>' : ''}</button>`;
+    const grp1 = [['L', 'No level recorded', has('L'), 'teachers', 'Left out of every primary and middle & high figure.', why('L')[3], 'c-dq-t', 'L'],
+      ['D', 'Possible duplicate accounts', has('D'), 'accounts', 'May be one teacher counted twice, activity split.', why('D')[3], 'c-dq-t', 'D'],
+      ['N', 'Blank names', has('N'), 'accounts', 'Blank in tables; can’t be found by name.', why('N')[3], 'c-dq-t', 'N']];
+    const sGo = S.school !== '' ? '' : 'c-dq-s';
+    const grp2 = [['nocoach', 'No coach assigned', nSch('nocoach'), 'schools', 'No visits expected; missing from coach figures.', why('nocoach')[3], sGo],
+      ['empty', 'No teacher accounts', nSch('empty'), 'schools', 'On the programme list, but zero everywhere.', why('empty')[3], sGo],
+      ['few', 'Only 1–2 teacher accounts', nSch('few'), 'schools', 'Most of its teachers are probably not registered.', why('few')[3], sGo],
+      ...(allIct ? [['coach', 'Coach accounts with no school', D.coaches.length, 'accounts', 'Not counted as a coach anywhere.', 'Assign schools, or close the account.', 'c-dq-c']] : [])];
+    const grp3 = [['score', 'Impossible scores', scores.length, 'sections', 'A section scored below 0 or above its maximum.', 'Report them to the data team.', 'c-dq-o']];
+    const open = [...grp1, ...grp2, ...grp3].filter((x) => x[2]).length;
+    const ring = `<div class="dq-score" style="--p:${pClean.toFixed(1)}">
+        <div class="dq-ring"><span>${pClean >= 99.95 ? '100' : pClean.toFixed(1)}<small>%</small></span></div>
+        <div class="dq-st"><b>${N(clean)}</b> of ${N(nTeach)} teacher accounts have no problem</div>
+        <div class="dq-st2">${open ? `${N(open)} kind${open === 1 ? '' : 's'} of problem to fix · ${N(issueSchools.length)} school${issueSchools.length === 1 ? '' : 's'} to check` : 'Nothing to fix here'}</div></div>`;
+    const group = (title, list) => `<div class="dq-g"><h3>${esc(title)}</h3>${list.map(item).join('')}</div>`;
+    const head = card('c-dq', `Data quality · ${scopeName()}`,
+      'Gaps in the data that make figures on this dashboard less accurate, as of the last refresh, for teachers at every level. Each is fixed at the source (the Rumi portal or app) and disappears here at the next refresh. Click a row to see the list. The period filter does not apply. Contains teacher and coach names — internal use only.',
+      `<div class="dq-top">${ring}<div class="dq-gs"><div class="dq-col">${group('Teacher accounts', grp1)}${group('Odd numbers', grp3)}</div><div class="dq-col">${group('Schools & coaches', grp2)}</div></div></div>`);
 
     // by sector (All ICT) or by school (a sector)
     const grp = (list) => {
@@ -1934,7 +1947,7 @@
       const n = (k) => list.filter(([, sc]) => dqSchoolIssues(sc).includes(k)).length;
       return { schools: list.length, teachers: list.reduce((a, [, sc]) => a + sc[3], 0), L: f('L'), D: f('D'), N: f('N'), nocoach: n('nocoach'), empty: n('empty'), few: n('few') };
     };
-    const z = (v) => (v ? `<b>${N(v)}</b>` : '<span class="dim">0</span>');
+    const z = (v) => (v ? `<span class="dq-h" style="--h:${Math.min(1, 0.25 + v / 30).toFixed(2)}">${N(v)}</span>` : '<span class="dq-0">0</span>');
     const gcols = (lab) => [
       { k: 'name', label: lab, val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.emis ? ` <span class="dim">EMIS ${esc(r.emis)}</span>` : ''}` },
       { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
@@ -1942,7 +1955,7 @@
       { k: 'D', label: 'Possible duplicates', num: true, val: (r) => r.g.D, fmt: (r) => z(r.g.D) },
       { k: 'N', label: 'Blank names', num: true, val: (r) => r.g.N, fmt: (r) => z(r.g.N) },
       ...(lab === 'Sector' ? [{ k: 'schools', label: 'Schools', num: true, val: (r) => r.g.schools, fmt: (r) => N(r.g.schools) }] : [{ k: 'coach', label: 'Coach(es)', val: (r) => r.coaches, fmt: (r) => (r.coaches ? esc(r.coaches) : '<span class="zero">None</span>') }]),
-      { k: 'nocoach', label: lab === 'Sector' ? 'No coach' : 'Issues', num: lab === 'Sector', val: (r) => (lab === 'Sector' ? r.g.nocoach : r.issues.length), fmt: (r) => (lab === 'Sector' ? z(r.g.nocoach) : r.issues.map((k) => `<span class="dq-tag">${esc(DQ_SCHOOL.find((x) => x[0] === k)[1])}</span>`).join(' ') || '<span class="dim">—</span>') },
+      { k: 'nocoach', label: lab === 'Sector' ? 'No coach' : 'Issues', num: lab === 'Sector', val: (r) => (lab === 'Sector' ? r.g.nocoach : r.issues.length), fmt: (r) => (lab === 'Sector' ? z(r.g.nocoach) : r.issues.map((k) => `<span class="dq-tag ${k}" title="Fix: ${esc(DQ_SCHOOL.find((x) => x[0] === k)[3])}">${esc(DQ_SCHOOL.find((x) => x[0] === k)[1])}</span>`).join(' ') || '<span class="dim">—</span>') },
       ...(lab === 'Sector' ? [{ k: 'empty', label: 'No teachers', num: true, val: (r) => r.g.empty, fmt: (r) => z(r.g.empty) }, { k: 'few', label: '1–2 teachers', num: true, val: (r) => r.g.few, fmt: (r) => z(r.g.few) }] : []),
     ];
     let byTable;
@@ -1969,8 +1982,8 @@
         { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => (r.name ? esc(r.name) : '<span class="zero">(no name)</span>') },
         { k: 'school', label: 'School', val: (r) => r.sc[2], fmt: (r) => `${esc(r.sc[2])} <span class="dim">EMIS ${esc(r.sc[0])}</span>` },
         { k: 'sector', label: 'Sector', val: (r) => r.sc[1] },
-        { k: 'issue', label: 'Issue', val: (r) => r.f, fmt: (r) => DQ_FLAGS.filter(([k]) => r.f.includes(k)).map(([, l]) => `<span class="dq-tag">${esc(l)}</span>`).join(' ') },
-        { k: 'fix', label: 'How to fix', val: (r) => r.f, fmt: (r) => esc(DQ_FLAGS.filter(([k]) => r.f.includes(k)).map(([, , , f]) => f).join(' ')) },
+        { k: 'issue', label: 'Issue', val: (r) => r.f, fmt: (r) => DQ_FLAGS.filter(([k]) => r.f.includes(k)).map(([k, l]) => `<span class="dq-tag ${k}">${esc(l)}</span>`).join(' ') },
+        { k: 'fix', label: 'How to fix', val: (r) => r.f, fmt: (r) => `<span class="dq-fix">${esc(DQ_FLAGS.filter(([k]) => r.f.includes(k)).map(([, , , f]) => f).join(' '))}</span>` },
       ], trows, { noLegend: true, sort: { k: 'school', dir: 1 } }),
       `<div class="row">${msel('dqflags', 'dqFlags', ftext, DQ_FLAGS.map(([k, l]) => [k, l, has(k)]))}</div>`);
 
@@ -1986,7 +1999,7 @@
       ], scores, { noLegend: true, onRow: (k) => modalOpen({ kind: 'teacher', key: scores[+k].ti }), rowKey: (r) => r.key }) : '<p class="note">None: every observation score is within its section’s range.</p>');
 
     const ccard = !allIct ? '' : card('c-dq-c', `Coach accounts with no school · ${N(D.coaches.length)}`, 'Accounts with the coach role but no school assigned. Such an account is not counted as a coach anywhere (a coach is a coach account with at least one school). It may be a new coach waiting for schools, someone who left, or a test account: an open question, not always an error.',
-      D.coaches.length ? `<ul class="dq-list">${D.coaches.map((n) => `<li>${n ? esc(n) : '<span class="zero">(no name)</span>'}</li>`).join('')}</ul>` : '<p class="note">None.</p>');
+      D.coaches.length ? `<div class="dq-chips">${D.coaches.map((n) => `<span class="${n ? '' : 'none'}">${n ? esc(n) : '(no name)'}</span>`).join('')}</div>` : '<p class="note">None.</p>');
     return head + byTable + tcard + ocard + ccard;
   }
 
@@ -2810,6 +2823,12 @@
     else if (b.dataset.caladd !== undefined) { calendarForm(); }
     else if (b.dataset.caldel) { calendarRemove(+b.dataset.caldel); }
     else if (b.dataset.dview) { S.dview = b.dataset.dview; render(); }
+    else if (b.dataset.dqgo) {
+      if (b.dataset.dqf) S.dqFlags = [b.dataset.dqf];
+      render();
+      const el = document.getElementById(b.dataset.dqgo);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     else if (b.dataset.mselall) { S[b.dataset.mselall] = []; S.mselOpen = null; render(); }
 
     else if (b.dataset.card) { const [k, v] = b.dataset.card.split(':'); openCard(k, +v); }

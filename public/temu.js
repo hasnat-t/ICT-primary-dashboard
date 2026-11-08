@@ -142,7 +142,7 @@
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
     dq: ['Data quality', 'Gaps in the data that make every figure less accurate, and how to fix each one at the source: teachers with no level, possible duplicate accounts, blank names, schools with no coach or no teachers, and impossible scores. Fix the data and the dashboard gets more honest at the next refresh.', [
-      ['#c-dq', 'The checks', 'One tile per problem, as of the last refresh, for every teacher level. Open “Why each one matters” for the reason and the fix. The period filter does not apply here.'],
+      ['#c-dq', 'The checks', 'The ring is the share of teacher accounts with no problem. Beside it, every check in three groups: red with a count means something to fix, green means clean. Hover a row for the fix; click it to jump to the list. As of the last refresh, every teacher level; the period filter does not apply.'],
       ['#c-dq-s', 'By sector', 'Each sector’s count of every problem. Click a sector to see its schools with something to fix, with the coach assigned to each.'],
       ['#c-dq-t', 'Teacher accounts to fix', 'Every account with a problem: no level, blank name, or the same name twice at the school. Pick issues with the filter; Download CSV gives a to-do list for whoever manages accounts.'],
       ['#c-dq-o', 'Impossible scores', 'Observation sections scored below zero or above their maximum. These come from the scoring, not the teacher: report them to the data team.'],
