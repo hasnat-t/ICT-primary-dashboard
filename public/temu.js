@@ -141,6 +141,13 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
+    dq: ['Data quality', 'Gaps in the data that make every figure less accurate, and how to fix each one at the source: teachers with no level, possible duplicate accounts, blank names, schools with no coach or no teachers, and impossible scores. Fix the data and the dashboard gets more honest at the next refresh.', [
+      ['#c-dq', 'The checks', 'One tile per problem, as of the last refresh, for every teacher level. Open “Why each one matters” for the reason and the fix. The period filter does not apply here.'],
+      ['#c-dq-s', 'By sector', 'Each sector’s count of every problem. Click a sector to see its schools with something to fix, with the coach assigned to each.'],
+      ['#c-dq-t', 'Teacher accounts to fix', 'Every account with a problem: no level, blank name, or the same name twice at the school. Pick issues with the filter; Download CSV gives a to-do list for whoever manages accounts.'],
+      ['#c-dq-o', 'Impossible scores', 'Observation sections scored below zero or above their maximum. These come from the scoring, not the teacher: report them to the data team.'],
+      ['#c-dq-c', 'Coach accounts with no school', 'Coach accounts with no school assigned, so they are not counted as coaches. Maybe new, maybe gone, maybe a test.'],
+    ]],
     report: ['Monthly report', 'A one-page summary for any month: sectors, FICO, schools leading and needing support, the calendar and children’s learning. Print it or save it as a PDF; meetings love paper.', [
       ['#c-rep0', 'Pick the month', 'Choose the month and print or save. The figures cover primary teachers.'],
       ['#c-rep1', 'Sectors', 'Each sector’s key measures and the change from the month before.'],
@@ -176,6 +183,7 @@
 
   // [question, answer, tab to open, element to point at]
   const FAQ = [
+    ['Why are some teachers missing from the figures?', 'Usually their account has <b>no level recorded</b>, so they are not counted as primary (or middle/high). The <b>Data quality</b> tab lists them school by school, with possible duplicate accounts and schools with no coach.', 'dq', '#c-dq'],
     ['How many teachers are in ICT?', 'The <b>ICT teachers</b> strip at the top of the Overview: every teacher at an ICT programme school, counted once, with how many teach Primary, Middle or High, or both. It follows the Sector filter and updates with every refresh.', 'overview', '.hc2'],
     ['What are the champions?', 'The trophy cards on the Overview: the sector that did best yesterday on each feature, as a share of its teachers. Streak = it also won the days before; “Best day since August” = its record. I throw confetti for them once a day.', 'overview', '.champs'],
     ['What is LP engagement?', 'The share of primary teachers who used at least one grade 1–5 lesson plan in the period: generated with Rumi or opened in the teacher app. Using one counts. Admiring one from afar does not.', 'lp', '#c-lp'],
@@ -374,6 +382,7 @@
     ['exams', ['exam generator', 'exams', 'exam', 'fde']],
     ['egra', ['learning assessment', 'egra', 'egma', 'reading test']],
     ['calendar', ['calendar', 'holidays']],
+    ['dq', ['data quality', 'data problems', 'missing level', 'no level', 'duplicate', 'no coach']],
     ['report', ['monthly report', 'report']],
     ['spotlight', ['leading and support', 'leading & support', 'leading', 'needs support', 'spotlight']],
     ['cards', ['appreciation', 'cards', 'card', 'poster']],

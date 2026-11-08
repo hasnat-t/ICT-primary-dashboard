@@ -7,6 +7,7 @@ const path = require('path');
 const zlib = require('zlib');
 const db = require('./db');
 const { buildMh, buildMhCatalog } = require('./mh');
+const { buildDq } = require('./dq');
 const { buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
 const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 const FB = require('./feedback');
@@ -38,7 +39,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training', 'mh_training', 'mh_catalog', 'headcount'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training', 'mh_training', 'mh_catalog', 'headcount', 'data_quality', 'dq_coaches'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false, parts: {}, last_refresh: null };
 const STARTED_AT = new Date().toISOString();
@@ -135,6 +136,8 @@ const QUESTIONS = {
   mh_training: 'scheduled refresh: ICT Dashboard, middle and high teachers (any level mix including middle or high) per school with their middle/high training: programme, modules and certificates per level, all time',
   mh_catalog: 'scheduled refresh: ICT Dashboard, middle/high training levels and modules per level (NIETE levels 3-4, Oxbridge, Beaconhouse, I-SAPS)',
   headcount: 'scheduled refresh: ICT Dashboard, total ICT teacher count by level (primary only, middle/high only, both, no level) per sector and all ICT',
+  data_quality: 'scheduled refresh: ICT Dashboard, data quality per programme school: teachers with no level recorded, blank names or the same name twice at a school, and the coaches assigned to each school (names, internal use only)',
+  dq_coaches: 'scheduled refresh: ICT Dashboard, data quality: coach accounts with no school assigned (names, internal use only)',
 };
 
 // Run a per-school packed query page by page (stable ORDER BY school_id) until a short page comes back.
@@ -207,8 +210,9 @@ async function refresh(reason) {
         const levels = buildMhCatalog(await executeQuery(SQL.mh_catalog, QUESTIONS.mh_catalog));
         return { mh: buildMh(await runPaged('mh_training'), levels) };
       }],
+      ['data_quality', async () => ({ dq: buildDq(await runPaged('data_quality'), await executeQuery(SQL.dq_coaches, QUESTIONS.dq_coaches)) })],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'], mh_training: ['mh'], headcount: ['hc'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'], mh_training: ['mh'], headcount: ['hc'], data_quality: ['dq'] };
     for (const [name, run] of parts) {
       const p0 = Date.now();
       try {
@@ -218,8 +222,8 @@ async function refresh(reason) {
       } catch (e) {
         state.parts[name] = { ok: false, error: String(e.message || e).slice(0, 600), at: new Date().toISOString(), last_ok: (state.parts[name] || {}).last_ok || null };
         // Keep the previous values only when the roster is unchanged (teacher indexes must line up).
-        // mh and hc have their own rosters, so their earlier copies stay valid whatever the primary roster did.
-        for (const k of KEYS[name]) next[k] = name === 'mh_training' || name === 'headcount' ? (state.data && state.data[k]) || null : carryPart(prev, k);
+        // mh, hc and dq have their own rosters, so their earlier copies stay valid whatever the primary roster did.
+        for (const k of KEYS[name]) next[k] = ['mh_training', 'headcount', 'data_quality'].includes(name) ? (state.data && state.data[k]) || null : carryPart(prev, k);
         next.errors.push(`${name}: ${e.message || e}`);
         log(`${name} failed${prev ? ', keeping previous' : ''}: ${e.message || e}`);
       }

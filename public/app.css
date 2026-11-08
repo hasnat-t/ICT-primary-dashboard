@@ -693,3 +693,11 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .cbar-back[hidden] { display: none !important; }
 .install-app[hidden] { display: none !important; }
 @media print { .install-app { display: none !important; } }
+
+/* data quality */
+.dq-d { margin-top: 12px; }
+.dq-d summary { cursor: pointer; font-weight: 700; }
+.dq-why { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 10px; margin-top: 10px; }
+.dq-why > div { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 13.5px; }
+.dq-tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #FCEBD5; color: #7A4300; white-space: nowrap; }
+.dq-list { columns: 3 14rem; margin: 0; padding-left: 18px; }

@@ -107,9 +107,18 @@ for (let s = 0; s < 263; s++) {
 }
 const hc = { all: { teachers: 6376, schools: 413, primaryOnly: 2626, mhOnly: 3012, both: 647, noLevel: 91 }, sectors: {} };
 sectors.forEach((n, i) => { hc.sectors[n] = { teachers: 1000 + i, schools: 60 + i, primaryOnly: 400, mhOnly: 450 + i, both: 140, noLevel: 10 }; });
+// data quality: every programme school (the primary ones first, then 2 made-up schools with no teachers)
+const dq = { schools: [], teachers: [], coaches: ['Coach Unassigned 1', '', 'Demo Coach (test)'] };
+schools.forEach((sc, i) => {
+  const si = dq.schools.push([sc.emis, sc.sector, sc.name, sc.n + 3, i % 40 === 7 ? '' : `Coach ${i % 55 + 6}`, i % 40 === 7 ? 0 : 1]) - 1;
+  if (i % 9 === 0) dq.teachers.push([si, `Teacher NoLevel ${i}`, 'L']);
+  if (i % 31 === 0) dq.teachers.push([si, '', 'LN']);
+  if (i % 17 === 0) { dq.teachers.push([si, `Same Name ${i}`, 'D']); dq.teachers.push([si, `Same Name ${i}`, 'D']); }
+});
+dq.schools.push(['9001', 'Nilore', 'Made-up School Without Teachers', 0, 'Coach 9', 1], ['9002', 'Nilore', 'Another Empty School', 0, '', 0]);
 const data = { as_of: 'fixture', window_start: '2026-08-01', today, rule_version: 'fixture', schools, teachers, roster_sig: 'fixture', errors: [],
   coaches: Array.from({ length: 60 }, (_, i) => ({ id: 'c' + String(i).padStart(7, '0'), name: i < 5 ? `Head ${i + 1}` : `Coach ${i + 1}`, role: i < 5 ? 'principal' : 'coach', hide: i < 5 })),
-  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, mh, hc, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
+  egra, egraDraws, fi, pilot, o2, deb, tgr, lp, obs, observe2_excluded: 12, quiz: { made, sit, buckets }, quiz_sectors, exams, training, mh, hc, dq, qscore, exd, lpd: { lessons, gen, taught: taughtL } };
 fs.mkdirSync(path.join(__dirname, '..', 'data'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'data', 'data.json'), JSON.stringify(data));
 console.log(`fixture: ${schools.length} schools, ${teachers.length} teachers, ${lp.length} LP days, ${obs.length} observations, today=${today}`);

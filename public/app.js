@@ -19,7 +19,7 @@
     ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
-    ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar']]],
+    ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar'], ['dq', 'Data quality']]],
     ['Insights', [['report', 'Monthly report'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
@@ -1867,12 +1867,136 @@
         ], rows, { noLegend: true })}</section>` };
   }
 
+  // ---------- data quality ----------
+  // Gaps in the source data that make figures on this dashboard less accurate, with who can fix them. Account checks
+  // come from data.dq (every programme school, all teacher levels, as of the last refresh); the score check reads the
+  // observations already on the page. The period filter does not apply; the sector and school filters do.
+  const DQ_FLAGS = [
+    ['L', 'No level recorded', 'Left out of every primary figure on this dashboard and of middle & high training, because the level decides who is counted.', 'Set the teacher’s level (Primary / Middle / High) on their account in the Rumi portal.'],
+    ['N', 'Blank name', 'Shows as a blank row in tables and cannot be found by name, so follow-up is hard.', 'Add the teacher’s name on their account.'],
+    ['D', 'Same name twice at the school', 'May be one teacher with two accounts: they count twice in the denominator and their activity is split, which lowers every share for that school.', 'Check whether it is one person; if so, merge the accounts (keep the one they use).'],
+  ];
+  const DQ_SCHOOL = [
+    ['nocoach', 'No coach assigned', 'No coach visits are expected there, and the school is missing from every per-coach figure.', 'Assign a coach to the school.'],
+    ['empty', 'No teacher accounts', 'On the programme list but nobody to count: the school shows zero everywhere.', 'Register the school’s teachers.'],
+    ['few', '1–2 teacher accounts', 'Probably most teachers are not registered yet, so the school’s shares describe only one or two people.', 'Check the staff list and register the missing teachers.'],
+  ];
+  const dqScope = () => {
+    const D = S.data.dq, selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
+    const inScope = (sc) => (!S.sector || sc[1] === S.sector) && (!selEmis || sc[0] === selEmis);
+    const schools = D.schools.map((sc, i) => [i, sc]).filter(([, sc]) => inScope(sc));
+    const keep = new Set(schools.map(([i]) => i));
+    return { D, schools, teachers: D.teachers.map((t, i) => [i, t]).filter(([, t]) => keep.has(t[0])) };
+  };
+  const dqSchoolIssues = (sc) => [sc[5] === 0 ? 'nocoach' : '', sc[3] === 0 ? 'empty' : '', sc[3] > 0 && sc[3] <= 2 ? 'few' : ''].filter(Boolean);
+  // Observation scores outside 0..max (an impossible score), in the sector / school filters, since 1 Aug.
+  function dqScores() {
+    const out = [], selS = S.school !== '' ? +S.school : null;
+    const SECT = [[4, 5, 'Teaching practices'], [6, 7, 'Subject knowledge'], [8, 9, 'Student engagement'], [10, 11, 'Lesson-plan fidelity']];
+    (S.P.obs || []).forEach((rows, ti) => {
+      const t = S.data.teachers[ti];
+      if (!rows || !t) return;
+      const sc = S.data.schools[t.s];
+      if ((S.sector && sc.sector !== S.sector) || (selS !== null && t.s !== selS)) return;
+      for (const r of rows) for (const [a, b, label] of SECT) {
+        if (r[a] === null || r[a] === undefined || r[a] === '' || r[b] === null || r[b] === undefined || r[b] === '') continue;
+        if (+r[a] < 0 || +r[a] > +r[b]) out.push({ key: out.length, ti, t, sc, day: r[1], src: r[2], label, v: +r[a], max: +r[b] });
+      }
+    });
+    return out;
+  }
+  function viewDq() {
+    if (!S.data.dq) return card('c-dq', 'Data quality', '', '<p class="note">The data-quality checks could not be loaded in the last refresh. They will appear after the next one.</p>');
+    const { D, schools, teachers } = dqScope();
+    const has = (f) => teachers.filter(([, t]) => t[2].includes(f)).length;
+    const issueSchools = schools.filter(([, sc]) => dqSchoolIssues(sc).length);
+    const nSch = (k) => schools.filter(([, sc]) => dqSchoolIssues(sc).includes(k)).length;
+    const scores = dqScores(), allIct = !S.sector && S.school === '';
+    const nTeach = schools.reduce((a, [, sc]) => a + sc[3], 0);
+    const kpis = `<div class="kpis">${kpi('No level recorded', N(has('L')), `teachers of ${N(nTeach)} · left out of primary figures`)}
+      ${kpi('Possible duplicate accounts', N(has('D')), 'teacher accounts sharing a name at one school')}
+      ${kpi('Blank names', N(has('N')), 'teacher accounts')}
+      ${kpi('Schools with no coach', N(nSch('nocoach')), `of ${N(schools.length)} programme schools`)}
+      ${kpi('Schools with no teachers', N(nSch('empty')), 'no teacher account at all')}
+      ${kpi('Schools with 1–2 teachers', N(nSch('few')), 'probably not all registered')}
+      ${kpi('Impossible scores', N(scores.length), 'observation sections outside 0–maximum')}
+      ${allIct ? kpi('Coach accounts with no school', N(D.coaches.length), 'not counted as coaches') : ''}</div>`;
+    const why = `<div class="dq-why">${[...DQ_FLAGS.map(([, l, w, f]) => [l, w, f]), ...DQ_SCHOOL.map(([, l, w, f]) => [l, w, f])].map(([l, w, f]) => `<div><b>${esc(l)}</b><span>${esc(w)}</span><span class="dim">Fix: ${esc(f)}</span></div>`).join('')}</div>`;
+    const head = card('c-dq', `Data quality · ${scopeName()} · as of the last refresh`,
+      'Gaps in the data that make the figures on this dashboard less accurate. Every one is fixed at the source (the Rumi portal or app), and the dashboard picks the fix up at the next refresh. Counts teachers at every level, not only primary. The period filter does not apply. Contains teacher and coach names — internal use only.',
+      kpis + `<details class="dq-d"><summary>Why each one matters, and how to fix it</summary>${why}</details>`);
+
+    // by sector (All ICT) or by school (a sector)
+    const grp = (list) => {
+      const ids = new Set(list.map(([i]) => i));
+      const ts = teachers.filter(([, t]) => ids.has(t[0]));
+      const f = (x) => ts.filter(([, t]) => t[2].includes(x)).length;
+      const n = (k) => list.filter(([, sc]) => dqSchoolIssues(sc).includes(k)).length;
+      return { schools: list.length, teachers: list.reduce((a, [, sc]) => a + sc[3], 0), L: f('L'), D: f('D'), N: f('N'), nocoach: n('nocoach'), empty: n('empty'), few: n('few') };
+    };
+    const z = (v) => (v ? `<b>${N(v)}</b>` : '<span class="dim">0</span>');
+    const gcols = (lab) => [
+      { k: 'name', label: lab, val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.emis ? ` <span class="dim">EMIS ${esc(r.emis)}</span>` : ''}` },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
+      { k: 'L', label: 'No level', num: true, val: (r) => r.g.L, fmt: (r) => z(r.g.L) },
+      { k: 'D', label: 'Possible duplicates', num: true, val: (r) => r.g.D, fmt: (r) => z(r.g.D) },
+      { k: 'N', label: 'Blank names', num: true, val: (r) => r.g.N, fmt: (r) => z(r.g.N) },
+      ...(lab === 'Sector' ? [{ k: 'schools', label: 'Schools', num: true, val: (r) => r.g.schools, fmt: (r) => N(r.g.schools) }] : [{ k: 'coach', label: 'Coach(es)', val: (r) => r.coaches, fmt: (r) => (r.coaches ? esc(r.coaches) : '<span class="zero">None</span>') }]),
+      { k: 'nocoach', label: lab === 'Sector' ? 'No coach' : 'Issues', num: lab === 'Sector', val: (r) => (lab === 'Sector' ? r.g.nocoach : r.issues.length), fmt: (r) => (lab === 'Sector' ? z(r.g.nocoach) : r.issues.map((k) => `<span class="dq-tag">${esc(DQ_SCHOOL.find((x) => x[0] === k)[1])}</span>`).join(' ') || '<span class="dim">—</span>') },
+      ...(lab === 'Sector' ? [{ k: 'empty', label: 'No teachers', num: true, val: (r) => r.g.empty, fmt: (r) => z(r.g.empty) }, { k: 'few', label: '1–2 teachers', num: true, val: (r) => r.g.few, fmt: (r) => z(r.g.few) }] : []),
+    ];
+    let byTable;
+    if (S.school !== '') byTable = '';
+    else if (!S.sector) {
+      const secs = [...new Set(schools.map(([, sc]) => sc[1]))].sort();
+      const rows = secs.map((x) => ({ key: x, name: x, g: grp(schools.filter(([, sc]) => sc[1] === x)) }));
+      byTable = card('c-dq-s', 'By sector', 'Click a sector to see its schools with something to fix.', table('dqs', gcols('Sector'), rows, { level: 'sector', noLegend: true, onRow: (k) => { S.sector = k; S.school = ''; render(); }, rowKey: (r) => r.key, foot: { name: 'Total', g: grp(schools) } }));
+    } else {
+      const rows = schools.map(([i, sc]) => ({ key: i, name: sc[2], emis: sc[0], coaches: sc[4], issues: dqSchoolIssues(sc), g: grp([[i, sc]]) }))
+        .filter((r) => r.issues.length || r.g.L || r.g.D || r.g.N);
+      const pIdx = (emis) => S.data.schools.findIndex((x) => String(x.emis) === String(emis));
+      byTable = card('c-dq-s', `Schools in ${S.sector} with something to fix`, `${N(rows.length)} of ${N(schools.length)} programme schools. Click a school to open its card (schools with primary teachers).`,
+        rows.length ? table('dqs', gcols('School'), rows, { level: 'school', noLegend: true, onRow: (k) => { const j = pIdx(D.schools[+k][0]); if (j >= 0) modalOpen({ kind: 'school', key: j }); }, rowKey: (r) => r.key }) : '<p class="note">Nothing to fix in this sector.</p>');
+    }
+
+    // teacher accounts to fix, filtered by issue
+    const pickF = (S.dqFlags = S.dqFlags || []);
+    const tl = teachers.filter(([, t]) => !pickF.length || pickF.some((f) => t[2].includes(f)));
+    const ftext = !pickF.length || pickF.length === DQ_FLAGS.length ? 'All issues' : DQ_FLAGS.filter(([k]) => pickF.includes(k)).map(([, l]) => l).join(', ');
+    const trows = tl.map(([i, t]) => ({ key: i, name: t[1], sc: D.schools[t[0]], f: t[2] }));
+    const tcard = card('c-dq-t', `Teacher accounts to fix · ${N(trows.length)}`, 'One row per account. “Same name twice” lists every account with that name, so a pair shows as two rows.',
+      table('dqt', [
+        { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => (r.name ? esc(r.name) : '<span class="zero">(no name)</span>') },
+        { k: 'school', label: 'School', val: (r) => r.sc[2], fmt: (r) => `${esc(r.sc[2])} <span class="dim">EMIS ${esc(r.sc[0])}</span>` },
+        { k: 'sector', label: 'Sector', val: (r) => r.sc[1] },
+        { k: 'issue', label: 'Issue', val: (r) => r.f, fmt: (r) => DQ_FLAGS.filter(([k]) => r.f.includes(k)).map(([, l]) => `<span class="dq-tag">${esc(l)}</span>`).join(' ') },
+        { k: 'fix', label: 'How to fix', val: (r) => r.f, fmt: (r) => esc(DQ_FLAGS.filter(([k]) => r.f.includes(k)).map(([, , , f]) => f).join(' ')) },
+      ], trows, { noLegend: true, sort: { k: 'school', dir: 1 } }),
+      `<div class="row">${msel('dqflags', 'dqFlags', ftext, DQ_FLAGS.map(([k, l]) => [k, l, has(k)]))}</div>`);
+
+    // impossible scores
+    const ocard = card('c-dq-o', `Impossible scores · ${N(scores.length)}`, 'Observation sections whose score is below zero or above the section’s maximum, since 1 Aug. They come from the scoring itself, not from teachers; they are kept in the figures, so a section can read over 100%. Report them to the data team.',
+      scores.length ? table('dqo', [
+        { k: 'name', label: 'Teacher', val: (r) => r.t.name, fmt: (r) => esc(r.t.name) },
+        { k: 'school', label: 'School', val: (r) => r.sc.name, fmt: (r) => `${esc(r.sc.name)} <span class="dim">${esc(r.sc.sector)}</span>` },
+        { k: 'day', label: 'Date', val: (r) => r.day, fmt: (r) => niceY(r.day) },
+        { k: 'src', label: 'Type', val: (r) => r.src, fmt: (r) => (r.src === 'D' ? 'DC' : 'HITL') },
+        { k: 'sec', label: 'Section', val: (r) => r.label },
+        { k: 'v', label: 'Score', num: true, val: (r) => r.v, fmt: (r) => `<span class="zero">${N(r.v)}</span> <span class="dim">of ${N(r.max)}</span>` },
+      ], scores, { noLegend: true, onRow: (k) => modalOpen({ kind: 'teacher', key: scores[+k].ti }), rowKey: (r) => r.key }) : '<p class="note">None: every observation score is within its section’s range.</p>');
+
+    const ccard = !allIct ? '' : card('c-dq-c', `Coach accounts with no school · ${N(D.coaches.length)}`, 'Accounts with the coach role but no school assigned. Such an account is not counted as a coach anywhere (a coach is a coach account with at least one school). It may be a new coach waiting for schools, someone who left, or a test account: an open question, not always an error.',
+      D.coaches.length ? `<ul class="dq-list">${D.coaches.map((n) => `<li>${n ? esc(n) : '<span class="zero">(no name)</span>'}</li>`).join('')}</ul>` : '<p class="note">None.</p>');
+    return head + byTable + tcard + ocard + ccard;
+  }
+
   // ---------- how we count (glossary) ----------
   // G = governed by the Taleemabad data rules; P = provisional (owner-defined or ungoverned, may change).
   const GLOSSARY = [
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
       ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
+      ['Data quality checks', 'G', 'The Data quality tab, as of the last refresh, over every programme school and every teacher level: teachers with no level recorded, a blank name, or the same name as another account at their school (a possible duplicate); schools with no coach assigned (a coach account with the school in its assigned schools), no teacher accounts, or only 1–2; coach accounts with no school; and observation section scores outside 0 to the maximum.', 'users, schools, school_programme, leader_schools · teacher-headcount §1e, teacher-levels §1b, coaches-rules §3'],
       ['Sector', 'G', 'The school’s region in the Rumi data: B.K, Nilore, Sihala, Tarnol, Urban-I, Urban-II.', 'schools.region'],
       ['Merged accounts', 'G', 'When a teacher’s phone number was moved to a new account, activity on the old account is credited to the new one.', 'leader_roster_audit'],
       ['Period', '', 'Days are Pakistan days. Data starts on 1 Aug 2026. Weekly views run Monday to Sunday.', ''],
@@ -2571,12 +2695,12 @@
     S.prevLabel = S.prevR ? (len === 1 ? `the day before (${nice(pf)})` : `the previous ${len} days (${nice(pf)} – ${nice(S.from - 1)})`) : '';
     S.curAll = R.all;
     const missing = Object.entries(S.P.parts).filter(([, ok]) => !ok).map(([k]) => k);
-    const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training', mh_training: 'middle & high training', headcount: 'ICT teacher count' };
+    const NAMES = { exam_detail: 'exam analytics', lp: 'lesson plans', obs: 'observations', exams: 'exam generator', quiz_scores: 'quiz scores', quiz: 'quizzes', quiz_sectors: 'children per sector', training: 'training', mh_training: 'middle & high training', headcount: 'ICT teacher count', data_quality: 'data quality checks' };
     const what = missing.map((k) => NAMES[k] || k).join(', ');
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
