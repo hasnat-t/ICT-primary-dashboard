@@ -80,7 +80,11 @@ async function executeQuery(sql, question) {
     try {
       return await executeQueryOnce(sql, question);
     } catch (e) {
-      if (!/RATE_LIMITED/.test(String(e.message || e)) || attempt >= 6) throw e;
+      const msg = String(e.message || e);
+      // A dropped connection (undici 'terminated', reset, 'fetch failed') is retried twice: the queries only read.
+      const net = /^(terminated|fetch failed|other side closed)$|ECONNRESET|ETIMEDOUT|EPIPE|UND_ERR_SOCKET|socket hang up/i.test(msg) || /terminated|fetch failed/i.test(String((e.cause && e.cause.message) || ''));
+      if (net && attempt < 3) { log(`connection dropped (${msg.slice(0, 80)}), retry ${attempt}`); await sleep(10000 * attempt); continue; }
+      if (!/RATE_LIMITED/.test(msg) || attempt >= 6) throw e;
       log(`rate limited, waiting before retry ${attempt}`);
       await sleep(15000 * attempt);
     }
