@@ -567,6 +567,94 @@
     return out;
   }
 
+  // Targets (owner request 2026-11-09): one weekly figure per measure (Monday-Sunday weeks, Pakistan dates) for All
+  // ICT, a sector or a school, and a straight-line forecast to the target date. Denominator = primary teachers on the
+  // current roster in that scope. Keys must match METRICS in targets.js.
+  const TARGET_METRICS = {
+    lp: { label: 'LP engagement', unit: 'of teachers used a grade 1–5 lesson plan in the week', short: 'teachers using a lesson plan each week' },
+    dc: { label: 'DC coverage', unit: 'of teachers recorded a Digital Coach lesson in the week', short: 'teachers recording a DC lesson each week' },
+    hitl: { label: 'HITL reach', unit: 'of teachers observed by a coach at least once since 1 Aug', short: 'teachers observed by a coach since 1 Aug', cumulative: true },
+    dcfico: { label: 'DC classroom practice', unit: 'average DC score (teaching practices + student engagement) in the week', short: 'average Digital Coach classroom-practice score', score: true },
+    ex: { label: 'Exam generator use', unit: 'of teachers who got an exam paper in the week', short: 'teachers getting an exam paper each week' },
+  };
+  function targetSeries(P, metric, opts) {
+    const { data } = P;
+    const start = data.window_start, today = data.today;
+    const first = mondayOf(start, 0);
+    const nW = Math.floor((today - first) / 7) + 1;
+    const weeks = Array.from({ length: nW }, (_, i) => ({ mon: first + 7 * i, end: first + 7 * i + 6, hit: new Set(), s: 0, m: 0 }));
+    const wi = (d) => Math.floor((d - first) / 7);
+    let teachers = 0;
+    const firstObs = [];
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      const T = data.teachers[ti];
+      if (opts.sector && data.schools[T.s].sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      teachers++;
+      if (metric === 'lp') { for (const r of P.lp[ti]) if (r[2] && r[1] >= 0 && r[1] <= today) weeks[wi(r[1])].hit.add(ti); }
+      else if (metric === 'ex') { for (const r of P.ex[ti]) if (r[3] && r[1] >= 0 && r[1] <= today) weeks[wi(r[1])].hit.add(ti); }
+      else if (metric === 'dc') { for (const r of P.obs[ti]) if (r[2] === 'D' && r[1] >= 0 && r[1] <= today) weeks[wi(r[1])].hit.add(ti); }
+      else if (metric === 'dcfico') {
+        for (const r of P.obs[ti]) {
+          if (r[2] !== 'D' || r[1] < 0 || r[1] > today) continue;
+          const [, , hS, hM, sS, sM] = r.slice(4);
+          if (hS === null || sS === null || hS === undefined || sS === undefined || !MAX_OK.hlp.includes(hM) || !MAX_OK.se.includes(sM)) continue;
+          const w = weeks[wi(r[1])]; w.s += hS + sS; w.m += hM + sM;
+        }
+      } else if (metric === 'hitl') {
+        let f = Infinity;
+        for (const r of P.obs[ti]) if (r[2] === 'H' && r[1] >= 0 && r[1] < f) f = r[1];
+        if (f <= today) firstObs.push(f);
+      }
+    }
+    let cum = 0;
+    const fo = firstObs.sort((a, b) => a - b);
+    let k = 0;
+    return { teachers, weeks: weeks.map((w) => {
+      let p;
+      if (metric === 'dcfico') p = w.m ? (100 * w.s) / w.m : null;
+      else if (metric === 'hitl') { const lim = Math.min(w.end, today); while (k < fo.length && fo[k] <= lim) { cum++; k++; } p = teachers ? (100 * cum) / teachers : null; }
+      else p = teachers ? (100 * w.hit.size) / teachers : null;
+      return { mon: w.mon, end: w.end, p, partial: w.end > today, n: metric === 'dcfico' ? w.m : w.hit.size };
+    }) };
+  }
+  // Progress and a forecast: a least-squares line through the last `fitN` complete weeks (weeks with a value),
+  // carried on to the week of the deadline. Status: achieved (latest value at or above the goal), on track (forecast
+  // reaches it), close (forecast within 5 points), off track; after the deadline, met or missed on the deadline week.
+  function targetForecast(weeks, target, deadline, today, opts = {}) {
+    const fitN = opts.fitN || 6, cumulative = !!opts.cumulative;
+    const done = weeks.filter((w) => !w.partial && w.p !== null);
+    const lastAny = weeks.filter((w) => w.p !== null);
+    const current = cumulative && lastAny.length ? lastAny[lastAny.length - 1].p : done.length ? done[done.length - 1].p : null;
+    const fit = done.slice(-fitN);
+    let slope = null, icpt = null;
+    if (fit.length >= 3) {
+      const xs = fit.map((w) => w.mon / 7), ys = fit.map((w) => w.p);
+      const mx = xs.reduce((a, x) => a + x, 0) / xs.length, my = ys.reduce((a, y) => a + y, 0) / ys.length;
+      let sxy = 0, sxx = 0;
+      xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; });
+      slope = sxx ? sxy / sxx : 0; icpt = my - slope * mx;
+      if (cumulative && slope < 0) slope = 0;
+    }
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+    const dlMon = deadline - ((deadline - (weeks.length ? weeks[0].mon : 0)) % 7 + 7) % 7;   // Monday of the deadline week
+    const lastMon = fit.length ? fit[fit.length - 1].mon : null;
+    const weeksLeft = Math.max(0, (deadline - today) / 7);
+    const projected = slope === null ? null : clamp(icpt + (slope * dlMon) / 7);
+    const line = slope === null ? [] : [[lastMon, clamp(icpt + (slope * lastMon) / 7)], [dlMon, projected]];
+    let status;
+    if (deadline < today) {
+      const at = weeks.filter((w) => w.p !== null && w.mon <= deadline).slice(-1)[0];
+      status = at && at.p >= target ? 'met' : 'missed';
+    } else if (current !== null && current >= target) status = 'achieved';
+    else if (projected === null) status = 'nodata';
+    else if (projected >= target) status = 'ontrack';
+    else if (projected >= target - 5) status = 'close';
+    else status = 'off';
+    const need = current !== null && weeksLeft > 0 ? (target - current) / weeksLeft : null;
+    return { current, slope, projected, weeksLeft, need, status, line, dlMon };
+  }
+
   // HITL analytics: observations per teacher, coaches, how coaches treated the AI's pre-filled form, weekday.
   function hitlStats(P, opts) {
     const { data } = P;
@@ -792,5 +880,5 @@
       weeks: { D: grid(wk.D).sort((a, b) => a.key - b.key), H: grid(wk.H).sort((a, b) => a.key - b.key) }, weekStart: (w) => FI_W0 + 7 * w, firstDay: FI_W0 + 1 };
   }
 
-  return { IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  return { TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

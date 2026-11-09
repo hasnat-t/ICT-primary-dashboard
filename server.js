@@ -12,6 +12,7 @@ const { buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, b
 const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 const FB = require('./feedback');
 const EV = require('./events');
+const TG = require('./targets');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -32,6 +33,8 @@ const CACHE_FILE = path.join(DATA_DIR, 'data.json');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';   // opens the feedback review page; set on Railway, never in code
 let feedbackStore = null;
 let eventStore = null;
+let targetStore = null;
+const targetLimit = FB.createLimiter();
 const eventLimit = FB.createLimiter();
 const feedbackLimit = FB.createLimiter();
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -365,8 +368,36 @@ async function handleEvents(req, res, url) {
   return json(405, { error: 'method not allowed' });
 }
 
+// Targets: same rules as the school calendar (anyone with the link; soft delete; rate-limited).
+async function handleTargets(req, res, url) {
+  const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
+  if (!targetStore) return json(503, { error: 'Targets are starting up, try again in a moment.' });
+  if (req.method === 'GET' && url.pathname === '/api/targets') return json(200, { items: await targetStore.list() });
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  if (!targetLimit(ip)) return json(429, { error: 'Too many changes in an hour; please try again later.' });
+  if (req.method === 'POST' && url.pathname === '/api/targets') {
+    const known = state.data ? { emis: new Set(state.data.schools.map((s) => String(s.emis))), sectors: new Set(state.data.schools.map((s) => s.sector)) } : null;
+    const v = TG.validate(await readJson(req), known, pktStamp().slice(0, 10));
+    if (v.error) return json(400, { error: v.error });
+    const item = await targetStore.add(v.row);
+    log(`target #${item.id} (${item.metric} ${item.target}% ${item.scope} by ${item.deadline}) by ${item.owner}`);
+    return json(200, { ok: true, item });
+  }
+  const m = url.pathname.match(/^\/api\/targets\/(\d{1,9})\/delete$/);
+  if (req.method === 'POST' && m) {
+    if (!(await targetStore.remove(+m[1]))) return json(404, { error: 'not found' });
+    log(`target #${m[1]} removed`);
+    return json(200, { ok: true });
+  }
+  return json(405, { error: 'method not allowed' });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/targets' || url.pathname.startsWith('/api/targets/')) {
+    handleTargets(req, res, url).catch((e) => { log(`targets error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
+    return;
+  }
   if (url.pathname === '/api/events' || url.pathname.startsWith('/api/events/')) {
     handleEvents(req, res, url).catch((e) => { log(`calendar error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
     return;
@@ -453,6 +484,7 @@ try {
   }
   feedbackStore = FB.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'feedback.json') });
   eventStore = EV.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'events.json') });
+  targetStore = TG.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'targets.json') });
   server.listen(PORT, () => {
     log(`listening on ${PORT}`);
     refresh('startup');

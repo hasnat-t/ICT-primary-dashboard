@@ -141,6 +141,11 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
+    targets: ['Targets', 'Goals the team has set — like 80% LP engagement by 31 December — with a progress bar and a forecast of whether each will be hit on time. Anyone can set one with “+ Set a target”.', [
+      ['#c-tg', 'The targets', 'How many goals are achieved, on track, close or off track. “+ Set a target” picks a measure, who it is for (All ICT, a sector or a school), the goal and the date; it shows where that measure is now before you save.'],
+      ['.tg-grid', 'Each target', 'The bar fills to where the measure is now; the black mark is the goal and the striped part is where the trend is heading. The small chart shows the weekly figures and the dashed forecast line to the date. It also says how many points a week are needed.'],
+      ['#c-tg-n', 'Where each measure is now', 'The latest full week, the best week and the trend for every measure — a good guide to a goal that stretches but is reachable.'],
+    ]],
     impact: ['Does coaching work?', 'Do teachers teach better after a coach visits? Each visit is compared with the teacher’s own Digital Coach lessons before and after it — scored by the AI, not the coach — and with similar teachers who were not visited at the same time. This is the answer funders always ask for.', [
       ['#c-im', 'The answer', 'Before and after a visit, the change, and how much teachers who were not visited changed over the same days. The big number is the coaching effect: the extra change that follows a visit. Green “Clear gain” means it is very unlikely to be chance. Pick 1, 2 or 3 weeks, and which FICO score to look at.'],
       ['#c-im-w', 'Week by week', 'The average Digital Coach score in the weeks before and after a teacher’s first coach visit. The shaded part is after the visit.'],
@@ -381,6 +386,7 @@
   // ---------- find, go, who to visit next, who deserves a thank-you ----------
   // These ask the dashboard through window.Dash (its bridge in app.js) and only use data already on the page.
   const GO_TABS = [   // first match wins, so the specific phrases come before the general ones
+    ['targets', ['targets', 'target', 'goals', 'goal', 'forecast', 'on track']],
     ['impact', ['does coaching work', 'coaching work', 'coaching effect', 'coaching impact', 'impact of coaching', 'before and after', 'funder', 'does it work']],
     ['mhtraining', ['middle and high training', 'middle & high training', 'middle high training', 'middle training', 'high training', 'mh training', 'middle and high', 'middle high']],
     ['training', ['primary training', 'niete training', 'training', 'certificates']],
