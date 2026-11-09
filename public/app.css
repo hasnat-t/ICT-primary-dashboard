@@ -827,3 +827,5 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .tg-f { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
 .tg-rm { border: 1px solid var(--line); background: transparent; color: var(--fg-2); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .tg-rm:hover { color: #C2412D; border-color: #C2412D; }
+.tg-wk { margin: -4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--fg-2); background: var(--panel-2); border-radius: 8px; padding: 6px 10px; }
+.tg-warn { display: block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, #C4741C 14%, var(--panel)); color: var(--fg); }

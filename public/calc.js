@@ -683,7 +683,8 @@
     else if (projected >= target) status = 'ontrack';
     else if (projected >= target - 5) status = 'close';
     else status = 'off';
-    const need = current !== null && weeksLeft > 0 ? (target - current) / weeksLeft : null;
+    // points a week still needed: only with at least a week to go (less than that, 'a week' means nothing)
+    const need = current !== null && weeksLeft >= 1 ? (target - current) / weeksLeft : null;
     return { current, slope, rate, projected, weeksLeft, need, status, line, dlMon, fitWeeks: cumulative ? Math.min(3, since.length) : fit.length, last: lastAny.length ? lastAny[lastAny.length - 1].p : null };
   }
 

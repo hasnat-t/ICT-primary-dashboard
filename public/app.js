@@ -1950,19 +1950,23 @@
     const trend = F.status === 'upcoming' ? `Starts on ${niceIso(t.start)}.`
       : past ? `Ended on ${niceIso(t.deadline)} at <b>${P1(F.current)}</b> against a goal of ${t.target}%.`
       : F.rate !== null && F.rate !== undefined ? `Lately <b>${Math.round(100 * F.rate)}% of the teachers not yet reached</b> come in each week`
-      : F.slope === null ? (E.mode === 'period' ? 'A forecast appears after 2 full weeks of the period.' : 'Not enough full weeks yet for a trend.')
+      : F.slope === null ? (E.mode === 'period' ? (E.dl - E.from < 14 ? 'Too short for a forecast — watch “So far” rise each day.' : 'A forecast appears after 2 full weeks of the period.') : 'Not enough full weeks yet for a trend.')
       : `Trend: <b>${F.slope >= 0 ? '+' : '−'}${Math.abs(F.slope).toFixed(1)} points a week</b> over the last ${F.fitWeeks} weeks`;
     const trendEnd = past || F.status === 'upcoming' || (F.slope === null && (F.rate === null || F.rate === undefined)) ? ' ' : F.projected !== null && !past && F.status !== 'achieved' ? ' ' : '. ';
     const fc = past ? ''
       : F.status === 'upcoming' ? ''
       : F.status === 'achieved' ? (E.mode === 'period' && !E.M.score ? `Goal reached — and it can only go up until ${niceIso(t.deadline)}.` : `Goal reached — keep it there until ${niceIso(t.deadline)}.`)
       : F.projected === null ? '' : `→ about <b>${P1(F.projected)}</b> by ${niceIso(t.deadline)}.${F.need !== null && F.need > 0 ? ` To reach ${t.target}% it needs <b>+${F.need.toFixed(1)} points a week</b>.` : ''}`;
+    // each-week targets are judged on the Monday-Sunday week holding the end date; when that is this week, say so
+    const dWeek = E.ser.weeks.find((w) => w.mon <= E.dl && E.dl <= w.end);
+    const decide = E.mode === 'week' && !past && F.status !== 'upcoming' && dWeek && dWeek.mon <= S.data.today
+      ? `<p class="tg-wk">Judged on the week of <b>${nice(Math.max(dWeek.mon, 0))} – ${niceY(dWeek.end)}</b> (Monday–Sunday), which holds the end date. This week so far: <b>${P1(dWeek.p)}</b>${dWeek.partial ? ' — it grows as the week goes on' : ''}.</p>` : '';
     return `<article class="tg-c ${F.status}">
       <div class="tg-h"><div class="tg-tt"><b class="tg-goalv">${t.target}%</b><div><b>${esc(M.label)}</b> · ${who}<div class="dim tg-u">${esc(M[E.mode])} · <b>${esc(niceIso(t.start || String(t.created_at).slice(0, 10)))} – ${esc(niceIso(t.deadline))}</b></div></div></div>
         <span class="tg-st ${F.status}" title="${esc(st[1])}">${esc(st[0])}</span></div>
       <div class="tg-nums"><span><small>${past ? 'Final' : F.status === 'upcoming' ? 'Each week now' : E.mode === 'period' ? 'So far' : 'Now'}</small><b>${P1(cur)}</b></span>${E.start !== null ? `<span><small>At start</small><b>${P1(E.start)}</b></span>` : ''}<span><small>Goal</small><b>${t.target}%</b></span><span><small>${past ? 'Ended' : F.status === 'upcoming' ? 'Starts' : 'Time left'}</small><b>${past ? niceIso(t.deadline) : F.status === 'upcoming' ? niceIso(t.start) : `${wl} week${wl === 1 ? '' : 's'}`}</b></span></div>
       ${bar}
-      <p class="tg-say">${trend}${trendEnd}${fc}</p>
+      <p class="tg-say">${trend}${trendEnd}${fc}</p>${decide}
       ${tgSpark(E)}
       <div class="tg-f"><span class="dim">Set by ${esc(t.owner)}${t.created_at ? ` on ${niceIso(String(t.created_at).slice(0, 10))}` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</span>${rm}</div>
     </article>`;
@@ -2051,11 +2055,13 @@
       const dl = Calc.dateToDay(S.data.window_start, $('#tg-date').value || dflt);
       const { F } = tgRun(k, opts, mode, from, +$('#tg-target').value || 0, dl);
       const what = `<span class="dim">${esc(M[mode])}.</span> `;
+      const short = mode === 'week' && dl - from < 14
+        ? `<span class="tg-warn">Each-week targets are judged on whole Monday–Sunday weeks, so dates inside the same week give the same result. For a few days, choose <b>Over the whole period</b>.</span>` : '';
       if (F.status === 'upcoming') {
         const { F: W } = tgRun(k, opts, 'week', 0, 0, S.data.today + 1);
-        $('#tg-now').innerHTML = `${what}Starts in the future. Each week’s figure now: <b>${P1(W.current)}</b>.`; return;
+        $('#tg-now').innerHTML = `${what}Starts in the future. Each week’s figure now: <b>${P1(W.current)}</b>.${short}`; return;
       }
-      $('#tg-now').innerHTML = F.current === null ? `${what}No figures yet for this choice.` : `${what}${mode === 'period' ? 'So far' : 'Latest full week'}: <b>${P1(F.current)}</b>${F.projected !== null ? ` · at the trend about <b>${P1(F.projected)}</b> by the end date` : ''} · <span class="tg-st ${F.status}">${esc(TG_STATUS[F.status][0])}</span>`;
+      $('#tg-now').innerHTML = F.current === null ? `${what}No figures yet for this choice.` : `${what}${mode === 'period' ? 'So far' : 'Latest full week'}: <b>${P1(F.current)}</b>${F.projected !== null ? ` · at the trend about <b>${P1(F.projected)}</b> by the end date` : ''} · <span class="tg-st ${F.status}">${esc(TG_STATUS[F.status][0])}</span>${short}`;
     };
     dlg.querySelectorAll('input[name=tgscope]').forEach((r) => (r.onchange = () => { const v = scopeVal(); $('#tg-sec').hidden = v !== 'sector'; $('#tg-sch').hidden = v !== 'school'; hint(); }));
     ['#tg-metric', '#tg-sector', '#tg-school', '#tg-target', '#tg-date', '#tg-start'].forEach((id) => { $(id).oninput = hint; $(id).onchange = hint; });
