@@ -1926,7 +1926,11 @@
       ? `In the <b>${wt}</b> after a coach visit, teachers’ own Digital Coach lessons scored <b>${pts(A.gain)} points</b> on ${esc(st.toLowerCase())} (${P1(A.before)} → ${P1(A.after)}). Similar teachers in the same sector who were not visited at the same time changed by <b>${pts(A.ctrl)}</b>. So a visit is followed by about <b>${pts(A.net, 2)} points</b> more than no visit — and this is very unlikely to be chance.`
       : vk === 'dn' ? `After a coach visit, ${esc(st.toLowerCase())} fell by ${pts(-A.net, 2)} points more than for similar teachers who were not visited.`
       : vk === 'flat' ? `After a coach visit, ${esc(st.toLowerCase())} changed by ${pts(A.gain)} points, and similar teachers who were not visited changed by ${pts(A.ctrl)}. The difference (${pts(A.net, 2)}) is within chance, so there is no clear effect on this score yet.`
-      : 'Not enough visits with recordings before and after to tell yet. Try a longer period or All ICT.') : 'No coach visits in this selection have Digital Coach recordings both before and after. Try a longer period or All ICT.';
+      : 'Not enough visits with recordings before and after to tell yet. Try a longer period or All ICT.')
+      : I.visitsIn && I.tooRecent === I.visitsIn ? `All ${N(I.visitsIn)} coach visits in this period are from the last ${w} days, so their ${esc(wt)} “after” has not happened yet. Pick a longer period.`
+      : !I.visitsIn ? 'No coach visits in this period. Pick a longer period.'
+      : 'No coach visits in this selection have Digital Coach recordings both before and after. Try a longer period or All ICT.';
+    const widen = !A.nNet && S.preset !== 'all' ? ` <button type="button" class="im-wide" data-preset-all="1">Show since 1 Aug</button>` : '';
     const hero = `<div class="im-hero ${vk}">
       <div class="im-ba">
         <div class="im-b"><span>Before visit</span><b>${P1(A.before)}</b><small>${esc(wt)} before</small></div>
@@ -1937,7 +1941,7 @@
       </div>
       <div class="im-res"><span class="im-badge ${vk}">${esc(vl)}</span><div class="im-net">${pts(A.net, 2)}<small> points</small></div><div class="im-rng">coaching effect${lo === null ? '' : ` · 95% range ${pts(lo, 2)} to ${pts(hi, 2)}`}</div></div>
     </div>
-    <p class="im-say">${say}</p>
+    <p class="im-say">${say}${widen}</p>
     <div class="im-cnt"><span><b>${N(A.nNet)}</b> visits compared</span><span><b>${N(A.teachers)}</b> teachers</span><span><b>${N(I.visitsIn)}</b> coach visits in this period</span><span title="Visits in the last ${w} days have no ‘after’ yet"><b>${N(I.tooRecent)}</b> too recent</span><span title="The teacher made no Digital Coach recording on one side of the visit (or the visit was in the first ${w} days)"><b>${N(I.noDc)}</b> without recordings both sides</span></div>`;
     const head = card('c-im', `Does coaching work? · ${scopeName()}`,
       `Each coach (HITL) visit compared with the teacher’s <b>own Digital Coach lessons</b> — scored by the AI, not by the coach — in the ${esc(wt)} before and after the visit, against similar teachers who had no visit at that time. ${esc(I.label)}. Provisional: owner-defined method, see “How this is worked out” below. The period picks the visits; the sector and school filters apply.`,
@@ -2825,6 +2829,13 @@
       S.cardsOpen = true;
       if (S.preset === 'today' || S.preset === 'yesterday') { const p = presets().find((x) => x[0] === '30'); S.preset = '30'; S.from = Math.max(p[2], 0); S.to = p[3]; }
     }
+    // Does coaching work? needs visits whose 'after' weeks have passed: opening it on a period that ends inside the
+    // last 3 weeks and starts after them (Today ... This month) switches to Since 1 Aug.
+    if (S.tab !== 'impact') S.impactOpen = false;
+    else if (!S.impactOpen) {
+      S.impactOpen = true;
+      if (S.from > S.data.today - 21) { const p = presets().find((x) => x[0] === 'all'); S.preset = 'all'; S.from = Math.max(p[2], 0); S.to = p[3]; }
+    }
     writeHash();
     $('#cbar').innerHTML = champBar();
     // after × on the bar, a button in the top-right corner of every tab brings it back
@@ -2955,6 +2966,7 @@
     if (b.dataset.preset) { if (b.dataset.preset === 'custom') { S.preset = 'custom'; render(); } else setPreset(b.dataset.preset); }
     else if (b.dataset.tab) { S.tab = b.dataset.tab; S.search = ''; render(); window.scrollTo(0, 0); }
     else if (b.dataset.gran) { S.gran = b.dataset.gran; render(); }
+    else if (b.dataset.presetAll) { const p = presets().find((x) => x[0] === 'all'); S.preset = 'all'; S.from = Math.max(p[2], 0); S.to = p[3]; render(); }
     else if (b.dataset.imw) { S.imW = +b.dataset.imw; render(); }
     else if (b.dataset.imsec) { S.imSec = b.dataset.imsec; render(); }
     else if (b.dataset.dl) download(b.dataset.dl);

@@ -758,6 +758,7 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
 .im-net small { font-size: 15px; color: var(--on-navy-2); font-weight: 600; }
 .im-rng { font-size: 12.5px; color: var(--on-navy-2); }
 .im-say { font-size: 15px; line-height: 1.55; margin: 14px 0 8px; max-width: 75ch; }
+.im-wide { margin-left: 8px; min-height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-weight: 700; font-size: 13px; background: var(--c1); color: #FFF; }
 .im-cnt { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--fg-2); }
 .im-cnt b { color: var(--fg); }
 .im-h { margin: 16px 0 6px; font-size: 13px; font-weight: 700; }
