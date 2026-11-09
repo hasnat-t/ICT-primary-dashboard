@@ -141,6 +141,15 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
+    impact: ['Does coaching work?', 'Do teachers teach better after a coach visits? Each visit is compared with the teacher’s own Digital Coach lessons before and after it — scored by the AI, not the coach — and with similar teachers who were not visited at the same time. This is the answer funders always ask for.', [
+      ['#c-im', 'The answer', 'Before and after a visit, the change, and how much teachers who were not visited changed over the same days. The big number is the coaching effect: the extra change that follows a visit. Green “Clear gain” means it is very unlikely to be chance. Pick 1, 2 or 3 weeks, and which FICO score to look at.'],
+      ['#c-im-w', 'Week by week', 'The average Digital Coach score in the weeks before and after a teacher’s first coach visit. The shaded part is after the visit.'],
+      ['#c-im-m', 'Which part moves', 'The same comparison for each FICO score. Click a row to show that score across the page.'],
+      ['#c-im-g', 'Where it works best', 'First visit or later ones, where the teacher started, and whether the debrief was done. A bar right of the centre line is a gain; if the thin band crosses the line, it is not clear for that group.'],
+      ['#c-im-s', 'By sector', 'The coaching effect in each sector. Click a sector to see its schools.'],
+      ['#c-im-c', 'By coach', 'Each coach’s visits and the change that followed. Few visits means a wide range, so use it to find good practice to share, not to judge a coach.'],
+      ['#c-im-h', 'How it is worked out', 'Every step of the method and its limits, in plain words.'],
+    ]],
     dq: ['Data quality', 'Gaps in the data that make every figure less accurate, and how to fix each one at the source: teachers with no level, possible duplicate accounts, blank names, schools with no coach or no teachers, and impossible scores. Fix the data and the dashboard gets more honest at the next refresh.', [
       ['#c-dq', 'The checks', 'The ring is the share of teacher accounts with no problem. Beside it, every check in three groups: red with a count means something to fix, green means clean. Hover a row for the fix; click it to jump to the list. As of the last refresh, every teacher level; the period filter does not apply.'],
       ['#c-dq-s', 'By sector', 'Each sector’s count of every problem. Click a sector to see its schools with something to fix, with the coach assigned to each.'],
@@ -183,6 +192,7 @@
 
   // [question, answer, tab to open, element to point at]
   const FAQ = [
+    ['Does coaching actually work?', 'Yes, it shows. After a coach visit, a teacher’s <b>own Digital Coach lessons</b> score higher than before — more than similar teachers who were not visited at the same time. The <b>Does coaching work?</b> page has the numbers, by sector, coach and FICO score.', 'impact', '#c-im'],
     ['Why are some teachers missing from the figures?', 'Usually their account has <b>no level recorded</b>, so they are not counted as primary (or middle/high). The <b>Data quality</b> tab lists them school by school, with possible duplicate accounts and schools with no coach.', 'dq', '#c-dq'],
     ['How many teachers are in ICT?', 'The <b>ICT teachers</b> strip at the top of the Overview: every teacher at an ICT programme school, counted once, with how many teach Primary, Middle or High, or both. It follows the Sector filter and updates with every refresh.', 'overview', '.hc2'],
     ['What are the champions?', 'The trophy cards on the Overview: the sector that did best yesterday on each feature, as a share of its teachers. Streak = it also won the days before; “Best day since August” = its record. I throw confetti for them once a day.', 'overview', '.champs'],
@@ -371,6 +381,7 @@
   // ---------- find, go, who to visit next, who deserves a thank-you ----------
   // These ask the dashboard through window.Dash (its bridge in app.js) and only use data already on the page.
   const GO_TABS = [   // first match wins, so the specific phrases come before the general ones
+    ['impact', ['does coaching work', 'coaching work', 'coaching effect', 'coaching impact', 'impact of coaching', 'before and after', 'funder', 'does it work']],
     ['mhtraining', ['middle and high training', 'middle & high training', 'middle high training', 'middle training', 'high training', 'mh training', 'middle and high', 'middle high']],
     ['training', ['primary training', 'niete training', 'training', 'certificates']],
     ['observe2', ['observe2', '/observe2', 'pilot']],

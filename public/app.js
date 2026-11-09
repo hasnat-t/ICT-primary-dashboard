@@ -20,7 +20,7 @@
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar'], ['dq', 'Data quality']]],
-    ['Insights', [['report', 'Monthly report'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
+    ['Insights', [['report', 'Monthly report'], ['impact', 'Does coaching work?'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -248,6 +248,7 @@
     return { max: Math.ceil(v / step) * step, step };
   }
   function drawChart(el, c) {
+    if (c.kind === 'impact') return drawImpact(el, c);
     const W = Math.max(280, Math.round(el.clientWidth)), H = W < 500 ? 180 : 220;
     const B = 26, T = 8;
     const { items, series, kind, fmt } = c;
@@ -1867,6 +1868,147 @@
         ], rows, { noLegend: true })}</section>` };
   }
 
+  // ---------- does coaching work? ----------
+  // Calc.coachImpact: each HITL visit vs the teacher's own DC scores in the w days before and after, compared with
+  // teachers in the same sector and starting band who had no visit then. Provisional (owner request 2026-11-09).
+  const IM_W = [[7, '1 week'], [14, '2 weeks'], [21, '3 weeks']];
+  const IM_SEC = [['cp', 'Classroom practice'], ['hlp', 'Teaching practices'], ['se', 'Student engagement'], ['tsk3', 'Subject knowledge'], ['lpf', 'Lesson-plan fidelity']];
+  const pts = (v, d = 1) => (v === null || v === undefined || !isFinite(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}`);
+  const imVerdict = (g) => {
+    if (!g || g.nNet < 30 || g.ci === null) return ['few', 'Too few visits to tell'];
+    if (g.net - g.ci > 0) return ['up', 'Clear gain'];
+    if (g.net + g.ci < 0) return ['dn', 'Clear drop'];
+    return ['flat', 'Not clear yet'];
+  };
+  // net change with its 95% range as a bar around zero (axis -3 .. +3 points)
+  const imFx = (g) => {
+    if (!g || g.net === null) return '<span class="dim">no comparison</span>';
+    if (g.nNet < 10) return `<span class="dim" title="Fewer than 10 visits with a comparison group">few visits</span>`;
+    const X = (v) => Math.max(0, Math.min(100, 50 + (v * 50) / 3));
+    const lo = g.ci === null ? g.net : g.net - g.ci, hi = g.ci === null ? g.net : g.net + g.ci;
+    const v = imVerdict(g)[0];
+    return `<span class="im-fx ${v}" title="${esc(`Net change ${pts(g.net, 2)} points; 95% range ${pts(lo, 2)} to ${pts(hi, 2)} (${N(g.nNet)} visits)`)}"><span class="im-ax"><i class="im-0"></i><i class="im-ci" style="left:${X(lo).toFixed(1)}%;width:${Math.max(1, X(hi) - X(lo)).toFixed(1)}%"></i><i class="im-pt" style="left:${X(g.net).toFixed(1)}%"></i></span><b>${pts(g.net, 2)}</b></span>`;
+  };
+  function drawImpact(el, c) {
+    const W = Math.max(280, Math.round(el.clientWidth)), H = W < 500 ? 200 : 240, B = 30, T = 14, L = 44, R = 10;
+    const pts0 = c.weeks.filter((x) => x.p !== null && x.n >= 20);
+    if (pts0.length < 3) { el.innerHTML = '<p class="empty">Too few teachers to draw this yet.</p>'; return; }
+    const vs = pts0.map((x) => x.p), lo = Math.floor(Math.min(...vs) - 1), hi = Math.ceil(Math.max(...vs) + 1);
+    const ks = c.weeks.map((x) => x.k), k0 = ks[0], k1 = ks[ks.length - 1];
+    const x = (k) => L + ((W - L - R) * (k - k0 + 0.5)) / (k1 - k0 + 1), y = (v) => T + ((H - T - B) * (hi - v)) / (hi - lo);
+    const step = hi - lo > 8 ? 2 : 1;
+    let svg = `<rect x="${x(-0.5).toFixed(1)}" y="${T}" width="${(W - R - x(-0.5)).toFixed(1)}" height="${H - T - B}" class="im-after"/>`;
+    for (let v = lo; v <= hi; v += step) svg += `<line class="${v === lo ? 'gl0' : 'gl'}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`;
+    const every = W < 500 ? 2 : 1;
+    for (const k of ks) if ((k - k0) % every === 0 || k === 0) svg += `<text x="${x(k)}" y="${H - 10}" text-anchor="middle">${k < 0 ? `${k}` : k === 0 ? 'wk 1' : `+${k}`}</text>`;
+    svg += `<line class="im-v" x1="${x(-0.5)}" x2="${x(-0.5)}" y1="${T - 6}" y2="${H - B}"/><text class="im-vt" x="${x(-0.5) + 6}" y="${T + 6}">first coach visit</text>`;
+    const before = pts0.filter((p) => p.k < 0), after = pts0.filter((p) => p.k >= 0);
+    const avg = (a) => a.reduce((s2, p) => s2 + p.p, 0) / a.length;
+    if (before.length) svg += `<line class="im-m" x1="${x(before[0].k)}" x2="${x(-0.5)}" y1="${y(avg(before))}" y2="${y(avg(before))}" data-tip="Average before: ${P1(avg(before))}"/>`;
+    if (after.length) svg += `<line class="im-m a" x1="${x(-0.5)}" x2="${x(after[after.length - 1].k)}" y1="${y(avg(after))}" y2="${y(avg(after))}" data-tip="Average after: ${P1(avg(after))}"/>`;
+    let d = '';
+    pts0.forEach((p, i) => { d += `${i ? 'L' : 'M'}${x(p.k).toFixed(1)},${y(p.p).toFixed(1)}`; });
+    svg += `<path d="${d}" fill="none" class="im-line"/>`;
+    for (const p of pts0) svg += `<circle cx="${x(p.k).toFixed(1)}" cy="${y(p.p).toFixed(1)}" r="5" class="im-dot ${p.k < 0 ? 'b' : 'a'}" data-tip="${esc(`${p.k < 0 ? `${-p.k} week${p.k === -1 ? '' : 's'} before` : `Week ${p.k + 1} after`}: ${P1(p.p)} · ${N(p.n)} teachers`)}"/>`;
+    el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="DC score by week around the first coach visit">${svg}</svg>`;
+  }
+  function viewImpact() {
+    if (!S.data.obs) return card('c-im', 'Does coaching work?', '', '<p class="note">Observations could not be loaded in the last refresh. This page will appear after the next one.</p>');
+    const w = S.imW || 14, sec = S.imSec || 'cp';
+    const base = { from: S.from, to: S.to, sector: S.sector, school: S.school, w, sec };
+    const I = Calc.coachImpact(S.P, base), A = I.all;
+    const [vk, vl] = imVerdict(A);
+    const lo = A.ci === null ? null : A.net - A.ci, hi = A.ci === null ? null : A.net + A.ci;
+    const wt = IM_W.find((x) => x[0] === w)[1], st = IM_SEC.find((x) => x[0] === sec)[1];
+    const seg = (key, list, cur) => `<div class="seg" role="group">${list.map(([k, l]) => `<button type="button" data-${key}="${k}" aria-pressed="${k === cur}">${esc(l)}</button>`).join('')}</div>`;
+    const controls = `<div class="im-ctl"><label><span>Compare</span>${seg('imw', IM_W, w)}<span class="dim">before and after each visit</span></label><label><span>Score</span>${seg('imsec', IM_SEC, sec)}</label></div>`;
+    const say = A.nNet ? (vk === 'up'
+      ? `In the <b>${wt}</b> after a coach visit, teachers’ own Digital Coach lessons scored <b>${pts(A.gain)} points</b> on ${esc(st.toLowerCase())} (${P1(A.before)} → ${P1(A.after)}). Similar teachers in the same sector who were not visited at the same time changed by <b>${pts(A.ctrl)}</b>. So a visit is followed by about <b>${pts(A.net, 2)} points</b> more than no visit — and this is very unlikely to be chance.`
+      : vk === 'dn' ? `After a coach visit, ${esc(st.toLowerCase())} fell by ${pts(-A.net, 2)} points more than for similar teachers who were not visited.`
+      : vk === 'flat' ? `After a coach visit, ${esc(st.toLowerCase())} changed by ${pts(A.gain)} points, and similar teachers who were not visited changed by ${pts(A.ctrl)}. The difference (${pts(A.net, 2)}) is within chance, so there is no clear effect on this score yet.`
+      : 'Not enough visits with recordings before and after to tell yet. Try a longer period or All ICT.') : 'No coach visits in this selection have Digital Coach recordings both before and after. Try a longer period or All ICT.';
+    const hero = `<div class="im-hero ${vk}">
+      <div class="im-ba">
+        <div class="im-b"><span>Before visit</span><b>${P1(A.before)}</b><small>${esc(wt)} before</small></div>
+        <div class="im-arrow" aria-hidden="true">→</div>
+        <div class="im-b a"><span>After visit</span><b>${P1(A.after)}</b><small>${esc(wt)} after</small></div>
+        <div class="im-b g"><span>Change</span><b>${pts(A.gain)}</b><small>points</small></div>
+        <div class="im-b c"><span>Not visited</span><b>${pts(A.ctrl)}</b><small>same days, similar teachers</small></div>
+      </div>
+      <div class="im-res"><span class="im-badge ${vk}">${esc(vl)}</span><div class="im-net">${pts(A.net, 2)}<small> points</small></div><div class="im-rng">coaching effect${lo === null ? '' : ` · 95% range ${pts(lo, 2)} to ${pts(hi, 2)}`}</div></div>
+    </div>
+    <p class="im-say">${say}</p>
+    <div class="im-cnt"><span><b>${N(A.nNet)}</b> visits compared</span><span><b>${N(A.teachers)}</b> teachers</span><span><b>${N(I.visitsIn)}</b> coach visits in this period</span><span title="Visits in the last ${w} days have no ‘after’ yet"><b>${N(I.tooRecent)}</b> too recent</span><span title="The teacher made no Digital Coach recording on one side of the visit (or the visit was in the first ${w} days)"><b>${N(I.noDc)}</b> without recordings both sides</span></div>`;
+    const head = card('c-im', `Does coaching work? · ${scopeName()}`,
+      `Each coach (HITL) visit compared with the teacher’s <b>own Digital Coach lessons</b> — scored by the AI, not by the coach — in the ${esc(wt)} before and after the visit, against similar teachers who had no visit at that time. ${esc(I.label)}. Provisional: owner-defined method, see “How this is worked out” below. The period picks the visits; the sector and school filters apply.`,
+      hero, controls);
+
+    // weekly chart around the first visit
+    charts.push({ kind: 'impact', weeks: I.weeks, items: [], series: [] });
+    const wcard = card('c-im-w', 'Score week by week around a teacher’s first coach visit',
+      `Average Digital Coach score (${esc(st.toLowerCase())}) of teachers whose first coach visit since 1 Aug falls in this period, for the 4 weeks before and the 9 weeks after it (teachers with recordings both before and after; weeks with fewer than 20 teachers are left out). Dashed lines = average before and after. No comparison group here, so read it with the figures above.`,
+      `<div class="chart" data-chart="${charts.length - 1}"></div>`);
+
+    // where it works
+    const gcols = (lab) => [
+      { k: 'name', label: lab, val: (r) => r.ord, fmt: (r) => `${esc(r.name)}${r.sub ? ` <span class="dim">${esc(r.sub)}</span>` : ''}` },
+      { k: 'n', label: 'Visits compared', num: true, val: (r) => r.nNet, fmt: (r) => (r.nNet || !r.n ? N(r.nNet) : `0 <span class="dim" title="${N(r.n)} visits, but no similar teachers without a visit to compare with">of ${N(r.n)}</span>`) },
+      { k: 'b', label: 'Before → after', num: true, val: (r) => r.after, fmt: (r) => (r.nNet ? `${P1(r.before)} → ${P1(r.after)}` : '<span class="dim">—</span>') },
+      { k: 'g', label: 'Change', num: true, val: (r) => r.gain, fmt: (r) => pts(r.gain) },
+      { k: 'c', label: 'Not visited', num: true, val: (r) => r.ctrl, fmt: (r) => pts(r.ctrl) },
+      { k: 'net', label: 'Coaching effect (95% range)', num: true, val: (r) => r.net, fmt: (r) => imFx(r) },
+    ];
+    const NTH = { 1: ['1st visit', 'first since 1 Aug'], 2: ['2nd visit', ''], 3: ['3rd visit or later', ''] };
+    const ST = { low: ['Started below 60%', 'Needs support'], mid: ['Started 60–69.9%', 'Developing'], high: ['Started 70% or more', 'Proficient or better'] };
+    const DB = { C: ['Debrief done', 'coach talked it through with the teacher'], N: ['Debrief not done yet', ''] };
+    const rowsOf = (list, M, ord) => list.map((g) => Object.assign({}, g, { name: M[g.key][0], sub: M[g.key][1], ord: ord.indexOf(String(g.key)) })).sort((a, b) => a.ord - b.ord);
+    const gcard = card('c-im-g', 'Where coaching makes the most difference',
+      'The coaching effect for different kinds of visit. A bar right of the centre line is a gain; the thin band is the 95% range — when it crosses the line, the effect is not clear for that group. Groups with fewer than 10 visits are not shown as a bar.',
+      `<h3 class="im-h">By visit number</h3>${table('imn', gcols('Visit'), rowsOf(I.nth, NTH, ['1', '2', '3']), { noLegend: true })}
+       <h3 class="im-h">By where the teacher started</h3>${table('imst', gcols('Starting score'), rowsOf(I.start, ST, ['low', 'mid', 'high']), { noLegend: true })}
+       <h3 class="im-h">By debrief</h3>${table('imd', gcols('Debrief'), rowsOf(I.debrief, DB, ['C', 'N']), { noLegend: true })}`);
+
+    // by sector / school
+    let scard = '';
+    if (S.school === '') {
+      const bySec = !S.sector;
+      const rows = (bySec ? I.sectors.map((g) => Object.assign({}, g, { name: g.key, ord: g.key }))
+        : I.schools.map((g) => Object.assign({}, g, { name: S.data.schools[g.key].name, ord: S.data.schools[g.key].name })));
+      scard = card('c-im-s', bySec ? 'By sector' : `Schools in ${S.sector}`, bySec ? 'Click a sector to see its schools.' : 'Schools with at least one visit compared. Small schools have few visits, so their bars are wide or missing — read them with care. Click a school to open its card.',
+        table('ims', gcols(bySec ? 'Sector' : 'School').map((c) => (c.k === 'name' ? Object.assign({}, c, { val: (r) => r.name }) : c)), rows,
+          { noLegend: true, sort: { k: bySec ? 'name' : 'n', dir: bySec ? 1 : -1 }, onRow: (k) => (bySec ? (S.sector = k, S.school = '', render()) : modalOpen({ kind: 'school', key: +k })), rowKey: (r) => r.key }));
+    }
+
+    // by score (all five measures)
+    const mrows = IM_SEC.map(([k, l], i) => Object.assign({}, Calc.coachImpact(S.P, { ...base, sec: k }).all, { key: k, name: l, ord: i, sub: k === 'cp' ? 'teaching practices + student engagement' : k === 'tsk3' ? 'FICO v3, from 8 Sep' : k === 'lpf' ? 'only lessons with a plan attached' : '' }));
+    const mcard = card('c-im-m', 'Which part of teaching moves',
+      'The same comparison for each FICO score of the Digital Coach recordings. Click a row to show that score across the page.',
+      table('imm', gcols('Score'), mrows, { noLegend: true, onRow: (k) => { S.imSec = k; render(); }, rowKey: (r) => r.key }));
+
+    // by coach
+    const info = new Map((S.data.coaches || []).map((c) => [c.id, c]));
+    const crows = I.coaches.filter((g) => !(info.get(g.key) || {}).hide).map((g) => {
+      const m = info.get(g.key);
+      return Object.assign({}, g, { name: m ? m.name || '(no name)' : g.key ? 'Unknown observer' : 'No observer recorded', sub: m && m.role && m.role !== 'coach' ? m.role : '', ord: 0 });
+    });
+    const ccols = gcols('Coach').map((c) => (c.k === 'name' ? Object.assign({}, c, { val: (r) => r.name }) : c));
+    ccols.splice(2, 0, { k: 't', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) });
+    const ccard = card('c-im-c', 'By coach',
+      'Coaches and principals who did the visits (names: internal use only). Each coach visits different teachers and schools, and most have few visits compared, so the ranges are wide. <b>Use this to find practice worth sharing, not to judge a coach on its own.</b> Click a coach to see their visits.',
+      table('imc', ccols, crows, { noLegend: true, sort: { k: 'n', dir: -1 }, onRow: (k) => modalOpen({ kind: 'coach', key: k }), rowKey: (r) => r.key }));
+
+    const how = card('c-im-h', 'How this is worked out', '',
+      `<ul class="im-how">
+        <li><b>The event</b> is a coach (HITL) visit in the chosen period, sector and school.</li>
+        <li><b>The measure</b> is the teacher’s own Digital Coach (DC) recordings, scored by the AI with the FICO rubric — not the coach’s score of the visit, so the coach is not marking their own work. DC and HITL scores are never mixed.</li>
+        <li><b>Before and after</b>: the teacher’s average DC score in the ${esc(wt)} before the visit and the ${esc(wt)} after it (the visit day itself left out). A visit counts only if the teacher recorded at least one DC lesson on each side and both windows have ended.</li>
+        <li><b>The comparison</b>: teachers in the same sector who started in the same band (below 60%, 60–69.9%, 70% and above) and had <b>no</b> coach visit in that whole stretch, and recorded DC lessons on both sides of the same day (at least 5 of them). Their average change is what happens anyway — the season, the app, the term, and low scores drifting up / high scores drifting down.</li>
+        <li><b>Coaching effect</b> = the visited teacher’s change minus the comparison’s change, averaged over visits. The 95% range is ±1.96 standard errors; when it stays above zero the gain is very unlikely to be chance.</li>
+        <li><b>Limits</b>: coaches do not pick teachers at random, and teachers who keep recording may differ from those who stop; a teacher visited often counts once per visit. This shows what follows a visit, not proof that the visit alone caused it. Provisional, owner-defined method (no governed rule yet).</li>
+      </ul>`);
+    return head + wcard + mcard + gcard + scard + ccard + how;
+  }
+
   // ---------- data quality ----------
   // Gaps in the source data that make figures on this dashboard less accurate, with who can fix them. Account checks
   // come from data.dq (every programme school, all teacher levels, as of the last refresh); the score check reads the
@@ -2009,6 +2151,7 @@
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
       ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
+      ['Coaching effect (Does coaching work?)', 'P', 'For each coach (HITL) visit: the teacher’s own Digital Coach score (AI-scored FICO) in the 1, 2 or 3 weeks after the visit minus the weeks before (visit day left out; recordings needed on both sides, both windows ended), minus the average change over the same days of teachers in the same sector and starting band (below 60 / 60–69.9 / 70%+) who had no visit then (at least 5). Averaged over visits, with a 95% range of ±1.96 standard errors. Classroom practice = teaching practices + student engagement; subject knowledge uses FICO v3 only. Shows what follows a visit, not proof it caused it.', 'coaching_sessions · coaching-query-rules §1, fico-scores-rules §2 (owner-defined method, 2026-11-09)'],
       ['Data quality checks', 'G', 'The Data quality tab, as of the last refresh, over every programme school and every teacher level: teachers with no level recorded, a blank name, or the same name as another account at their school (a possible duplicate); schools with no coach assigned (a coach account with the school in its assigned schools), no teacher accounts, or only 1–2; coach accounts with no school; and observation section scores outside 0 to the maximum.', 'users, schools, school_programme, leader_schools · teacher-headcount §1e, teacher-levels §1b, coaches-rules §3'],
       ['Sector', 'G', 'The school’s region in the Rumi data: B.K, Nilore, Sihala, Tarnol, Urban-I, Urban-II.', 'schools.region'],
       ['Merged accounts', 'G', 'When a teacher’s phone number was moved to a new account, activity on the old account is credited to the new one.', 'leader_roster_audit'],
@@ -2713,7 +2856,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
@@ -2812,6 +2955,8 @@
     if (b.dataset.preset) { if (b.dataset.preset === 'custom') { S.preset = 'custom'; render(); } else setPreset(b.dataset.preset); }
     else if (b.dataset.tab) { S.tab = b.dataset.tab; S.search = ''; render(); window.scrollTo(0, 0); }
     else if (b.dataset.gran) { S.gran = b.dataset.gran; render(); }
+    else if (b.dataset.imw) { S.imW = +b.dataset.imw; render(); }
+    else if (b.dataset.imsec) { S.imSec = b.dataset.imsec; render(); }
     else if (b.dataset.dl) download(b.dataset.dl);
     else if (b.dataset.csv) downloadCsv(b.dataset.csv);
     else if (b.dataset.mview) { S.mview = b.dataset.mview; render(); }

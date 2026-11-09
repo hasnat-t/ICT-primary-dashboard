@@ -428,6 +428,145 @@
       cells: new Map([...cell.entries()].map(([k, o]) => [k, { n: o.n, teachers: o.t.size, fico: o.f }])) };
   }
 
+  // "Does coaching work?" (owner request 2026-11-09; provisional, no governed rule). Each HITL visit in the period
+  // and filters is one event. The measure is the teacher's OWN Digital Coach recordings (AI-scored, independent of the
+  // coach): their score in the w days before the visit vs the w days after (the visit day itself left out), for one
+  // FICO measure. Only visits with both windows complete (w days of data each side) and at least one DC recording on
+  // each side count. Comparison: teachers in the same sector who started in the same band (below 60, 60-69.9, 70+ before
+  // score), with no HITL visit from w days before to w days after the same day and DC recordings on both sides; net =
+  // the visited teacher's change minus their average change. Matching on the starting band takes out most of the
+  // 'regression to the mean' (low scores tend to rise and high ones to fall whatever happens).
+  // The 95% range is +-1.96 standard errors of the per-visit net change (visits, not teachers, so it is a little
+  // narrow when a teacher is visited often). DC and HITL scores are never pooled: HITL is only the event.
+  const IMPACT_SEC = ['cp', 'hlp', 'se', 'tsk3', 'lpf'];
+  const IMPACT_LABEL = { cp: 'Classroom practice (teaching practices + student engagement)', hlp: 'Teaching practices', se: 'Student engagement', tsk3: 'Subject knowledge (FICO v3)', lpf: 'Lesson-plan fidelity' };
+  function impactVal(r, sec) {
+    const [tS, tM, hS, hM, sS, sM, lS, lM] = r.slice(4);
+    const ok = (k, v, m) => v !== null && v !== undefined && m && MAX_OK[k].includes(m);
+    if (sec === 'cp') return ok('hlp', hS, hM) && ok('se', sS, sM) ? [hS + sS, hM + sM] : null;
+    if (sec === 'hlp') return ok('hlp', hS, hM) ? [hS, hM] : null;
+    if (sec === 'se') return ok('se', sS, sM) ? [sS, sM] : null;
+    if (sec === 'lpf') return ok('lpf', lS, lM) ? [lS, lM] : null;
+    if (sec === 'tsk3') return tS !== null && tS !== undefined && TSK_V3.includes(tM) ? [tS, tM] : null;
+    return null;
+  }
+  // first index with a[i] >= x
+  function lowerBound(a, x) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; }
+  // Per teacher, for one measure: DC days sorted with running score / max sums, and HITL visits sorted by day.
+  function impactIndex(P, sec) {
+    P.impactIx = P.impactIx || {};
+    if (P.impactIx[sec]) return P.impactIx[sec];
+    const nT = P.data.teachers.length, dc = new Array(nT), visits = new Array(nT);
+    for (let ti = 0; ti < nT; ti++) {
+      const d = [], v = [];
+      for (const r of P.obs[ti]) {
+        if (r[2] === 'H') v.push([r[1], r[14] || '', r[3]]);
+        else { const x = impactVal(r, sec); if (x) d.push([r[1], x[0], x[1]]); }
+      }
+      d.sort((a, b) => a[0] - b[0]); v.sort((a, b) => a[0] - b[0]);
+      const days = d.map((x) => x[0]), cs = [0], cm = [0];
+      for (const x of d) { cs.push(cs[cs.length - 1] + x[1]); cm.push(cm[cm.length - 1] + x[2]); }
+      dc[ti] = { days, cs, cm };
+      visits[ti] = { days: v.map((x) => x[0]), list: v };
+    }
+    return (P.impactIx[sec] = { dc, visits });
+  }
+  // A teacher's DC score (%) over days lo..hi, with the number of recordings, or null when none.
+  function impactWin(D, lo, hi) {
+    const a = lowerBound(D.days, lo), b = lowerBound(D.days, hi + 1);
+    if (b <= a) return null;
+    const m = D.cm[b] - D.cm[a];
+    return m ? { p: (100 * (D.cs[b] - D.cs[a])) / m, n: b - a } : null;
+  }
+  function impactSummary(list) {
+    const n = list.length;
+    if (!n) return { n: 0, teachers: 0, before: null, after: null, gain: null, ctrl: null, net: null, ci: null, nNet: 0 };
+    // every figure over the visits that have a comparison group (nNet), so before - after - comparison - net add up
+    const withC = list.filter((x) => x.ctrl !== null), m = withC.length;
+    if (!m) return { n, teachers: new Set(list.map((x) => x.ti)).size, before: null, after: null, gain: null, ctrl: null, net: null, ci: null, nNet: 0 };
+    const avg = (f) => withC.reduce((a, x) => a + f(x), 0) / m;
+    const mNet = avg((x) => x.gain - x.ctrl);
+    const sd = m > 1 ? Math.sqrt(withC.reduce((a, x) => a + (x.gain - x.ctrl - mNet) ** 2, 0) / (m - 1)) : null;
+    return { n, teachers: new Set(withC.map((x) => x.ti)).size, before: avg((x) => x.before), after: avg((x) => x.after), gain: avg((x) => x.gain),
+      ctrl: avg((x) => x.ctrl), net: mNet, ci: sd === null ? null : (1.96 * sd) / Math.sqrt(m), nNet: m };
+  }
+  function coachImpact(P, opts) {
+    const { data } = P;
+    const w = opts.w || 14, sec = IMPACT_SEC.includes(opts.sec) ? opts.sec : 'cp';
+    const key = JSON.stringify([opts.from, opts.to, opts.sector || '', opts.school ?? '', w, sec]);
+    P.impactMemo = P.impactMemo || new Map();
+    if (P.impactMemo.has(key)) return P.impactMemo.get(key);
+    const { dc, visits } = impactIndex(P, sec);
+    const secOf = (ti) => data.schools[data.teachers[ti].s].sector;
+    const bySector = new Map();
+    data.teachers.forEach((t, ti) => { const k = data.schools[t.s].sector; if (!bySector.has(k)) bySector.set(k, []); bySector.get(k).push(ti); });
+    const visitedIn = (ti, lo, hi) => { const d = visits[ti].days; const i = lowerBound(d, lo); return i < d.length && d[i] <= hi; };
+    // starting band = the FICO band of the teacher's score before (below 60 / 60-69.9 / 70 and above)
+    const startBand = (p) => (p < 60 ? 'low' : p < 70 ? 'mid' : 'high');
+    const ctrlMemo = new Map();
+    // comparison change for a sector, day and starting band: { low, mid, high } (null where fewer than 5 teachers)
+    const ctrlOf = (sector, day, band) => {
+      const k = `${sector}|${day}`;
+      if (!ctrlMemo.has(k)) {
+        const acc = { low: [0, 0], mid: [0, 0], high: [0, 0] };
+        for (const ti of bySector.get(sector) || []) {
+          if (visitedIn(ti, day - w, day + w)) continue;
+          const b = impactWin(dc[ti], day - w, day - 1); if (!b) continue;
+          const a = impactWin(dc[ti], day + 1, day + w); if (!a) continue;
+          const g = acc[startBand(b.p)]; g[0]++; g[1] += a.p - b.p;
+        }
+        const o = {};
+        for (const bd of Object.keys(acc)) o[bd] = acc[bd][0] >= 5 ? acc[bd][1] / acc[bd][0] : null;
+        ctrlMemo.set(k, o);
+      }
+      return ctrlMemo.get(k)[band];
+    };
+    const inScope = (ti) => {
+      const T = data.teachers[ti];
+      if (opts.sector && data.schools[T.s].sector !== opts.sector) return false;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) return false;
+      return true;
+    };
+    const pairs = [];
+    let visitsIn = 0, tooRecent = 0, noDc = 0;
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      if (!inScope(ti)) continue;
+      visits[ti].list.forEach(([day, coach, stage], i) => {
+        if (day < opts.from || day > opts.to) return;
+        visitsIn++;
+        if (day > data.today - w) { tooRecent++; return; }
+        if (day < w) { noDc++; return; }
+        const b = impactWin(dc[ti], day - w, day - 1), a = impactWin(dc[ti], day + 1, day + w);
+        if (!b || !a) { noDc++; return; }
+        pairs.push({ ti, s: data.teachers[ti].s, sector: secOf(ti), day, coach, stage, nth: i + 1, before: b.p, after: a.p, gain: a.p - b.p, ctrl: ctrlOf(secOf(ti), day, startBand(b.p)) });
+      });
+    }
+    const group = (f) => { const m = new Map(); for (const x of pairs) { const k = f(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return [...m.entries()].map(([k, l]) => Object.assign({ key: k }, impactSummary(l))); };
+    // Score by week around each teacher's FIRST HITL visit since 1 Aug (when it falls in the period): the average of
+    // the teachers' weekly DC scores, weeks -4..+8, for teachers with DC recordings both before and after that visit.
+    const weeks = [];
+    for (let k = -4; k <= 8; k++) weeks.push({ k, sum: 0, n: 0 });
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      if (!inScope(ti) || !visits[ti].days.length) continue;
+      const f = visits[ti].days[0];
+      if (f < opts.from || f > opts.to) continue;
+      const D = dc[ti];
+      if (!impactWin(D, f - 28, f - 1) || !impactWin(D, f + 1, f + 63)) continue;
+      for (const wk of weeks) {
+        const lo = wk.k < 0 ? f + 7 * wk.k : f + 1 + 7 * wk.k, hi = lo + 6;
+        if (lo < 0 || hi > data.today) continue;
+        const x = impactWin(D, lo, Math.min(hi, wk.k < 0 ? f - 1 : hi));
+        if (x) { wk.sum += x.p; wk.n++; }
+      }
+    }
+    const out = { w, sec, label: IMPACT_LABEL[sec], visitsIn, tooRecent, noDc, all: impactSummary(pairs), pairs,
+      sectors: group((x) => x.sector), schools: group((x) => x.s), coaches: group((x) => x.coach),
+      nth: group((x) => Math.min(x.nth, 3)), debrief: group((x) => (x.stage === 'C' ? 'C' : 'N')), start: group((x) => startBand(x.before)),
+      weeks: weeks.map((x) => ({ k: x.k, p: x.n ? x.sum / x.n : null, n: x.n })), lastDay: data.today - w };
+    P.impactMemo.set(key, out);
+    return out;
+  }
+
   // HITL analytics: observations per teacher, coaches, how coaches treated the AI's pre-filled form, weekday.
   function hitlStats(P, opts) {
     const { data } = P;
@@ -653,5 +792,5 @@
       weeks: { D: grid(wk.D).sort((a, b) => a.key - b.key), H: grid(wk.H).sort((a, b) => a.key - b.key) }, weekStart: (w) => FI_W0 + 7 * w, firstDay: FI_W0 + 1 };
   }
 
-  return { FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  return { IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));
