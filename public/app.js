@@ -1878,6 +1878,7 @@
     close: ['Close', 'The trend reaches within 5 points of the goal by the date: a small push needed.'],
     off: ['Off track', 'At the trend of the last 6 weeks, the goal is not reached by the date.'],
     nodata: ['Not enough data', 'Fewer than 3 full weeks with figures, so no forecast yet.'],
+    upcoming: ['Not started', 'The target period has not started yet.'],
     met: ['Met', 'The date has passed and the goal was reached.'],
     missed: ['Missed', 'The date has passed and the goal was not reached.'],
   };
@@ -1890,22 +1891,32 @@
     if (t.scope === 'school') { const si = S.data.schools.findIndex((x) => String(x.emis) === String(t.school)); return { opts: { school: si }, name: si >= 0 ? S.data.schools[si].name : `EMIS ${t.school}`, sub: si >= 0 ? S.data.schools[si].sector : '', ok: si >= 0, si }; }
     return { opts: {}, name: 'All ICT', ok: true };
   };
+  // One target's weekly figures and forecast. mode 'week' = each week's figure; 'period' = captured from the start date.
+  function tgRun(metric, opts, mode, from, target, dl) {
+    const period = mode === 'period';
+    const ser = Calc.targetSeries(S.P, metric, opts, { mode, from, to: dl });
+    const F = Calc.targetForecast(ser.weeks, target, dl, S.data.today, { cumulative: period && metric !== 'dcfico', live: period, from });
+    if (from > S.data.today) F.status = 'upcoming';
+    return { ser, F };
+  }
   function tgEval(t) {
     const M = Calc.TARGET_METRICS[t.metric], sc = tgScope(t);
     if (!M || !sc.ok) return { t, M, sc, bad: true };
     const dl = Calc.dateToDay(S.data.window_start, t.deadline);
-    const ser = Calc.targetSeries(S.P, t.metric, sc.opts);
-    const F = Calc.targetForecast(ser.weeks, t.target, dl, S.data.today, { cumulative: M.cumulative });
-    const made = Calc.dateToDay(S.data.window_start, String(t.created_at || '').slice(0, 10) || iso(S.data.today));
-    const startW = ser.weeks.filter((w) => w.p !== null && !w.partial && w.end < made).slice(-1)[0];
-    // 'when set' only once the target is over a week old (before that it repeats 'now')
-    return { t, M, sc, dl, ser, F, start: startW && S.data.today - made >= 7 ? startW.p : null };
+    const from = Calc.dateToDay(S.data.window_start, t.start || String(t.created_at || '').slice(0, 10) || iso(S.data.today));
+    const mode = t.mode === 'period' ? 'period' : 'week';
+    const { ser, F } = tgRun(t.metric, sc.opts, mode, from, t.target, dl);
+    // 'at start' (each-week targets): the last full week before the start date, once the start is past
+    const startW = mode === 'week' && from < S.data.today ? ser.weeks.filter((w) => w.p !== null && !w.partial && w.end < from).slice(-1)[0] : null;
+    return { t, M, sc, dl, from, mode, ser, F, start: startW ? startW.p : null };
   }
   // weekly values (from 4 weeks before the target was set, at most 16) + forecast line + goal line, as an SVG
   function tgSpark(E) {
     const W = 600, H = 120, P0 = 6;
-    // full weeks only (the week in progress would read low), and not the 1-2 Aug stub week
-    const wk = E.ser.weeks.filter((w) => w.p !== null && w.mon >= 0 && (!w.partial || E.M.cumulative)).slice(-16);
+    // each week: full weeks from 4 weeks before the start (the week in progress would read low; not the 1-2 Aug stub);
+    // over the period: the running figure from the start, this week so far included
+    const wk = E.mode === 'period' ? E.ser.weeks.filter((w) => w.p !== null)
+      : E.ser.weeks.filter((w) => w.p !== null && w.mon >= Math.max(0, E.from - 28) && !w.partial).slice(-16);
     if (wk.length < 2) return '';
     const x0 = wk[0].mon, x1 = Math.max(E.F.dlMon, wk[wk.length - 1].mon);
     const vals = [...wk.map((w) => w.p), E.t.target, ...(E.F.projected !== null ? [E.F.projected] : [])];
@@ -1914,7 +1925,7 @@
     const today = X(Math.min(S.data.today, x1));
     let svg = `<rect x="${today.toFixed(1)}" y="0" width="${Math.max(0, W - today).toFixed(1)}" height="${H}" class="tg-fut"/>`;
     svg += `<line class="tg-goal" x1="0" x2="${W}" y1="${Y(E.t.target).toFixed(1)}" y2="${Y(E.t.target).toFixed(1)}"/>`;
-    if (E.F.line.length) svg += `<line class="tg-fc ${E.F.status}" x1="${X(E.F.line[0][0]).toFixed(1)}" y1="${Y(E.F.line[0][1]).toFixed(1)}" x2="${X(E.F.line[1][0]).toFixed(1)}" y2="${Y(E.F.line[1][1]).toFixed(1)}"/>`;
+    if (E.F.line.length && E.F.status !== 'met' && E.F.status !== 'missed') svg += `<polyline class="tg-fc ${E.F.status}" fill="none" points="${E.F.line.map(([m, v]) => `${X(m).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}"/>`;
     svg += `<polyline class="tg-ln" points="${wk.map((w) => `${X(w.mon).toFixed(1)},${Y(w.p).toFixed(1)}`).join(' ')}"/>`;
     const dots = wk.map((w) => `<i class="${w.partial ? 'p' : ''}" style="left:${((100 * X(w.mon)) / W).toFixed(2)}%;top:${((100 * Y(w.p)) / H).toFixed(2)}%" data-tip="${esc(`Week of ${nice(Math.max(w.mon, 0))}: ${P1(w.p)}${w.partial ? ' (this week, so far)' : ''}`)}"></i>`).join('');
     const end = E.F.projected !== null && E.dl >= S.data.today ? `<i class="fc ${E.F.status}" style="left:${((100 * X(E.F.dlMon)) / W).toFixed(2)}%;top:${((100 * Y(E.F.projected)) / H).toFixed(2)}%" data-tip="${esc(`Forecast for ${niceIso(E.t.deadline)}: ${P1(E.F.projected)}`)}"></i>` : '';
@@ -1932,19 +1943,24 @@
     const pc = (v) => Math.max(0, Math.min(100, v));
     const bar = `<div class="tg-bar ${F.status}" role="img" aria-label="${esc(`Now ${P1(cur)}, goal ${t.target}%`)}">
         <span class="tg-fill" style="width:${pc(cur ?? 0)}%"></span>
-        ${F.projected !== null && !past && F.status !== 'achieved' ? `<span class="tg-proj" style="left:${pc(Math.min(cur ?? 0, F.projected))}%;width:${Math.abs(pc(F.projected) - pc(cur ?? 0))}%" title="Forecast ${P1(F.projected)}"></span>` : ''}
-        ${E.start !== null ? `<span class="tg-start" style="left:${pc(E.start)}%" title="When the target was set: ${P1(E.start)}"></span>` : ''}
+        ${F.projected !== null && !past && F.status !== 'achieved' && F.status !== 'upcoming' ? `<span class="tg-proj" style="left:${pc(Math.min(cur ?? 0, F.projected))}%;width:${Math.abs(pc(F.projected) - pc(cur ?? 0))}%" title="Forecast ${P1(F.projected)}"></span>` : ''}
+        ${E.start !== null ? `<span class="tg-start" style="left:${pc(E.start)}%" title="At the start: ${P1(E.start)}"></span>` : ''}
         <span class="tg-mark" style="left:${pc(t.target)}%" title="Goal ${t.target}%"></span></div>`;
     const wl = Math.ceil(F.weeksLeft);
-    const trend = F.slope === null ? 'Not enough full weeks yet for a trend.' : `Trend: <b>${F.slope >= 0 ? '+' : '−'}${Math.abs(F.slope).toFixed(1)} points a week</b> over the last ${Math.min(6, E.ser.weeks.filter((w) => !w.partial && w.p !== null).length)} weeks`;
-    const trendEnd = F.slope === null ? '' : F.projected !== null && !past && F.status !== 'achieved' ? ' ' : '. ';
-    const fc = past ? `The date was ${niceIso(t.deadline)}.`
-      : F.status === 'achieved' ? `Goal reached — keep it there until ${niceIso(t.deadline)}.`
+    const trend = F.status === 'upcoming' ? `Starts on ${niceIso(t.start)}.`
+      : past ? `Ended on ${niceIso(t.deadline)} at <b>${P1(F.current)}</b> against a goal of ${t.target}%.`
+      : F.rate !== null && F.rate !== undefined ? `Lately <b>${Math.round(100 * F.rate)}% of the teachers not yet reached</b> come in each week`
+      : F.slope === null ? (E.mode === 'period' ? 'A forecast appears after 2 full weeks of the period.' : 'Not enough full weeks yet for a trend.')
+      : `Trend: <b>${F.slope >= 0 ? '+' : '−'}${Math.abs(F.slope).toFixed(1)} points a week</b> over the last ${F.fitWeeks} weeks`;
+    const trendEnd = past || F.status === 'upcoming' || (F.slope === null && (F.rate === null || F.rate === undefined)) ? ' ' : F.projected !== null && !past && F.status !== 'achieved' ? ' ' : '. ';
+    const fc = past ? ''
+      : F.status === 'upcoming' ? ''
+      : F.status === 'achieved' ? (E.mode === 'period' && !E.M.score ? `Goal reached — and it can only go up until ${niceIso(t.deadline)}.` : `Goal reached — keep it there until ${niceIso(t.deadline)}.`)
       : F.projected === null ? '' : `→ about <b>${P1(F.projected)}</b> by ${niceIso(t.deadline)}.${F.need !== null && F.need > 0 ? ` To reach ${t.target}% it needs <b>+${F.need.toFixed(1)} points a week</b>.` : ''}`;
     return `<article class="tg-c ${F.status}">
-      <div class="tg-h"><div class="tg-tt"><b class="tg-goalv">${t.target}%</b><div><b>${esc(M.label)}</b> · ${who}<div class="dim tg-u">${esc(M.score ? M.unit : `${M.unit}`)}</div></div></div>
+      <div class="tg-h"><div class="tg-tt"><b class="tg-goalv">${t.target}%</b><div><b>${esc(M.label)}</b> · ${who}<div class="dim tg-u">${esc(M[E.mode])} · <b>${esc(niceIso(t.start || String(t.created_at).slice(0, 10)))} – ${esc(niceIso(t.deadline))}</b></div></div></div>
         <span class="tg-st ${F.status}" title="${esc(st[1])}">${esc(st[0])}</span></div>
-      <div class="tg-nums"><span><small>Now</small><b>${P1(cur)}</b></span>${E.start !== null ? `<span><small>When set</small><b>${P1(E.start)}</b></span>` : ''}<span><small>Goal</small><b>${t.target}%</b></span><span><small>${past ? 'Date' : 'Time left'}</small><b>${past ? niceIso(t.deadline) : `${wl} week${wl === 1 ? '' : 's'}`}</b></span></div>
+      <div class="tg-nums"><span><small>${past ? 'Final' : F.status === 'upcoming' ? 'Each week now' : E.mode === 'period' ? 'So far' : 'Now'}</small><b>${P1(cur)}</b></span>${E.start !== null ? `<span><small>At start</small><b>${P1(E.start)}</b></span>` : ''}<span><small>Goal</small><b>${t.target}%</b></span><span><small>${past ? 'Ended' : F.status === 'upcoming' ? 'Starts' : 'Time left'}</small><b>${past ? niceIso(t.deadline) : F.status === 'upcoming' ? niceIso(t.start) : `${wl} week${wl === 1 ? '' : 's'}`}</b></span></div>
       ${bar}
       <p class="tg-say">${trend}${trendEnd}${fc}</p>
       ${tgSpark(E)}
@@ -1959,24 +1975,24 @@
       return true;
     };
     const all = S.targets.filter(inF).map(tgEval);
-    const order = ['off', 'close', 'ontrack', 'nodata', 'achieved', 'missed', 'met'];
+    const order = ['off', 'close', 'ontrack', 'nodata', 'achieved', 'upcoming', 'missed', 'met'];
     all.sort((a, b) => (a.bad - b.bad) || order.indexOf(a.F && a.F.status) - order.indexOf(b.F && b.F.status) || a.t.deadline.localeCompare(b.t.deadline));
     const cnt = (k) => all.filter((e) => e.F && e.F.status === k).length;
-    const chips = all.length ? `<div class="tg-sum">${['achieved', 'ontrack', 'close', 'off', 'met', 'missed', 'nodata'].filter((k) => cnt(k)).map((k) => `<span class="tg-st ${k}">${N(cnt(k))} ${esc(TG_STATUS[k][0].toLowerCase())}</span>`).join('')}</div>` : '';
+    const chips = all.length ? `<div class="tg-sum">${['achieved', 'ontrack', 'close', 'off', 'upcoming', 'met', 'missed', 'nodata'].filter((k) => cnt(k)).map((k) => `<span class="tg-st ${k}">${N(cnt(k))} ${esc(TG_STATUS[k][0].toLowerCase())}</span>`).join('')}</div>` : '';
     const head = card('c-tg', `Targets · ${scopeName()}`,
-      'Goals the team has set, with progress and a forecast. The forecast draws a straight line through the last 6 full weeks and carries it to the date: a guide, not a promise — holidays and exams bend it. Figures are weekly (Monday–Sunday) for the primary teachers in the target’s scope; HITL reach counts everyone observed since 1 Aug. Anyone with the link can add or remove a target. The period filter does not apply; the sector and school filters show the targets that cover them.',
+      'Goals the team has set, each with a start and an end date, progress and a forecast. A target is counted <b>each week</b> (the share of teachers active that week, Monday–Sunday) or <b>over the target period</b> (the share active at least once since the start date). The forecast draws a straight line through the full weeks since the start (or the last 6) and carries it to the end date: a guide, not a promise — holidays and exams bend it. Anyone with the link can add or remove a target. The period filter does not apply; the sector and school filters show the targets that cover them.',
       `${S.targetsErr ? `<p class="note warn">${esc(S.targetsErr)}</p>` : ''}${chips}${all.length ? '' : '<p class="tg-empty">No targets yet. Set the first one — for example <b>80% LP engagement for All ICT by 31 Dec</b>.</p>'}`,
       `<div class="row"><button type="button" class="btn dark" data-tgadd="1">+ Set a target</button></div>`);
     const grid = all.length ? `<section class="tg-grid">${all.map(tgCard).join('')}</section>` : '';
     // what each measure is now, to help pick a sensible goal
     const nowRows = Object.entries(Calc.TARGET_METRICS).map(([k, M]) => {
       const opts = S.school !== '' ? { school: +S.school } : S.sector ? { sector: S.sector } : {};
-      const ser = Calc.targetSeries(S.P, k, opts), F = Calc.targetForecast(ser.weeks, 100, S.data.today + 60, S.data.today, { cumulative: M.cumulative });
+      const ser = Calc.targetSeries(S.P, k, opts, { mode: 'week' }), F = Calc.targetForecast(ser.weeks, 100, S.data.today + 60, S.data.today);
       const done = ser.weeks.filter((w) => !w.partial && w.p !== null);
       const best = done.length ? Math.max(...done.map((w) => w.p)) : null;
-      return { key: k, name: M.label, unit: M.unit, cur: F.current, best, slope: F.slope };
+      return { key: k, name: M.label, unit: M.week, cur: F.current, best, slope: F.slope };
     });
-    const ref = card('c-tg-n', `Where each measure is now · ${scopeName()}`, 'The latest full week, the best week since 1 Aug and the trend, to help pick a goal that stretches but is reachable.',
+    const ref = card('c-tg-n', `Where each measure is now · ${scopeName()}`, 'Each week’s figure: the latest full week, the best week since 1 Aug and the trend, to help pick a goal that stretches but is reachable.',
       table('tgn', [
         { k: 'name', label: 'Measure', val: (r) => r.name, fmt: (r) => `${esc(r.name)} <span class="dim">${esc(r.unit)}</span>` },
         { k: 'cur', label: 'Now', num: true, val: (r) => r.cur, fmt: (r) => P1(r.cur) },
@@ -1989,7 +2005,7 @@
     const t = (S.targets || []).find((x) => x.id === id);
     if (!t) return;
     const M = Calc.TARGET_METRICS[t.metric];
-    if (!confirm(`Remove the target "${t.target}% ${M ? M.label : t.metric} for ${tgScope(t).name} by ${niceIso(t.deadline)}"?`)) return;
+    if (!confirm(`Remove the target "${t.target}% ${M ? M.label : t.metric} for ${tgScope(t).name}, ${niceIso(t.start || String(t.created_at).slice(0, 10))} – ${niceIso(t.deadline)}"?`)) return;
     const r = await fetch(`/api/targets/${id}/delete`, { method: 'POST' });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { alert(j.error || 'Could not remove.'); return; }
@@ -2005,7 +2021,7 @@
     const curScope = S.school !== '' ? 'school' : S.sector ? 'sector' : 'all';
     const curSchool = S.school !== '' ? String(S.data.schools[+S.school].emis) : '';
     dlg.innerHTML = `<form class="m-panel" id="tg-form">
-      <div class="m-head"><div class="m-tt"><h3>Set a target</h3><p>A goal for one measure, for All ICT, a sector or a school, by a date.</p></div><button class="x" type="button" id="tg-x" aria-label="Close">×</button></div>
+      <div class="m-head"><div class="m-tt"><h3>Set a target</h3><p>A goal for one measure, for All ICT, a sector or a school, between two dates.</p></div><button class="x" type="button" id="tg-x" aria-label="Close">×</button></div>
       <div class="m-body fb-body">
         <div><label class="fb-l" for="tg-metric">Measure</label><select class="sel" id="tg-metric">${Object.entries(Calc.TARGET_METRICS).map(([k, M]) => `<option value="${k}">${esc(M.label)} — ${esc(M.short)}</option>`).join('')}</select></div>
         <fieldset class="fb-types"><legend>For</legend>
@@ -2014,8 +2030,12 @@
           <label><input type="radio" name="tgscope" value="school" ${curScope === 'school' ? 'checked' : ''}> One school</label></fieldset>
         <div id="tg-sec" ${curScope === 'sector' ? '' : 'hidden'}><select class="sel" id="tg-sector">${sectors.map((x) => `<option ${S.sector === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
         <div id="tg-sch" ${curScope === 'school' ? '' : 'hidden'}><select class="sel" id="tg-school">${schools.map((x) => `<option value="${esc(x.emis)}" ${x.emis === curSchool ? 'selected' : ''}>${esc(x.name)} (${esc(x.sector)})</option>`).join('')}</select></div>
-        <div class="fb-two"><div><label class="fb-l" for="tg-target">Goal (%)</label><input class="inp" type="number" id="tg-target" min="1" max="100" step="0.5" value="80" required></div>
-          <div><label class="fb-l" for="tg-date">By</label><input class="inp" type="date" id="tg-date" value="${dflt}" min="${isoOf(S.data.today + 1)}" required></div></div>
+        <div class="fb-two"><div><label class="fb-l" for="tg-start">Start date</label><input class="inp" type="date" id="tg-start" value="${isoOf(S.data.today)}" min="${isoOf(0)}" required></div>
+          <div><label class="fb-l" for="tg-date">End date</label><input class="inp" type="date" id="tg-date" value="${dflt}" min="${isoOf(1)}" required></div></div>
+        <fieldset class="fb-types"><legend>Count it</legend>
+          <label title="The share of teachers active in each Monday–Sunday week: the goal is to be there week after week"><input type="radio" name="tgmode" value="week" checked> Each week</label>
+          <label title="The share of teachers active at least once between the start and the end date"><input type="radio" name="tgmode" value="period"> Over the whole period</label></fieldset>
+        <div><label class="fb-l" for="tg-target">Goal (%)</label><input class="inp" type="number" id="tg-target" min="1" max="100" step="0.5" value="80" required></div>
         <p class="note" id="tg-now"></p>
         <div><label class="fb-l" for="tg-owner">Your name</label><input class="inp" id="tg-owner" maxlength="80" required autocomplete="name" value="${esc(me)}"></div>
         <label class="fb-l" for="tg-note">Note <span class="dim">(optional)</span></label><input class="inp" id="tg-note" maxlength="300" placeholder="e.g. agreed in the November review">
@@ -2023,22 +2043,29 @@
         <div class="fb-actions"><button class="btn" type="button" id="tg-cancel">Cancel</button><button class="btn dark" type="submit" id="tg-save">Save target</button></div>
       </div></form>`;
     const scopeVal = () => dlg.querySelector('input[name=tgscope]:checked').value;
+    const modeVal = () => dlg.querySelector('input[name=tgmode]:checked').value;
     const hint = () => {
-      const v = scopeVal(), k = $('#tg-metric').value, M = Calc.TARGET_METRICS[k];
+      const v = scopeVal(), k = $('#tg-metric').value, M = Calc.TARGET_METRICS[k], mode = modeVal();
       const opts = v === 'sector' ? { sector: $('#tg-sector').value } : v === 'school' ? { school: S.data.schools.findIndex((x) => String(x.emis) === $('#tg-school').value) } : {};
-      const ser = Calc.targetSeries(S.P, k, opts);
+      const from = Calc.dateToDay(S.data.window_start, $('#tg-start').value || isoOf(S.data.today));
       const dl = Calc.dateToDay(S.data.window_start, $('#tg-date').value || dflt);
-      const F = Calc.targetForecast(ser.weeks, +$('#tg-target').value || 0, dl, S.data.today, { cumulative: M.cumulative });
-      $('#tg-now').innerHTML = F.current === null ? 'No figures yet for this choice.' : `Now <b>${P1(F.current)}</b>${F.projected !== null ? ` · at the current trend about <b>${P1(F.projected)}</b> by then` : ''}${F.status ? ` · <span class="tg-st ${F.status}">${esc(TG_STATUS[F.status][0])}</span>` : ''}`;
+      const { F } = tgRun(k, opts, mode, from, +$('#tg-target').value || 0, dl);
+      const what = `<span class="dim">${esc(M[mode])}.</span> `;
+      if (F.status === 'upcoming') {
+        const { F: W } = tgRun(k, opts, 'week', 0, 0, S.data.today + 1);
+        $('#tg-now').innerHTML = `${what}Starts in the future. Each week’s figure now: <b>${P1(W.current)}</b>.`; return;
+      }
+      $('#tg-now').innerHTML = F.current === null ? `${what}No figures yet for this choice.` : `${what}${mode === 'period' ? 'So far' : 'Latest full week'}: <b>${P1(F.current)}</b>${F.projected !== null ? ` · at the trend about <b>${P1(F.projected)}</b> by the end date` : ''} · <span class="tg-st ${F.status}">${esc(TG_STATUS[F.status][0])}</span>`;
     };
     dlg.querySelectorAll('input[name=tgscope]').forEach((r) => (r.onchange = () => { const v = scopeVal(); $('#tg-sec').hidden = v !== 'sector'; $('#tg-sch').hidden = v !== 'school'; hint(); }));
-    ['#tg-metric', '#tg-sector', '#tg-school', '#tg-target', '#tg-date'].forEach((id) => { $(id).oninput = hint; $(id).onchange = hint; });
+    ['#tg-metric', '#tg-sector', '#tg-school', '#tg-target', '#tg-date', '#tg-start'].forEach((id) => { $(id).oninput = hint; $(id).onchange = hint; });
+    dlg.querySelectorAll('input[name=tgmode]').forEach((r) => (r.onchange = hint));
     hint();
     const close = () => dlg.close();
     $('#tg-x').onclick = close; $('#tg-cancel').onclick = close;
     $('#tg-form').onsubmit = async (e) => {
       e.preventDefault();
-      const body = { metric: $('#tg-metric').value, scope: scopeVal(), sector: $('#tg-sector').value, school: $('#tg-school').value, target: +$('#tg-target').value, deadline: $('#tg-date').value, owner: $('#tg-owner').value, note: $('#tg-note').value };
+      const body = { metric: $('#tg-metric').value, scope: scopeVal(), sector: $('#tg-sector').value, school: $('#tg-school').value, target: +$('#tg-target').value, start: $('#tg-start').value, deadline: $('#tg-date').value, mode: modeVal(), owner: $('#tg-owner').value, note: $('#tg-note').value };
       const out = $('#tg-out'); out.className = 'note'; out.textContent = 'Saving…'; $('#tg-save').disabled = true;
       try {
         const r = await fetch('/api/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -2339,7 +2366,7 @@
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
       ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
-      ['Targets', 'P', 'Goals set by the team on the Targets tab. Weekly figures (Monday–Sunday) for the primary teachers in the target’s scope: LP engagement (used a grade 1–5 plan that week), DC coverage (recorded a DC lesson), exam generator use (got a paper), DC classroom practice (average teaching practices + student engagement score); HITL reach = observed at least once since 1 Aug (as of the week’s end). Forecast = a least-squares straight line through the last 6 full weeks, carried to the target date: on track if it reaches the goal, close if within 5 points, off track otherwise; achieved when the latest full week is at or above the goal.', 'the same data as the rest of the page · owner-defined (2026-11-09)'],
+      ['Targets', 'P', 'Goals set by the team on the Targets tab, each with a start and an end date, for the primary teachers in the target’s scope. Counted each week (Monday–Sunday: share of teachers who used a grade 1–5 plan / recorded a DC lesson / were observed by a coach / got an exam paper that week; DC classroom practice = that week’s average teaching practices + student engagement score) or over the whole period (share active at least once from the start date; DC classroom practice = the average since the start). Forecast = a least-squares straight line through the full weeks since the start (each week: the last 6 when fewer than 3), carried to the end date: on track if it reaches the goal, close if within 5 points, off track otherwise; achieved when the latest figure is at or above the goal; not started before the start date; met or missed after the end.', 'the same data as the rest of the page · owner-defined (2026-11-09)'],
       ['Coaching effect (Does coaching work?)', 'P', 'For each coach (HITL) visit: the teacher’s own Digital Coach score (AI-scored FICO) in the 1, 2 or 3 weeks after the visit minus the weeks before (visit day left out; recordings needed on both sides, both windows ended), minus the average change over the same days of teachers in the same sector and starting band (below 60 / 60–69.9 / 70%+) who had no visit then (at least 5). Averaged over visits, with a 95% range of ±1.96 standard errors. Classroom practice = teaching practices + student engagement; subject knowledge uses FICO v3 only. Shows what follows a visit, not proof it caused it.', 'coaching_sessions · coaching-query-rules §1, fico-scores-rules §2 (owner-defined method, 2026-11-09)'],
       ['Data quality checks', 'G', 'The Data quality tab, as of the last refresh, over every programme school and every teacher level: teachers with no level recorded, a blank name, or the same name as another account at their school (a possible duplicate); schools with no coach assigned (a coach account with the school in its assigned schools), no teacher accounts, or only 1–2; coach accounts with no school; and observation section scores outside 0 to the maximum.', 'users, schools, school_programme, leader_schools · teacher-headcount §1e, teacher-levels §1b, coaches-rules §3'],
       ['Sector', 'G', 'The school’s region in the Rumi data: B.K, Nilore, Sihala, Tarnol, Urban-I, Urban-II.', 'schools.region'],

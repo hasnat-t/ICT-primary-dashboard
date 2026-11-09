@@ -141,8 +141,8 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
-    targets: ['Targets', 'Goals the team has set — like 80% LP engagement by 31 December — with a progress bar and a forecast of whether each will be hit on time. Anyone can set one with “+ Set a target”.', [
-      ['#c-tg', 'The targets', 'How many goals are achieved, on track, close or off track. “+ Set a target” picks a measure, who it is for (All ICT, a sector or a school), the goal and the date; it shows where that measure is now before you save.'],
+    targets: ['Targets', 'Goals the team has set — like 80% LP engagement from 1 November to 31 December — with a progress bar and a forecast of whether each will be hit on time. A target counts each week, or everyone active at least once over the whole period. Anyone can set one with “+ Set a target”.', [
+      ['#c-tg', 'The targets', 'How many goals are achieved, on track, close or off track. “+ Set a target” picks a measure, who it is for (All ICT, a sector or a school), the start and end dates, whether to count each week or over the whole period, and the goal; it shows where that measure is now before you save.'],
       ['.tg-grid', 'Each target', 'The bar fills to where the measure is now; the black mark is the goal and the striped part is where the trend is heading. The small chart shows the weekly figures and the dashed forecast line to the date. It also says how many points a week are needed.'],
       ['#c-tg-n', 'Where each measure is now', 'The latest full week, the best week and the trend for every measure — a good guide to a goal that stretches but is reachable.'],
     ]],

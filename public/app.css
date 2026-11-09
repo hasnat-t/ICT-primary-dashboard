@@ -788,6 +788,7 @@ body.present .temu, body.present .temu-chip, body.present .temu-hl, body.present
   background: color-mix(in srgb, var(--c) 16%, var(--panel)); color: color-mix(in srgb, var(--c) 75%, var(--fg)); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); }
 .tg-st.achieved, .tg-st.met, .tg-c.achieved, .tg-c.met, .tg-bar.achieved, .tg-bar.met { --c: #1F7A4C; }
 .tg-st.ontrack, .tg-c.ontrack, .tg-bar.ontrack { --c: #2E7DB8; }
+.tg-st.upcoming, .tg-c.upcoming, .tg-bar.upcoming { --c: #7A55C2; }
 .tg-st.close, .tg-c.close, .tg-bar.close { --c: #C4741C; }
 .tg-st.off, .tg-st.missed, .tg-c.off, .tg-c.missed, .tg-bar.off, .tg-bar.missed { --c: #C2412D; }
 :root[data-theme="dark"] .tg-st.achieved, :root[data-theme="dark"] .tg-c.achieved, :root[data-theme="dark"] .tg-bar.achieved { --c: #4FC387; }
