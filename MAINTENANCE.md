@@ -17,11 +17,10 @@ This file is for whoever looks after the dashboard: a developer, or the daily Cl
 
 ## Thank-you wall (Team tab)
 
-- Opens only with the team code in the Railway variable `TEAM_CODE`; share it with the team yourself. Without the
-  variable the wall stays closed. To lock everyone out (e.g. the code leaked), change `TEAM_CODE` on Railway.
+- Anyone with the dashboard link can read and write notes (no code, owner decision 2026-11-10).
 - Emails: create a Gmail app password for the sending account (Google Account → Security → 2-Step Verification →
   App passwords) and set `GMAIL_USER` (the address) and `GMAIL_APP_PASSWORD` (the 16-letter password) on Railway.
-  Without them notes still go on the wall and no email is sent. Gmail allows about 500 emails a day; the wall stops at 300.
+  Without them notes still go on the wall and no email is sent. Gmail allows about 500 emails a day; the wall stops at 200.
 - Remove an unkind note: open the wall, **Admin** at the bottom, type the `ADMIN_TOKEN` password, then × on the note.
 
 ## User feedback

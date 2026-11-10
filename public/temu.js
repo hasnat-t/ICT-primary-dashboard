@@ -141,7 +141,7 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
-    kudos: ['Thank-you wall', 'Our team’s wall of sticky notes! Thank a teammate: pick a colour, a message from the library (English or Urdu) or your own words, add emojis and stickers, and add their email so it lands in their inbox too. Team members only: it opens with the team code.', [
+    kudos: ['Thank-you wall', 'Our team’s wall of sticky notes! Thank a teammate: pick a colour, a message from the library (English or Urdu) or your own words, add emojis and stickers, and add their email so it lands in their inbox too.', [
       ['#c-kd', 'The wall', 'Press <b>Write a note</b> to make one. React with 👏 ❤️ 🎉 🙌 🌟, press 💬 to comment, and search for a name. Only the writer (or the admin) can remove a note.'],
     ]],
     league: ['Sector league', 'A football-style league of the six sectors! Every week each sector earns points on five measures — lesson plans, DC recordings, coach visits, exam papers and DC classroom practice. Watch the table move, and press Play season to replay every week since August.', [
@@ -205,7 +205,7 @@
 
   // [question, answer, tab to open, element to point at]
   const FAQ = [
-    ['How do I thank a teammate?', 'Open <b>Thank-you wall</b> under Team and press <b>Write a note</b>. Pick a colour, a message from the library or your own words, add stickers, and add their email if you like: they get the note in their inbox. The wall opens with the team code.', 'kudos', '#c-kd'],
+    ['How do I thank a teammate?', 'Open <b>Thank-you wall</b> under Team and press <b>Write a note</b>. Pick a colour, a message from the library or your own words, add stickers, and add their email if you like: they get the note in their inbox.', 'kudos', '#c-kd'],
     ['Does coaching actually work?', 'Yes, it shows. After a coach visit, a teacher’s <b>own Digital Coach lessons</b> score higher than before — more than similar teachers who were not visited at the same time. The <b>Does coaching work?</b> page has the numbers, by sector, coach and FICO score.', 'impact', '#c-im'],
     ['Why are some teachers missing from the figures?', 'Usually their account has <b>no level recorded</b>, so they are not counted as primary (or middle/high). The <b>Data quality</b> tab lists them school by school, with possible duplicate accounts and schools with no coach.', 'dq', '#c-dq'],
     ['How many teachers are in ICT?', 'The <b>ICT teachers</b> strip at the top of the Overview: every teacher at an ICT programme school, counted once, with how many teach Primary, Middle or High, or both. It follows the Sector filter and updates with every refresh.', 'overview', '.hc2'],

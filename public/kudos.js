@@ -1,8 +1,8 @@
 // Thank-you wall (Team tab 'kudos', owner request 2026-11-10). Team members write sticky notes to thank each other:
 // a colour, a font and size, a message from the library (English or Urdu) or their own words, emojis and stickers
 // dragged onto the note, and optionally the person's email (they get the note by email when the owner has set up
-// Gmail on Railway). Others react and comment. Internal only: the server answers nothing without the team code, which
-// the browser keeps after the first time. A random key in this browser marks its own notes, comments and reactions.
+// Gmail on Railway). Others react and comment. Anyone with the dashboard link can use it (owner 2026-11-10: no team code).
+// A random key in this browser marks its own notes, comments and reactions.
 // app.js calls Kudos.view() from render(); everything after that is painted here, inside #kd-root.
 (function () {
   'use strict';
@@ -185,7 +185,7 @@
     return k;
   }
 
-  const K = { code: ls('kudos.code'), items: null, err: '', at: 0, loading: false, q: '', sort: 'new', email: false, admin: false, reacts: ['👏', '❤️', '🎉', '🙌', '🌟'], fresh: null };
+  const K = { items: null, err: '', at: 0, loading: false, q: '', sort: 'new', email: false, admin: false, reacts: ['👏', '❤️', '🎉', '🙌', '🌟'], fresh: null };
 
   let fontsAdded = false;
   function addFonts() {
@@ -196,19 +196,18 @@
   }
 
   async function api(path, body) {
-    const headers = { 'x-team-code': K.code, 'x-kudos-key': myKey() };
+    const headers = { 'x-kudos-key': myKey() };
     const adm = ss('kudos.admin'); if (adm) headers['x-admin-token'] = adm;
     if (body) headers['Content-Type'] = 'application/json';
     const r = await fetch(path, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
     const j = await r.json().catch(() => ({}));
-    if (r.status === 401 && j.code === 'team') { K.code = ''; lsSet('kudos.code', ''); K.items = null; K.err = 'That team code is not right. Please check it with your team lead.'; paint(); throw new Error(K.err); }
     if (!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.');
     return j;
   }
   async function load() {
     if (K.loading) return; K.loading = true;
     try { const j = await api('/api/kudos'); K.items = j.items || []; K.email = !!j.email; K.admin = !!j.admin; K.reacts = j.reacts || K.reacts; K.err = ''; K.at = Date.now(); }
-    catch (e) { if (K.code) { K.err = e.message; if (!K.items) K.items = []; } }
+    catch (e) { K.err = e.message; if (!K.items) K.items = []; K.at = Date.now(); }
     K.loading = false; paint();
   }
 
@@ -269,12 +268,6 @@
     return `<div class="kd-stats"><span><b>${month.length}</b> note${month.length === 1 ? '' : 's'} this month</span><span><b>${people}</b> ${people === 1 ? 'person' : 'people'} thanked</span><span><b>${reacts}</b> reactions in all</span></div>`;
   }
   function inner() {
-    if (!K.code) {
-      return `<div class="kd-lock"><div class="kd-lock-i">🔒</div><h3>For our team only</h3>
-        <p>Type the team code to open the thank-you wall. You only need to do this once on this device.</p>
-        <form id="kd-lockf" class="kd-lockf"><input class="inp" id="kd-code" type="password" autocomplete="off" placeholder="Team code" required aria-label="Team code"><button class="btn dark" type="submit">Open the wall</button></form>
-        ${K.err ? `<p class="note warn">${esc(K.err)}</p>` : ''}</div>`;
-    }
     if (!K.items) { load(); return '<p class="note">Opening the wall…</p>'; }
     if (Date.now() - K.at > 20000 && !K.loading) setTimeout(load, 0);
     return `<div class="kd-top"><button type="button" class="btn dark kd-new-b" data-kdnew="1">✍️ Write a note</button>${stats()}</div>
@@ -297,7 +290,7 @@
   function view() {
     addFonts();
     return `<section class="card" id="c-kd"><div class="card-h"><h2>Thank-you wall</h2></div>
-      <p class="note">Thank someone on the team with a sticky note: pick a colour, a message from the library or your own words, then add emojis and stickers. Add their email and they get the note by email too. Everyone on the team can see the wall, react and comment. Team members only.</p>
+      <p class="note">Thank someone on the team with a sticky note: pick a colour, a message from the library or your own words, then add emojis and stickers. Add their email and they get the note by email too. Everyone can see the wall, react and comment.</p>
       <div id="kd-root">${inner()}</div></section>`;
   }
 
@@ -465,13 +458,7 @@
   // ---------- events ----------
   document.addEventListener('submit', async (e) => {
     const f = e.target;
-    if (f.id === 'kd-lockf') {
-      e.preventDefault();
-      const v = $('#kd-code').value.trim(); if (!v) return;
-      K.code = v; K.err = ''; K.items = null;
-      try { const j = await api('/api/kudos'); lsSet('kudos.code', v); K.items = j.items || []; K.email = !!j.email; K.admin = !!j.admin; K.reacts = j.reacts || K.reacts; K.at = Date.now(); paint(); }
-      catch (err) { if (K.code) { K.err = err.message; K.code = ''; paint(); } }
-    } else if (f.id === 'kd-admf') {
+    if (f.id === 'kd-admf') {
       e.preventDefault();
       const v = $('#kd-admp').value; if (!v) return;
       ssSet('kudos.admin', v); await load();

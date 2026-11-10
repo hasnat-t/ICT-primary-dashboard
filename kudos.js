@@ -1,8 +1,7 @@
 // Thank-you wall (owner request 2026-11-10): team members write sticky notes to thank each other. A note has a colour,
 // a font and size, emojis and stickers placed on it, and may name the person's email: that person gets the note by
 // email (Gmail app password, version 2). Others react and comment.
-// Internal only: every request needs the team code (TEAM_CODE on Railway, never in code); without it the server
-// answers nothing. There is no login, so a browser keeps a random key: its notes and comments can be removed only by
+// Anyone with the dashboard link can use it (owner 2026-11-10: no team code). There is no login, so a browser keeps a random key: its notes and comments can be removed only by
 // it (or by the admin with ADMIN_TOKEN), and it holds one reaction of each kind per note.
 // Stored in Postgres, or a JSON file for local runs.
 const fs = require('fs');
@@ -266,9 +265,9 @@ function emailFor(n, boardUrl) {
 <div dir="auto" style="font-family:${FONT_CSS[n.font] || FONT_CSS.hand};font-size:${PX[n.size] || 22}px;line-height:1.35;white-space:pre-wrap;color:#1C2230">${escH(n.body)}</div>
 ${emojis ? `<div style="font-size:30px;margin-top:12px">${escH(emojis)}</div>` : ''}${stamps ? `<div style="margin-top:8px">${stamps}</div>` : ''}
 <div style="text-align:right;font-size:14px;color:#444;margin-top:12px">— ${escH(n.from_name)}</div></td></tr>
-<tr><td style="padding:16px 0 0;font-size:13px;color:#5A6371">See it, react and reply on the wall: <a href="${escH(boardUrl)}" style="color:#1E7A4C">open the thank-you wall</a> (team code needed).<br>Sent from the ICT Dashboard. Please do not reply to this email.</td></tr>
+<tr><td style="padding:16px 0 0;font-size:13px;color:#5A6371">See it, react and reply on the wall: <a href="${escH(boardUrl)}" style="color:#1E7A4C">open the thank-you wall</a>.<br>Sent from the ICT Dashboard. Please do not reply to this email.</td></tr>
 </table></td></tr></table></body></html>`;
-  const text = `Hi ${n.to_name},\n\n${n.from_name} put a thank-you note for you on the NIETE ICT team's thank-you wall:\n\n"${n.body}"${emojis ? `\n${emojis}` : ''}\n\n— ${n.from_name}\n\nSee it on the wall: ${boardUrl} (team code needed)\n`;
+  const text = `Hi ${n.to_name},\n\n${n.from_name} put a thank-you note for you on the NIETE ICT team's thank-you wall:\n\n"${n.body}"${emojis ? `\n${emojis}` : ''}\n\n— ${n.from_name}\n\nSee it on the wall: ${boardUrl}\n`;
   return { subject, html, text };
 }
 

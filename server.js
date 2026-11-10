@@ -36,13 +36,12 @@ let feedbackStore = null;
 let eventStore = null;
 let targetStore = null;
 let kudosStore = null;
-// Thank-you wall: the team code (shared with the team by the owner) and the Gmail app password live only on Railway.
-const TEAM_CODE = process.env.TEAM_CODE || '';
+// Thank-you wall: open to anyone with the link (owner 2026-11-10: no team code); the Gmail app password lives only on Railway.
 const kudosMailer = KD.createMailer({ user: process.env.GMAIL_USER || '', pass: process.env.GMAIL_APP_PASSWORD || '' });
 const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://web-production-5de5b7.up.railway.app').replace(/\/+$/, '');
 const kudosWriteLimit = KD.createLimiter(30, 2000);      // notes, comments and removals per visitor per hour
 const kudosReactLimit = KD.createLimiter(300, 20000);    // reactions
-const kudosEmailLimit = KD.createLimiter(20, 300);       // emails: 20 per visitor per hour, 300 a day in all (Gmail allows ~500)
+const kudosEmailLimit = KD.createLimiter(10, 200);       // emails: 10 per visitor per hour, 200 a day in all (Gmail allows ~500)
 const targetLimit = FB.createLimiter();
 const eventLimit = FB.createLimiter();
 const feedbackLimit = FB.createLimiter();
@@ -401,11 +400,9 @@ async function handleTargets(req, res, url) {
   return json(405, { error: 'method not allowed' });
 }
 
-// Thank-you wall. Every request needs the team code; ownership and reactions use the browser's random key.
+// Thank-you wall: anyone with the link; ownership and reactions use the browser's random key.
 async function handleKudos(req, res, url) {
   const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
-  if (!TEAM_CODE) return json(503, { error: 'The thank-you wall is not set up yet: the owner needs to add TEAM_CODE on Railway.' });
-  if (!KD.secretOk(req.headers['x-team-code'], TEAM_CODE)) return json(401, { error: 'Wrong team code.', code: 'team' });
   if (!kudosStore) return json(503, { error: 'The wall is starting up, try again in a moment.' });
   const viewer = KD.viewerOf(req);
   if (!viewer) return json(400, { error: 'Please reload the page.' });
