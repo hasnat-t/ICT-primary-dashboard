@@ -13,6 +13,7 @@ const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 const FB = require('./feedback');
 const EV = require('./events');
 const TG = require('./targets');
+const KD = require('./kudos');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -34,6 +35,14 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';   // opens the feedback revie
 let feedbackStore = null;
 let eventStore = null;
 let targetStore = null;
+let kudosStore = null;
+// Thank-you wall: the team code (shared with the team by the owner) and the Gmail app password live only on Railway.
+const TEAM_CODE = process.env.TEAM_CODE || '';
+const kudosMailer = KD.createMailer({ user: process.env.GMAIL_USER || '', pass: process.env.GMAIL_APP_PASSWORD || '' });
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://web-production-5de5b7.up.railway.app').replace(/\/+$/, '');
+const kudosWriteLimit = KD.createLimiter(30, 2000);      // notes, comments and removals per visitor per hour
+const kudosReactLimit = KD.createLimiter(300, 20000);    // reactions
+const kudosEmailLimit = KD.createLimiter(20, 300);       // emails: 20 per visitor per hour, 300 a day in all (Gmail allows ~500)
 const targetLimit = FB.createLimiter();
 const eventLimit = FB.createLimiter();
 const feedbackLimit = FB.createLimiter();
@@ -299,7 +308,7 @@ const schedule = () => REFRESH_TIMES_PKT.map((t) => `${String(t.h).padStart(2, '
 // index.html with each script and stylesheet stamped by a hash of its content, so browsers never run stale code.
 const hashOf = (f) => require('crypto').createHash('sha1').update(fs.readFileSync(path.join(PUBLIC_DIR, f))).digest('hex').slice(0, 10);
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8')
-  .replace('__V_CSS__', hashOf('app.css')).replace('__V_CALC__', hashOf('calc.js')).replace('__V_APP__', hashOf('app.js')).replace('__V_TEMU__', hashOf('temu.js'));
+  .replace('__V_CSS__', hashOf('app.css')).replace('__V_CALC__', hashOf('calc.js')).replace('__V_APP__', hashOf('app.js')).replace('__V_TEMU__', hashOf('temu.js')).replace('__V_KUDOS__', hashOf('kudos.js'));
 
 // Read a small JSON request body (feedback), refusing anything over the limit.
 function readJson(req, max = 16000) {
@@ -392,8 +401,73 @@ async function handleTargets(req, res, url) {
   return json(405, { error: 'method not allowed' });
 }
 
+// Thank-you wall. Every request needs the team code; ownership and reactions use the browser's random key.
+async function handleKudos(req, res, url) {
+  const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
+  if (!TEAM_CODE) return json(503, { error: 'The thank-you wall is not set up yet: the owner needs to add TEAM_CODE on Railway.' });
+  if (!KD.secretOk(req.headers['x-team-code'], TEAM_CODE)) return json(401, { error: 'Wrong team code.', code: 'team' });
+  if (!kudosStore) return json(503, { error: 'The wall is starting up, try again in a moment.' });
+  const viewer = KD.viewerOf(req);
+  if (!viewer) return json(400, { error: 'Please reload the page.' });
+  const admin = FB.isAdmin(req, ADMIN_TOKEN);
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const p = url.pathname;
+  if (req.method === 'GET' && p === '/api/kudos') {
+    return json(200, { items: await kudosStore.list(viewer), email: !!kudosMailer, reacts: KD.REACTS, admin });
+  }
+  if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
+  let m;
+  if ((m = p.match(/^\/api\/kudos\/(\d{1,9})\/react$/))) {
+    if (!kudosReactLimit(ip)) return json(429, { error: 'That is a lot of reactions; please try again later.' });
+    const b = (await readJson(req, 2000)) || {};
+    if (!KD.REACTS.includes(b.emoji)) return json(400, { error: 'Unknown reaction.' });
+    const item = await kudosStore.react(+m[1], b.emoji, viewer);
+    return item ? json(200, { ok: true, item }) : json(404, { error: 'This note was removed.' });
+  }
+  if (!kudosWriteLimit(ip)) return json(429, { error: 'Too many notes and comments in an hour; please try again later.' });
+  if (p === '/api/kudos') {
+    const v = KD.validateNote(await readJson(req, 20000));
+    if (v.error) return json(400, { error: v.error });
+    let emailNote = null;
+    if (v.row.email && !kudosMailer) emailNote = 'off';
+    else if (v.row.email && !kudosEmailLimit(ip)) { emailNote = 'limit'; v.row.email = null; }
+    const item = await kudosStore.add(v.row, viewer);
+    log(`thank-you note #${item.id} (${v.row.email ? 'with email' : 'no email'})`);
+    if (v.row.email && kudosMailer) {
+      kudosStore.emailOf(item.id)
+        .then((n) => kudosMailer.send(n, `${PUBLIC_URL}/#tab=kudos`))
+        .then(() => kudosStore.setEmailStatus(item.id, 'sent'))
+        .then(() => log(`thank-you note #${item.id} emailed`))
+        .catch((e) => { log(`thank-you note #${item.id} email failed: ${e.message || e}`); kudosStore.setEmailStatus(item.id, 'failed').catch(() => {}); });
+    }
+    return json(200, { ok: true, item, email: emailNote || (v.row.email ? 'sending' : null) });
+  }
+  if ((m = p.match(/^\/api\/kudos\/(\d{1,9})\/comments$/))) {
+    const v = KD.validateComment(await readJson(req, 4000));
+    if (v.error) return json(400, { error: v.error });
+    const item = await kudosStore.comment(+m[1], v.row, viewer);
+    return item ? json(200, { ok: true, item }) : json(404, { error: 'This note was removed.' });
+  }
+  if ((m = p.match(/^\/api\/kudos\/(\d{1,9})\/delete$/))) {
+    const r = await kudosStore.removeNote(+m[1], viewer, admin);
+    if (r === 'ok') log(`thank-you note #${m[1]} removed${admin ? ' by admin' : ''}`);
+    return r === 'ok' ? json(200, { ok: true }) : r === 'forbidden' ? json(403, { error: 'Only the person who wrote this note can remove it.' }) : json(404, { error: 'not found' });
+  }
+  if ((m = p.match(/^\/api\/kudos\/comments\/(\d{1,9})\/delete$/))) {
+    const r = await kudosStore.removeComment(+m[1], viewer, admin);
+    if (r.status === 'forbidden') return json(403, { error: 'Only the person who wrote this comment can remove it.' });
+    if (r.status !== 'ok') return json(404, { error: 'not found' });
+    return json(200, { ok: true, item: await kudosStore.get(r.note, viewer) });
+  }
+  return json(404, { error: 'not found' });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/kudos' || url.pathname.startsWith('/api/kudos/')) {
+    handleKudos(req, res, url).catch((e) => { log(`thank-you wall error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
+    return;
+  }
   if (url.pathname === '/api/targets' || url.pathname.startsWith('/api/targets/')) {
     handleTargets(req, res, url).catch((e) => { log(`targets error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
     return;
@@ -484,6 +558,7 @@ try {
   }
   feedbackStore = FB.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'feedback.json') });
   eventStore = EV.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'events.json') });
+  kudosStore = KD.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'kudos.json') });
   targetStore = TG.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'targets.json') });
   server.listen(PORT, () => {
     log(`listening on ${PORT}`);

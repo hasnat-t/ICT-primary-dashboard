@@ -15,6 +15,15 @@ This file is for whoever looks after the dashboard: a developer, or the daily Cl
   `/api/debrief` as aggregates or one teacher at a time.
 - Last good data is saved to Postgres (`DATABASE_URL`), so a restart starts with data.
 
+## Thank-you wall (Team tab)
+
+- Opens only with the team code in the Railway variable `TEAM_CODE`; share it with the team yourself. Without the
+  variable the wall stays closed. To lock everyone out (e.g. the code leaked), change `TEAM_CODE` on Railway.
+- Emails: create a Gmail app password for the sending account (Google Account → Security → 2-Step Verification →
+  App passwords) and set `GMAIL_USER` (the address) and `GMAIL_APP_PASSWORD` (the 16-letter password) on Railway.
+  Without them notes still go on the wall and no email is sent. Gmail allows about 500 emails a day; the wall stops at 300.
+- Remove an unkind note: open the wall, **Admin** at the bottom, type the `ADMIN_TOKEN` password, then × on the note.
+
 ## User feedback
 
 - Every page has a **Feedback** button. Messages are stored in the Postgres table `feedback` (created automatically;
