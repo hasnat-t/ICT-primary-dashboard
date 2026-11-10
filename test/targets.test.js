@@ -86,3 +86,26 @@ test('targets: weekly series and forecast', () => {
   assert.strictEqual(Calc.targetForecast(wk([50, 52, 54, 56, 58, 60]), 55, 20, 41).status, 'missed');   // week of day 14 had 54
   assert.strictEqual(Calc.targetForecast(wk([50, 52, 54, 56, 58, 60]), 54, 20, 41).status, 'met');
 });
+
+test('sector league: points, ties, positions and season', () => {
+  // 3 sectors, 1 teacher each; one full week (days 2..8). Sector A uses plans, B records DC, C nothing.
+  const teachers = [{ s: 0 }, { s: 1 }, { s: 2 }];
+  const schools = [{ emis: '1', sector: 'A', name: 'a' }, { emis: '2', sector: 'B', name: 'b' }, { emis: '3', sector: 'C', name: 'c' }];
+  const lp = [[0, 3, 1, 0, 1, 0, 0], [0, 10, 1, 0, 1, 0, 0], [2, 10, 1, 0, 1, 0, 0]];
+  const obs = [[1, 4, 'D', '-', null, null, 24, 48, 14, 28, null, null]];
+  const P = Calc.prepare({ window_start: '2026-08-01', today: 16, teachers, schools, lp, obs });
+  const L = Calc.sectorLeague(P);
+  assert.strictEqual(L.max, 15);
+  assert.strictEqual(L.weeks.length, 2);           // weeks of day 2 and day 9; day 16 is in progress
+  const w0 = Object.fromEntries(L.weeks[0].rows.map((r) => [r.sector, r]));
+  // lp: A 100 (3), B/C 0 tie (2 each); dc: B 100 (3), A/C tie (2); hitl: all 0 tie (3 each); dcfico: B only (3), A/C no figure (0); ex: all tie (3)
+  assert.deepStrictEqual([w0.A.pts, w0.B.pts, w0.C.pts], [3 + 2 + 3 + 0 + 3, 2 + 3 + 3 + 3 + 3, 2 + 2 + 3 + 0 + 3]);
+  assert.deepStrictEqual(L.weeks[0].rows.map((r) => r.sector), ['B', 'A', 'C']);
+  const w1 = Object.fromEntries(L.weeks[1].rows.map((r) => [r.sector, r]));
+  // week 2: A and C both use a plan (tie 3), B 0 (1)... B has no DC now: dc all 0 (3 each); dcfico none (0)
+  assert.deepStrictEqual([w1.A.pts, w1.B.pts, w1.C.pts], [3 + 3 + 3 + 0 + 3, 1 + 3 + 3 + 0 + 3, 3 + 3 + 3 + 0 + 3]);
+  assert.deepStrictEqual(L.weeks[1].rows.map((r) => r.sector), ['A', 'C', 'B']);   // tie on points and LP: by name
+  assert.strictEqual(w1.A.move, 1); assert.strictEqual(w1.B.move, -2);
+  assert.deepStrictEqual([w1.A.season, w1.A.wins, w1.A.form, w1.A.best], [11 + 12, 1, [2, 1], 1]);
+  assert.deepStrictEqual([w1.B.seasonPos, w1.A.seasonPos, w1.C.seasonPos], [1, 2, 3]);   // season B 14+10 = 24, A 11+12 = 23, C 10+12 = 22
+});

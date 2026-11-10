@@ -141,6 +141,11 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
+    league: ['Sector league', 'A football-style league of the six sectors! Every week each sector earns points on five measures — lesson plans, DC recordings, coach visits, exam papers and DC classroom practice. Watch the table move, and press Play season to replay every week since August.', [
+      ['#c-lg', 'The table', 'Rows slide to their new places; arrows show who climbed or fell since last week. The crown is the leader, the fire tag the biggest climber. The coloured bar shows where each sector’s points came from. Switch to the season table for points summed since August.'],
+      ['#c-lg-d', 'A sector’s points', 'Click a sector in the table to see its figure, its rank and its points on each measure, and who was best this week.'],
+      ['#c-lg-b', 'The season so far', 'Every sector’s place week by week, like a race. The dashed line is the week you are looking at.'],
+    ]],
     targets: ['Targets', 'Goals the team has set — like 80% LP engagement from 1 November to 31 December — with a progress bar and a forecast of whether each will be hit on time. A target counts each week, or everyone active at least once over the whole period. Anyone can set one with “+ Set a target”.', [
       ['#c-tg', 'The targets', 'How many goals are achieved, on track, close or off track. “+ Set a target” picks a measure, who it is for (All ICT, a sector or a school), the start and end dates, whether to count each week or over the whole period, and the goal; it shows where that measure is now before you save.'],
       ['.tg-grid', 'Each target', 'The bar fills to where the measure is now; the black mark is the goal and the striped part is where the trend is heading. The small chart shows the weekly figures and the dashed forecast line to the date. It also says how many points a week are needed.'],
@@ -386,6 +391,7 @@
   // ---------- find, go, who to visit next, who deserves a thank-you ----------
   // These ask the dashboard through window.Dash (its bridge in app.js) and only use data already on the page.
   const GO_TABS = [   // first match wins, so the specific phrases come before the general ones
+    ['league', ['sector league', 'league', 'league table', 'standings', 'ranking', 'rankings']],
     ['targets', ['targets', 'target', 'goals', 'goal', 'forecast', 'on track']],
     ['impact', ['does coaching work', 'coaching work', 'coaching effect', 'coaching impact', 'impact of coaching', 'before and after', 'funder', 'does it work']],
     ['mhtraining', ['middle and high training', 'middle & high training', 'middle high training', 'middle training', 'high training', 'mh training', 'middle and high', 'middle high']],

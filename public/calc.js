@@ -688,6 +688,56 @@
     return { current, slope, rate, projected, weeksLeft, need, status, line, dlMon, fitWeeks: cumulative ? Math.min(3, since.length) : fit.length, last: lastAny.length ? lastAny[lastAny.length - 1].p : null };
   }
 
+  // Sector league (owner request 2026-11-10): every full Monday-Sunday week since 1 Aug, each sector is ranked on five
+  // weekly measures (the same as Targets, each week): LP engagement, DC coverage, HITL coverage, DC classroom practice
+  // and exam generator use. Per measure 1st = 6 points ... 6th = 1 (n sectors: n .. 1); tied sectors share the higher
+  // points; a sector with no figure gets 0. Week position by points, then LP engagement, then name. Season = sums to
+  // that week; wins = weeks at 1st; form = last 5 positions; best = best position so far.
+  const LEAGUE_MEASURES = ['lp', 'dc', 'hitl', 'dcfico', 'ex'];
+  function sectorLeague(P) {
+    const { data } = P;
+    const sectors = [...new Set(data.schools.map((x) => x.sector))].sort();
+    const n = sectors.length;
+    const ser = {};
+    for (const sec of sectors) { ser[sec] = {}; for (const m of LEAGUE_MEASURES) ser[sec][m] = targetSeries(P, m, { sector: sec }, { mode: 'week' }).weeks; }
+    const base = ser[sectors[0]].lp;
+    const weeks = [];
+    const season = Object.fromEntries(sectors.map((x) => [x, { pts: 0, wins: 0, form: [], best: null }]));
+    base.forEach((w, wi) => {
+      if (w.mon < 0 || w.partial) return;
+      // a week with no activity at all (a holiday week) is skipped
+      if (!sectors.some((sec) => LEAGUE_MEASURES.some((m) => ser[sec][m][wi].p))) return;
+      const rows = sectors.map((sec) => ({ sector: sec, pts: 0, parts: {} }));
+      for (const m of LEAGUE_MEASURES) {
+        const vals = rows.map((r) => ser[r.sector][m][wi].p);
+        rows.forEach((r, i) => {
+          const v = vals[i];
+          const better = v === null ? null : vals.filter((x) => x !== null && x > v + 1e-9).length;
+          const pts = v === null ? 0 : n - better;
+          r.parts[m] = { v, rank: v === null ? null : better + 1, pts };
+          r.pts += pts;
+        });
+      }
+      rows.sort((a, b) => b.pts - a.pts || (b.parts.lp.v ?? -1) - (a.parts.lp.v ?? -1) || a.sector.localeCompare(b.sector));
+      rows.forEach((r, i) => {
+        r.pos = i + 1;
+        const S = season[r.sector];
+        S.pts += r.pts; if (r.pos === 1) S.wins++; S.form.push(r.pos); S.best = S.best === null ? r.pos : Math.min(S.best, r.pos);
+        r.season = S.pts; r.wins = S.wins; r.form = S.form.slice(-5); r.best = S.best;
+      });
+      const prev = weeks[weeks.length - 1];
+      for (const r of rows) {
+        const p = prev && prev.rows.find((x) => x.sector === r.sector);
+        r.prevPos = p ? p.pos : null; r.move = p ? p.pos - r.pos : 0;
+      }
+      // season table position (by season points, then wins, then name)
+      const bySeason = rows.slice().sort((a, b) => b.season - a.season || b.wins - a.wins || a.sector.localeCompare(b.sector));
+      bySeason.forEach((r, i) => { r.seasonPos = i + 1; });
+      weeks.push({ mon: w.mon, end: w.end, rows });
+    });
+    return { sectors, max: n * LEAGUE_MEASURES.length, weeks };
+  }
+
   // HITL analytics: observations per teacher, coaches, how coaches treated the AI's pre-filled form, weekday.
   function hitlStats(P, opts) {
     const { data } = P;
@@ -913,5 +963,5 @@
       weeks: { D: grid(wk.D).sort((a, b) => a.key - b.key), H: grid(wk.H).sort((a, b) => a.key - b.key) }, weekStart: (w) => FI_W0 + 7 * w, firstDay: FI_W0 + 1 };
   }
 
-  return { TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  return { LEAGUE_MEASURES, sectorLeague, TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

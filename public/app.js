@@ -20,7 +20,7 @@
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar'], ['dq', 'Data quality']]],
-    ['Insights', [['report', 'Monthly report'], ['targets', 'Targets'], ['impact', 'Does coaching work?'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
+    ['Insights', [['report', 'Monthly report'], ['league', 'Sector league'], ['targets', 'Targets'], ['impact', 'Does coaching work?'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -1868,6 +1868,158 @@
         ], rows, { noLegend: true })}</section>` };
   }
 
+  // ---------- sector league ----------
+  // Calc.sectorLeague: each full week, sectors ranked on five measures (6 points for 1st ... 1 for 6th). The table is
+  // animated: rows slide to their new places (transform), numbers count up, arrows bounce or shake, and "Play season"
+  // replays every week since August. The week controls repaint the rows in place (lgPaint), without a full render, so
+  // the movement shows. Reduced motion: no movement (CSS and lgMotion()). Owner request 2026-11-10.
+  const LG_M = { lp: ['LP engagement', 'var(--a1)'], dc: ['DC coverage', 'var(--a3)'], hitl: ['HITL coverage', 'var(--a2)'], dcfico: ['DC classroom practice', 'var(--a4)'], ex: ['Exam generator', 'var(--a5)'] };
+  const lgMotion = () => !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let lgTimer = null;
+  function lgStop(pause) { S.lgPaused = !!pause && !!lgTimer; if (lgTimer) { clearInterval(lgTimer); lgTimer = null; } const b = document.querySelector('[data-lgw="play"]'); if (b) b.textContent = '▶ Play season'; }
+  const lgData = () => { if (!S.lgCache || S.lgCache.P !== S.P) S.lgCache = { P: S.P, L: Calc.sectorLeague(S.P) }; return S.lgCache.L; };
+  const lgWeekText = (w) => `Week of ${nice(w.mon)} – ${niceY(w.end)}`;
+  const lgOrder = (w) => (S.lgView === 'season' ? w.rows.slice().sort((a, b) => a.seasonPos - b.seasonPos) : w.rows);
+  function lgPrevSeasonPos(L, i, sector) { const p = L.weeks[i - 1]; return p ? p.rows.find((r) => r.sector === sector).seasonPos : null; }
+  // the cells of one row for week i
+  function lgCells(L, i, r) {
+    const season = S.lgView === 'season';
+    const pos = season ? r.seasonPos : r.pos;
+    const prev = season ? lgPrevSeasonPos(L, i, r.sector) : r.prevPos;
+    const mv = prev === null ? 0 : prev - pos;
+    const arrow = mv > 0 ? `<span class="lg-mv up" title="Up ${mv} from ${prev}">▲${mv}</span>` : mv < 0 ? `<span class="lg-mv dn" title="Down ${-mv} from ${prev}">▼${-mv}</span>` : '<span class="lg-mv eq" title="Same place">–</span>';
+    const w = L.weeks[i];
+    const top = Math.max(0, ...w.rows.map((x) => (season ? (lgPrevSeasonPos(L, i, x.sector) ?? x.seasonPos) - x.seasonPos : x.move)));
+    const climber = top >= 2 && mv === top;   // the week's biggest climb, if 2 places or more
+    const bar = Object.keys(LG_M).map((m) => `<i style="width:${((100 * r.parts[m].pts) / L.max).toFixed(2)}%;background:${LG_M[m][1]}" title="${esc(`${LG_M[m][0]}: ${r.parts[m].v === null ? 'no figure' : P1(r.parts[m].v)} · ${r.parts[m].rank ? `${r.parts[m].rank}${['st', 'nd', 'rd'][r.parts[m].rank - 1] || 'th'}` : '—'} · ${r.parts[m].pts} pts`)}"></i>`).join('');
+    const form = r.form.map((p, k) => `<i class="${p <= 2 ? 'g' : p >= L.sectors.length - 1 ? 'r' : 'y'}" title="${esc(`${k === r.form.length - 1 ? 'This week' : `${r.form.length - 1 - k} week${r.form.length - 1 - k === 1 ? '' : 's'} before`}: ${p}${['st', 'nd', 'rd'][p - 1] || 'th'}`)}">${p}</i>`).join('');
+    return { pos, mv, html: `<span class="lg-pos">${pos}</span>${arrow}
+      <span class="lg-name"><b>${esc(r.sector)}</b>${pos === 1 ? '<span class="lg-crown" title="Top of the table">👑</span>' : ''}${climber ? '<span class="lg-climb" title="Biggest climber">🔥 Climber</span>' : ''}</span>
+      <span class="lg-bar" aria-hidden="true">${bar}</span>
+      <span class="lg-n lg-pts" data-to="${season ? r.season : r.pts}">${season ? r.season : r.pts}</span>
+      <span class="lg-n lg-sea">${season ? r.pts : r.season}</span>
+      <span class="lg-n">${r.wins}</span>
+      <span class="lg-form">${form}</span>
+      <span class="lg-n lg-best">${r.best}</span>` };
+  }
+  function viewLeague() {
+    if (!S.data.obs || !S.data.lp) return card('c-lg', 'Sector league', '', '<p class="note">Lesson plans or observations could not be loaded in the last refresh. The league will appear after the next one.</p>');
+    const L = lgData();
+    if (!L.weeks.length) return card('c-lg', 'Sector league', '', '<p class="note">No full week yet.</p>');
+    if (S.lgWeek === undefined || S.lgWeek >= L.weeks.length) S.lgWeek = L.weeks.length - 1;
+    const i = S.lgWeek, w = L.weeks[i], season = S.lgView === 'season';
+    const head = `<div class="lg-row lg-head"><span>#</span><span></span><span>Sector</span><span>Points by measure</span><span class="lg-n">${season ? 'Season' : 'Pts'}</span><span class="lg-n">${season ? 'Week' : 'Season'}</span><span class="lg-n" title="Weeks at the top">Wins</span><span>Form</span><span class="lg-n" title="Best position so far">Best</span></div>`;
+    const rows = lgOrder(w).map((r) => { const c = lgCells(L, i, r); return `<button type="button" class="lg-row${S.lgSel === r.sector ? ' sel' : ''}${c.pos === 1 ? ' top' : ''}" data-lgsec="${esc(r.sector)}" style="--y:${c.pos - 1}">${c.html}</button>`; }).join('');
+    const legend = `<div class="lg-legend">${Object.entries(LG_M).map(([, [l, c]]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join('')}</div>`;
+    const ctl = `<div class="lg-ctl">
+        <div class="seg" role="group" aria-label="Table">${[['week', 'This week'], ['season', 'Season table']].map(([k, l]) => `<button type="button" data-lgv="${k}" aria-pressed="${(S.lgView || 'week') === k}">${l}</button>`).join('')}</div>
+        <div class="lg-wk"><button type="button" class="btn" data-lgw="prev" aria-label="Previous week">◀</button>
+          <input type="range" id="lg-range" min="0" max="${L.weeks.length - 1}" value="${i}" aria-label="Week">
+          <button type="button" class="btn" data-lgw="next" aria-label="Next week">▶</button>
+          <button type="button" class="btn dark" data-lgw="play">${lgTimer ? '❚❚ Pause' : '▶ Play season'}</button></div></div>`;
+    const tableCard = card('c-lg', 'Sector league',
+      `Every full week (Monday–Sunday) each sector is ranked on five measures — the share of its primary teachers who used a lesson plan, recorded a DC lesson, were observed by a coach and got an exam paper, and its average DC classroom-practice score. 1st on a measure earns ${L.sectors.length} points, last earns 1 (ties share the higher points), so a week is out of ${L.max}. Arrows compare with the week before; form = the last 5 weeks (green top 2, red bottom 2). Holiday weeks with no activity are skipped. Press ▶ Play season to replay every week since August. Click a sector for its points.`,
+      `<div class="lg-week" id="lg-wtxt">${esc(lgWeekText(w))}${i === L.weeks.length - 1 ? ' <span class="lg-latest">latest</span>' : ''}</div>
+       <div class="lg-tbl">${head}<div class="lg-rows" id="lg-rows" style="--n:${L.sectors.length}">${rows}</div></div>${legend}`, ctl);
+    return tableCard + `<div id="lg-detail">${lgDetail(L, i)}</div>` + lgBump(L, i);
+  }
+  // one sector's points for the week
+  function lgDetail(L, i) {
+    const w = L.weeks[i];
+    const sel = w.rows.find((r) => r.sector === S.lgSel) || w.rows[0];
+    const rows = Object.entries(LG_M).map(([m, [l, c]]) => {
+      const x = sel.parts[m];
+      const best = w.rows.slice().sort((a, b) => (b.parts[m].v ?? -1) - (a.parts[m].v ?? -1))[0];
+      return `<div class="lg-d"><span class="lg-dk" style="--c:${c}">${esc(l)}</span><b>${x.v === null ? '—' : P1(x.v)}</b><span class="lg-dr">${x.rank ? `${x.rank}${['st', 'nd', 'rd'][x.rank - 1] || 'th'} of ${L.sectors.length}` : 'no figure'}</span><span class="lg-dp">${x.pts} pts</span><span class="dim">${best.sector === sel.sector ? 'best this week' : `best: ${esc(best.sector)} ${P1(best.parts[m].v)}`}</span></div>`;
+    }).join('');
+    return card('c-lg-d', `${sel.sector} · ${lgWeekText(w).replace(/^Week/, 'week')}`, `${sel.pos}${['st', 'nd', 'rd'][sel.pos - 1] || 'th'} with ${sel.pts} of ${L.max} points · season ${N(sel.season)} points (${sel.seasonPos}${['st', 'nd', 'rd'][sel.seasonPos - 1] || 'th'}) · ${sel.wins} week${sel.wins === 1 ? '' : 's'} at the top.`,
+      `<div class="lg-ds">${rows}</div><div class="row"><button type="button" class="btn" data-lgopen="${esc(sel.sector)}">Open ${esc(sel.sector)} on the Overview →</button></div>`);
+  }
+  // positions week by week (a 'bump' chart), with a marker on the chosen week
+  function lgBump(L, i) {
+    const W = 1000, H = 260, n = L.sectors.length, k = L.weeks.length;
+    const X = (j) => (k === 1 ? W / 2 : 20 + ((W - 40) * j) / (k - 1)), Y = (p) => 18 + ((H - 36) * (p - 1)) / Math.max(1, n - 1);
+    const col = (si) => `var(--a${(si % 6) + 1})`;
+    const sel = S.lgSel;
+    let svg = '', dots = '', labels = '';
+    L.sectors.forEach((sec, si) => {
+      const pts = L.weeks.map((w, j) => [X(j), Y(w.rows.find((r) => r.sector === sec).pos)]);
+      svg += `<polyline points="${pts.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ')}" style="stroke:${col(si)}" class="lg-bl${sel && sel !== sec ? ' dim' : ''}"/>`;
+      const last = L.weeks[k - 1].rows.find((r) => r.sector === sec).pos;
+      labels += `<span class="lg-bn${sel && sel !== sec ? ' dim' : ''}" style="top:${((100 * Y(last)) / H).toFixed(2)}%;color:${col(si)}">${esc(sec)}</span>`;
+      L.weeks.forEach((w, j) => { const r = w.rows.find((x) => x.sector === sec); dots += `<i class="${sel && sel !== sec ? 'dim' : ''}" style="left:${((100 * X(j)) / W).toFixed(2)}%;top:${((100 * Y(r.pos)) / H).toFixed(2)}%;background:${col(si)}" data-tip="${esc(`${sec} · ${lgWeekText(w)}: ${r.pos}${['st', 'nd', 'rd'][r.pos - 1] || 'th'}, ${r.pts} pts`)}"></i>`; });
+    });
+    const ticks = L.weeks.map((w, j) => (j % Math.max(1, Math.ceil(k / 8)) === 0 || j === k - 1 ? `<span style="left:${((100 * X(j)) / W).toFixed(2)}%">${nice(w.mon)}</span>` : '')).join('');
+    return card('c-lg-b', 'The season so far', 'Each sector’s place week by week (1st at the top). Click a sector in the table to pick out its line.',
+      `<div class="lg-bump"><div class="lg-bp"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${svg}</svg>${dots}<span class="lg-mark" id="lg-mark" style="left:${((100 * X(i)) / W).toFixed(2)}%"></span></div><div class="lg-bl-names">${labels}</div></div><div class="lg-bx">${ticks}</div>`);
+  }
+  function lgCount(el, from, to) {
+    if (!lgMotion() || from === to) { el.textContent = to; return; }
+    const t0 = performance.now(), d = 650;
+    const step = (t) => { const f = Math.min(1, (t - t0) / d); el.textContent = Math.round(from + (to - from) * (1 - (1 - f) ** 3)); if (f < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  // repaint the rows for week i in place: new cells, then slide each row to its place
+  function lgPaint(i) {
+    const L = lgData(); const box = document.getElementById('lg-rows');
+    if (!box || !L.weeks[i]) return;
+    S.lgWeek = i;
+    const w = L.weeks[i];
+    for (const r of w.rows) {
+      const el = box.querySelector(`[data-lgsec="${CSS.escape(r.sector)}"]`); if (!el) continue;
+      const old = el.querySelector('.lg-pts'); const from = old ? +old.textContent || 0 : 0;
+      const c = lgCells(L, i, r);
+      el.innerHTML = c.html; el.style.setProperty('--y', c.pos - 1); el.classList.toggle('top', c.pos === 1);
+      lgCount(el.querySelector('.lg-pts'), from, +el.querySelector('.lg-pts').dataset.to);
+    }
+    const t = document.getElementById('lg-wtxt'); if (t) t.innerHTML = `${esc(lgWeekText(w))}${i === L.weeks.length - 1 ? ' <span class="lg-latest">latest</span>' : ''}`;
+    const rg = document.getElementById('lg-range'); if (rg) rg.value = i;
+    const mk = document.getElementById('lg-mark'); if (mk) { const k = L.weeks.length; mk.style.left = `${((100 * (k === 1 ? 500 : 20 + (960 * i) / (k - 1))) / 1000).toFixed(2)}%`; }
+    const d = document.getElementById('lg-detail'); if (d) d.innerHTML = lgDetail(L, i);
+  }
+  // after a render: the first time the tab opens, rows start in last week's order and slide to this week's
+  function lgAfter() {
+    const L = lgData(); const box = document.getElementById('lg-rows');
+    const rg = document.getElementById('lg-range');
+    if (rg) rg.oninput = () => { lgStop(); lgPaint(+rg.value); };
+    if (!box || S.lgOpen) return;
+    S.lgOpen = true;
+    if (!lgMotion()) return;
+    const i = S.lgWeek, w = L.weeks[i];
+    box.classList.add('still');
+    for (const r of w.rows) {
+      const el = box.querySelector(`[data-lgsec="${CSS.escape(r.sector)}"]`); if (!el) continue;
+      const prev = S.lgView === 'season' ? lgPrevSeasonPos(L, i, r.sector) : r.prevPos;
+      el.style.setProperty('--y', (prev ?? r.pos) - 1);
+      const pts = el.querySelector('.lg-pts'); if (pts) pts.textContent = '0';
+    }
+    void box.offsetHeight;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      box.classList.remove('still');
+      for (const r of w.rows) {
+        const el = box.querySelector(`[data-lgsec="${CSS.escape(r.sector)}"]`); if (!el) continue;
+        const pos = S.lgView === 'season' ? r.seasonPos : r.pos;
+        el.style.setProperty('--y', pos - 1);
+        const pts = el.querySelector('.lg-pts'); if (pts) lgCount(pts, 0, +pts.dataset.to);
+      }
+    }));
+  }
+  function lgPlay() {
+    const L = lgData();
+    if (lgTimer) { lgStop(true); return; }
+    // a new replay starts in August; after a pause it carries on from where it stopped
+    let i = S.lgPaused && S.lgWeek < L.weeks.length - 1 ? S.lgWeek : 0;
+    S.lgPaused = false;
+    lgPaint(i);
+    const b = document.querySelector('[data-lgw="play"]'); if (b) b.textContent = '❚❚ Pause';
+    lgTimer = setInterval(() => {
+      if (S.tab !== 'league' || !document.getElementById('lg-rows')) { lgStop(); return; }
+      i++;
+      if (i >= L.weeks.length) { lgStop(); return; }
+      lgPaint(i);
+    }, lgMotion() ? 1100 : 600);
+  }
+
   // ---------- targets ----------
   // Goals set by the team ("80% LP engagement by 31 Dec"), stored on the server (targets.js, like the school calendar:
   // anyone with the link can add and remove). Progress and a straight-line forecast come from Calc.targetSeries /
@@ -2372,6 +2524,7 @@
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
       ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
+      ['Sector league', 'P', 'Every full Monday–Sunday week since 1 Aug (holiday weeks with no activity skipped), each sector is ranked on five weekly measures: the share of its primary teachers who used a grade 1–5 lesson plan, recorded a DC lesson, were observed by a coach, got an exam paper, and its average DC classroom-practice score (teaching practices + student engagement). 1st earns 6 points, 6th earns 1; tied sectors share the higher points; no figure = 0. Week position by points, then LP engagement. Season = points summed since August; wins = weeks at 1st; form = the last 5 positions.', 'the same data as the rest of the page · owner-defined (2026-11-10)'],
       ['Targets', 'P', 'Goals set by the team on the Targets tab, each with a start and an end date, for the primary teachers in the target’s scope. Counted each week (Monday–Sunday: share of teachers who used a grade 1–5 plan / recorded a DC lesson / were observed by a coach / got an exam paper that week; DC classroom practice = that week’s average teaching practices + student engagement score) or over the whole period (share active at least once from the start date; DC classroom practice = the average since the start). Forecast = a least-squares straight line through the full weeks since the start (each week: the last 6 when fewer than 3), carried to the end date: on track if it reaches the goal, close if within 5 points, off track otherwise; achieved when the latest figure is at or above the goal; not started before the start date; met or missed after the end.', 'the same data as the rest of the page · owner-defined (2026-11-09)'],
       ['Coaching effect (Does coaching work?)', 'P', 'For each coach (HITL) visit: the teacher’s own Digital Coach score (AI-scored FICO) in the 1, 2 or 3 weeks after the visit minus the weeks before (visit day left out; recordings needed on both sides, both windows ended), minus the average change over the same days of teachers in the same sector and starting band (below 60 / 60–69.9 / 70%+) who had no visit then (at least 5). Averaged over visits, with a 95% range of ±1.96 standard errors. Classroom practice = teaching practices + student engagement; subject knowledge uses FICO v3 only. Shows what follows a visit, not proof it caused it.', 'coaching_sessions · coaching-query-rules §1, fico-scores-rules §2 (owner-defined method, 2026-11-09)'],
       ['Data quality checks', 'G', 'The Data quality tab, as of the last refresh, over every programme school and every teacher level: teachers with no level recorded, a blank name, or the same name as another account at their school (a possible duplicate); schools with no coach assigned (a coach account with the school in its assigned schools), no teacher accounts, or only 1–2; coach accounts with no school; and observation section scores outside 0 to the maximum.', 'users, schools, school_programme, leader_schools · teacher-headcount §1e, teacher-levels §1b, coaches-rules §3'],
@@ -3085,12 +3238,14 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, targets: viewTargets, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, targets: viewTargets, league: viewLeague, report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
+    if (S.tab !== 'league') { S.lgOpen = false; lgStop(); }
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
     drawCharts($('#main'));
+    if (S.tab === 'league') lgAfter();
     if (focus !== null && $(`#${fid}`)) { $(`#${fid}`).focus(); $(`#${fid}`).setSelectionRange(focus, focus); }
   }
 
@@ -3185,6 +3340,10 @@
     else if (b.dataset.tab) { S.tab = b.dataset.tab; S.search = ''; render(); window.scrollTo(0, 0); }
     else if (b.dataset.gran) { S.gran = b.dataset.gran; render(); }
     else if (b.dataset.presetAll) { const p = presets().find((x) => x[0] === 'all'); S.preset = 'all'; S.from = Math.max(p[2], 0); S.to = p[3]; render(); }
+    else if (b.dataset.lgw) { const L = lgData(); if (b.dataset.lgw === 'play') lgPlay(); else { lgStop(); lgPaint(Math.max(0, Math.min(L.weeks.length - 1, S.lgWeek + (b.dataset.lgw === 'next' ? 1 : -1)))); } }
+    else if (b.dataset.lgv) { lgStop(); S.lgView = b.dataset.lgv; S.lgOpen = false; render(); }
+    else if (b.dataset.lgsec) { S.lgSel = S.lgSel === b.dataset.lgsec ? '' : b.dataset.lgsec; document.querySelectorAll('.lg-row[data-lgsec]').forEach((x) => x.classList.toggle('sel', x.dataset.lgsec === S.lgSel)); const L = lgData(); const d = document.getElementById('lg-detail'); if (d) d.innerHTML = lgDetail(L, S.lgWeek); const bc = document.getElementById('c-lg-b'); if (bc) bc.outerHTML = lgBump(L, S.lgWeek); }
+    else if (b.dataset.lgopen) { lgStop(); S.sector = b.dataset.lgopen; S.school = ''; S.tab = 'overview'; render(); window.scrollTo(0, 0); }
     else if (b.dataset.tgadd) targetForm();
     else if (b.dataset.tgdel) targetRemove(+b.dataset.tgdel);
     else if (b.dataset.imw) { S.imW = +b.dataset.imw; render(); }
