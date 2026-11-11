@@ -15,6 +15,11 @@ This file is for whoever looks after the dashboard: a developer, or the daily Cl
   `/api/debrief` as aggregates or one teacher at a time.
 - Last good data is saved to Postgres (`DATABASE_URL`), so a restart starts with data.
 
+## Dashboard usage (Team tab)
+
+- Team → Dashboard usage, opened with the `ADMIN_TOKEN` password: people per day and week, most used tabs.
+- A person = one browser on one device (random id, only its hash stored; no IP or name). Started 11 Nov 2026.
+
 ## Thank-you wall (Team tab)
 
 - Anyone with the dashboard link can read and write notes (no code, owner decision 2026-11-10).

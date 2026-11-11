@@ -141,6 +141,11 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
+    usage: ['Dashboard usage', 'Who is using this dashboard? People per day and per week, the most used tabs, and phone or computer. Admin password needed. Only a random browser id is kept — no names.', [
+      ['#c-us', 'People per day', 'Today, yesterday, the daily average and this week, with a bar for every day.'],
+      ['#c-us-w', 'By week', 'Different people each Monday–Sunday week.'],
+      ['#c-us-t', 'Most used tabs', 'Which tabs people open most.'],
+    ]],
     kudos: ['Thank-you wall', 'Our team’s wall of sticky notes! Thank a teammate: pick a colour, a message from the library (English or Urdu) or your own words, add emojis and stickers, and add their email so it lands in their inbox too.', [
       ['#c-kd', 'The wall', 'Press <b>Write a note</b> to make one. React with 👏 ❤️ 🎉 🙌 🌟, press 💬 to comment, and search for a name. Only the writer (or the admin) can remove a note.'],
     ]],
@@ -395,6 +400,7 @@
   // ---------- find, go, who to visit next, who deserves a thank-you ----------
   // These ask the dashboard through window.Dash (its bridge in app.js) and only use data already on the page.
   const GO_TABS = [   // first match wins, so the specific phrases come before the general ones
+    ['usage', ['dashboard usage', 'usage', 'visitors', 'how many people use', 'who uses the dashboard']],
     ['kudos', ['thank-you wall', 'thank you wall', 'thank-you note', 'thank you note', 'sticky note', 'sticky notes', 'kudos', 'wall', 'thank a teammate', 'thank my team']],
     ['league', ['sector league', 'league', 'league table', 'standings', 'ranking', 'rankings']],
     ['targets', ['targets', 'target', 'goals', 'goal', 'forecast', 'on track']],

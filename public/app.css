@@ -1008,3 +1008,15 @@ dialog.fb.kd-dlg#kd-wdlg { max-width: min(62rem, calc(100vw - 24px)); }
 @media (max-width: 48rem) { .kd-wb { grid-template-columns: 1fr; } .kd-pv { position: static; } }
 @media (prefers-reduced-motion: reduce) { .kd-note, .kd-board .kd-note:hover { transition: none; } }
 @media print { .kd-tools, .kd-adm, .kd-new-b, .kd-foot button.kd-x { display: none !important; } .kd-note { break-inside: avoid; } }
+
+/* dashboard usage */
+.us-login { display: flex; flex-wrap: wrap; gap: 8px; }
+.us-login .inp { flex: 0 1 18rem; }
+.us-h { margin: 6px 0 0; font-family: var(--display); font-size: 15px; font-weight: 600; }
+.us-chart svg { width: 100%; height: auto; display: block; }
+.us-bar { fill: var(--a1, #1F7A4C); }
+.us-bar:hover { opacity: .8; }
+.us-pre { fill: var(--line); }
+.us-base { stroke: var(--ctl); }
+.us-ax { font-size: 10px; fill: var(--muted); }
+.us-v { font-size: 10px; fill: var(--fg-2); font-weight: 600; }

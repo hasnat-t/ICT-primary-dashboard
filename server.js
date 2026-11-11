@@ -14,6 +14,7 @@ const FB = require('./feedback');
 const EV = require('./events');
 const TG = require('./targets');
 const KD = require('./kudos');
+const US = require('./usage');
 
 const PORT = Number(process.env.PORT) || 3000;
 // The Taleemabad data service (MCP over HTTP). Set it in the host's environment; it is never kept in the code.
@@ -36,6 +37,8 @@ let feedbackStore = null;
 let eventStore = null;
 let targetStore = null;
 let kudosStore = null;
+let usageStore = null;
+const usageLimit = KD.createLimiter(600, 200000);   // page views per visitor per hour
 // Thank-you wall: open to anyone with the link (owner 2026-11-10: no team code); the Gmail app password lives only on Railway.
 const kudosMailer = KD.createMailer({ user: process.env.GMAIL_USER || '', pass: process.env.GMAIL_APP_PASSWORD || '' });
 const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://web-production-5de5b7.up.railway.app').replace(/\/+$/, '');
@@ -459,8 +462,31 @@ async function handleKudos(req, res, url) {
   return json(404, { error: 'not found' });
 }
 
+// Dashboard usage: the page records opens and tab views (anonymous: a hashed random browser id); the admin reads it.
+async function handleUsage(req, res, url) {
+  const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
+  if (!usageStore) return json(503, { error: 'starting up' });
+  if (req.method === 'POST' && url.pathname === '/api/usage') {
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const v = US.validate(await readJson(req, 1000), req.headers['user-agent']);
+    if (v.row && usageLimit(ip)) await usageStore.add(pktStamp().slice(0, 10), v.row);
+    return send(res, 204, '', 'text/plain', { 'Cache-Control': 'no-store' });
+  }
+  if (req.method === 'GET' && url.pathname === '/api/admin/usage') {
+    if (!ADMIN_TOKEN) return json(503, { error: 'The usage page is not set up yet: add ADMIN_TOKEN on Railway.' });
+    if (!FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong password.' });
+    const days = Math.min(Math.max(parseInt(url.searchParams.get('days') || '60', 10) || 60, 7), 400);
+    return json(200, US.summarize(await usageStore.all(), pktStamp().slice(0, 10), days));
+  }
+  return json(405, { error: 'method not allowed' });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/usage' || url.pathname === '/api/admin/usage') {
+    handleUsage(req, res, url).catch((e) => { log(`usage error: ${e.message || e}`); send(res, 500, '{"error":"usage failed"}', TYPES['.json']); });
+    return;
+  }
   if (url.pathname === '/api/kudos' || url.pathname.startsWith('/api/kudos/')) {
     handleKudos(req, res, url).catch((e) => { log(`thank-you wall error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
     return;
@@ -555,6 +581,7 @@ try {
   }
   feedbackStore = FB.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'feedback.json') });
   eventStore = EV.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'events.json') });
+  usageStore = US.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'usage.json') });
   kudosStore = KD.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'kudos.json') });
   targetStore = TG.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'targets.json') });
   server.listen(PORT, () => {

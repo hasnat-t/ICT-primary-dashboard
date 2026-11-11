@@ -21,7 +21,7 @@
     ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar'], ['dq', 'Data quality']]],
     ['Insights', [['report', 'Monthly report'], ['league', 'Sector league'], ['targets', 'Targets'], ['impact', 'Does coaching work?'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
-    ['Team', [['kudos', 'Thank-you wall']]],
+    ['Team', [['kudos', 'Thank-you wall'], ['usage', 'Dashboard usage']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -2525,6 +2525,7 @@
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
       ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
+      ['Dashboard usage', '', 'How many people open this dashboard (Team tab, admin password). A person = one browser on one device, kept as a random id (only its hash is stored; no name, no IP address). Opens = times the page was opened; a tab counts when someone switches to it. Days are Pakistan days, weeks Monday–Sunday. Bots and link previews are left out. Counting began on 11 Nov 2026.', 'owner request (2026-11-11)'],
       ['Thank-you wall', '', 'Sticky notes team members write to thank each other (Team tab). Anyone with the dashboard link can use it. A note may name the person’s email, and that person gets the note by email. Notes, reactions and comments are saved; the email address is never shown on the wall. Not built from the dashboard’s data.', 'owner request (2026-11-10)'],
       ['Sector league', 'P', 'Every full Monday–Sunday week since 1 Aug (holiday weeks with no activity skipped), each sector is ranked on five weekly measures: the share of its primary teachers who used a grade 1–5 lesson plan, recorded a DC lesson, were observed by a coach, got an exam paper, and its average DC classroom-practice score (teaching practices + student engagement). 1st earns 6 points, 6th earns 1; tied sectors share the higher points; no figure = 0. Week position by points, then LP engagement. Season = points summed since August; wins = weeks at 1st; form = the last 5 positions.', 'the same data as the rest of the page · owner-defined (2026-11-10)'],
       ['Targets', 'P', 'Goals set by the team on the Targets tab, each with a start and an end date, for the primary teachers in the target’s scope. Counted each week (Monday–Sunday: share of teachers who used a grade 1–5 plan / recorded a DC lesson / were observed by a coach / got an exam paper that week; DC classroom practice = that week’s average teaching practices + student engagement score) or over the whole period (share active at least once from the start date; DC classroom practice = the average since the start). Forecast = a least-squares straight line through the full weeks since the start (each week: the last 6 when fewer than 3), carried to the end date: on track if it reaches the goal, close if within 5 points, off track otherwise; achieved when the latest figure is at or above the goal; not started before the start date; met or missed after the end.', 'the same data as the rest of the page · owner-defined (2026-11-09)'],
@@ -3240,7 +3241,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, targets: viewTargets, league: viewLeague, kudos: () => (window.Kudos ? window.Kudos.view() : card('c-kd', 'Thank-you wall', '', '<p class="note">The wall could not load. Please reload the page.</p>')), report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, targets: viewTargets, league: viewLeague, usage: viewUsage, kudos: () => (window.Kudos ? window.Kudos.view() : card('c-kd', 'Thank-you wall', '', '<p class="note">The wall could not load. Please reload the page.</p>')), report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;
@@ -3248,7 +3249,96 @@
     $('#main').innerHTML = `<div class="grid">${warn}${views[S.tab](R)}</div>`;
     drawCharts($('#main'));
     if (S.tab === 'league') lgAfter();
+    track();
     if (focus !== null && $(`#${fid}`)) { $(`#${fid}`).focus(); $(`#${fid}`).setSelectionRange(focus, focus); }
+  }
+
+  // ---------- dashboard usage (owner request 2026-11-11) ----------
+  // The page records each open and each tab change against a random id kept in this browser (server keeps a hash only;
+  // no IP, no name). The Usage tab (admin password = ADMIN_TOKEN, shared with /admin/feedback) shows the counts.
+  let uOpened = false;
+  function uId() {
+    try {
+      let v = localStorage.getItem('usage.id');
+      if (!/^[A-Za-z0-9_-]{16,64}$/.test(v || '')) { const a = new Uint8Array(16); crypto.getRandomValues(a); v = [...a].map((x) => x.toString(16).padStart(2, '0')).join(''); localStorage.setItem('usage.id', v); }
+      return v;
+    } catch (e) { return ''; }
+  }
+  function track() {
+    if (S.uTab === S.tab) return;
+    S.uTab = S.tab;
+    const v = uId(); if (!v) return;
+    const d = window.matchMedia && matchMedia('(max-width: 48rem), (pointer: coarse)').matches ? 'm' : 'd';
+    const post = (b) => { try { fetch('/api/usage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b), keepalive: true }).catch(() => {}); } catch (e) { /* offline */ } };
+    if (!uOpened) { uOpened = true; post({ v, open: 1, d }); }
+    post({ v, tab: S.tab, d });
+  }
+  const usTok = () => { try { return sessionStorage.getItem('fbToken') || ''; } catch (e) { return ''; } };
+  async function loadUsage() {
+    S.usLoading = true;
+    try {
+      const r = await fetch(`/api/admin/usage?days=${S.usDays || 60}`, { headers: { 'x-admin-token': usTok() }, cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 401) { try { sessionStorage.removeItem('fbToken'); } catch (e) { /* ignore */ } S.usErr = 'That admin password is not right.'; S.usage = null; }
+      else if (!r.ok) { S.usErr = j.error || 'Could not load the usage figures.'; S.usage = null; }
+      else { S.usErr = ''; S.usage = j; S.usAt = Date.now(); }
+    } catch (e) { S.usErr = 'Could not load the usage figures.'; }
+    S.usLoading = false;
+    if (S.tab === 'usage') render();
+  }
+  const usDay = (d) => { const [y, m, x] = d.split('-'); return `${+x} ${MONTHS[+m - 1]}${y !== String(new Date().getFullYear()) ? ` ${y}` : ''}`; };
+  function viewUsage() {
+    const note = 'How many people open this dashboard, and which tabs they use. A person here is one browser on one device: someone on a phone and a laptop counts twice, and clearing the browser counts as new. Only a random id is kept — no name, no IP address. Visits by bots and link previews are left out.';
+    if (!usTok()) {
+      return card('c-us', 'Dashboard usage', note, `<form id="us-login" class="us-login"><input class="inp" id="us-pw" type="password" autocomplete="current-password" placeholder="Admin password" aria-label="Admin password" required><button class="btn dark" type="submit">Open</button></form>
+        <p class="note">The same password as the feedback review page.</p>${S.usErr ? `<p class="note warn">${esc(S.usErr)}</p>` : ''}`);
+    }
+    const days = S.usDays || 60;
+    if (!S.usage || S.usage.days !== days || Date.now() - (S.usAt || 0) > 60000) {
+      if (!S.usLoading) loadUsage();
+      if (!S.usage) return card('c-us', 'Dashboard usage', note, `<p class="note">${S.usErr ? esc(S.usErr) : 'Loading…'}</p>`);
+    }
+    const U = S.usage;
+    const since = U.tracking_since;
+    const tracked = U.daily.filter((x) => since && x.day >= since);
+    const td = U.daily[U.daily.length - 1], yd = U.daily[U.daily.length - 2];
+    const last7 = tracked.slice(-7);
+    const avg7 = last7.length ? last7.reduce((s, x) => s + x.visitors, 0) / last7.length : null;
+    const thisMon = U.weekly.find((w) => w.mon <= U.today);
+    const prevW = U.weekly[1];
+    const seg = `<div class="seg" role="group" aria-label="Period">${[[30, '30 days'], [60, '60 days'], [120, '120 days']].map(([k, l]) => `<button type="button" data-usdays="${k}" aria-pressed="${days === k}">${l}</button>`).join('')}</div>`;
+    const kpis = `<div class="kpis">${kpi('Today', N(td.visitors), `${N(td.opens)} opens · ${N(td.new)} new`)}${kpi('Yesterday', yd && since && yd.day >= since ? N(yd.visitors) : '—', yd && since && yd.day >= since ? `${N(yd.opens)} opens` : 'not tracked yet')}${kpi('Daily average', avg7 === null ? '—' : avg7.toFixed(1), `people a day, last ${last7.length} day${last7.length === 1 ? '' : 's'}`)}${kpi('This week', thisMon ? N(thisMon.visitors) : '0', 'different people, Mon–Sun')}${kpi('Last week', prevW ? N(prevW.visitors) : '—', prevW ? `${N(prevW.opens)} opens` : 'not tracked yet')}${kpi(`In ${days} days`, N(U.visitors), `${N(U.returning)} came back on 2+ days`)}</div>`;
+    // daily bars (people), with opens in the tooltip; days before tracking began are greyed
+    const W = 760, H = 200, pad = 26, n = U.daily.length, bw = (W - pad * 2) / n;
+    const mx = Math.max(4, ...U.daily.map((x) => x.visitors));
+    const y = (v) => H - 24 - (v / mx) * (H - 44);
+    const bars = U.daily.map((x, i) => {
+      const X = pad + i * bw, pre = !since || x.day < since;
+      const lab = (i === n - 1 || (n - 1 - i) % 7 === 0) ? `<text x="${(X + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="us-ax">${esc(usDay(x.day))}</text>` : '';
+      if (pre) return `<rect x="${X.toFixed(1)}" y="${H - 26}" width="${Math.max(1, bw - 2).toFixed(1)}" height="2" class="us-pre"><title>${esc(usDay(x.day))}: not tracked yet</title></rect>${lab}`;
+      return `<rect x="${X.toFixed(1)}" y="${y(x.visitors).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${Math.max(0, H - 24 - y(x.visitors)).toFixed(1)}" rx="2" class="us-bar"><title>${esc(usDay(x.day))}: ${x.visitors} ${x.visitors === 1 ? 'person' : 'people'}, ${x.opens} opens, ${x.new} new</title></rect>${x.visitors && n <= 60 ? `<text x="${(X + bw / 2).toFixed(1)}" y="${(y(x.visitors) - 4).toFixed(1)}" text-anchor="middle" class="us-v">${x.visitors}</text>` : ''}${lab}`;
+    }).join('');
+    const chart = `<div class="us-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="People per day"><line x1="${pad}" x2="${W - pad}" y1="${H - 24}" y2="${H - 24}" class="us-base"/>${bars}</svg></div>`;
+    const head = card('c-us', 'Dashboard usage', `${note}${since ? ` Counting since <b>${esc(usDay(since))}</b>.` : ' Counting starts with the next visit.'}`, `${kpis}<h3 class="us-h">People per day</h3>${chart}`, `<div class="row">${seg}</div>`);
+    const tabName = (k) => (TABS.find((t) => t[0] === k) || [k, k])[1];
+    const tabs = card('c-us-t', 'Most used tabs', `Different people who opened each tab in the last ${days} days, and how many times it was opened.`,
+      U.tabs.length ? table('ust', [
+        { k: 'tab', label: 'Tab', val: (r) => tabName(r.tab) },
+        { k: 'visitors', label: 'People', num: true, val: (r) => r.visitors, fmt: (r) => `${N(r.visitors)} <span class="dim">${U.visitors ? `(${Math.round((r.visitors / U.visitors) * 100)}%)` : ''}</span>` },
+        { k: 'views', label: 'Times opened', num: true, val: (r) => r.views, fmt: (r) => N(r.views) },
+      ], U.tabs, { noLegend: true, sort: { k: 'visitors', dir: -1 } }) : '<p class="note">No tab views yet.</p>');
+    const weeks = card('c-us-w', 'By week', 'Different people each Monday–Sunday week (a person who came on three days counts once).',
+      U.weekly.length ? table('usw', [
+        { k: 'mon', label: 'Week', val: (r) => r.mon, fmt: (r) => `${esc(usDay(r.mon))} – ${esc(usDay(new Date(Date.parse(`${r.mon}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10)))}${r.mon === (thisMon && thisMon.mon) ? ' <span class="dim">(this week)</span>' : ''}` },
+        { k: 'visitors', label: 'People', num: true, val: (r) => r.visitors, fmt: (r) => N(r.visitors) },
+        { k: 'opens', label: 'Opens', num: true, val: (r) => r.opens, fmt: (r) => N(r.opens) },
+        { k: 'days', label: 'Days with visits', num: true, val: (r) => r.days, fmt: (r) => N(r.days) },
+      ], U.weekly, { noLegend: true, sort: { k: 'mon', dir: -1 } }) : '<p class="note">No visits yet.</p>');
+    const D = U.devices, dt = D.phone + D.computer + D.both;
+    const dev = card('c-us-d', 'Phone or computer', 'Judged from the screen: phones and tablets vs computers.',
+      `<div class="kpis">${kpi('Phone only', N(D.phone), dt ? `${Math.round((D.phone / dt) * 100)}%` : '')}${kpi('Computer only', N(D.computer), dt ? `${Math.round((D.computer / dt) * 100)}%` : '')}${kpi('Both', N(D.both), 'the same browser id on both is rare')}</div>
+      <p class="note"><button type="button" class="dl" data-usout="1">Sign out of the usage page</button></p>`);
+    return head + weeks + tabs + dev;
   }
 
   // Save a section as a PNG. Scrolling tables and grids are opened up first, and the section widened to its full content,
@@ -3346,6 +3436,8 @@
     else if (b.dataset.lgv) { lgStop(); S.lgView = b.dataset.lgv; S.lgOpen = false; render(); }
     else if (b.dataset.lgsec) { S.lgSel = S.lgSel === b.dataset.lgsec ? '' : b.dataset.lgsec; document.querySelectorAll('.lg-row[data-lgsec]').forEach((x) => x.classList.toggle('sel', x.dataset.lgsec === S.lgSel)); const L = lgData(); const d = document.getElementById('lg-detail'); if (d) d.innerHTML = lgDetail(L, S.lgWeek); const bc = document.getElementById('c-lg-b'); if (bc) bc.outerHTML = lgBump(L, S.lgWeek); }
     else if (b.dataset.lgopen) { lgStop(); S.sector = b.dataset.lgopen; S.school = ''; S.tab = 'overview'; render(); window.scrollTo(0, 0); }
+    else if (b.dataset.usdays) { S.usDays = +b.dataset.usdays; render(); }
+    else if (b.dataset.usout) { try { sessionStorage.removeItem('fbToken'); } catch (e) { /* ignore */ } S.usage = null; S.usErr = ''; render(); }
     else if (b.dataset.tgadd) targetForm();
     else if (b.dataset.tgdel) targetRemove(+b.dataset.tgdel);
     else if (b.dataset.imw) { S.imW = +b.dataset.imw; render(); }
@@ -3406,6 +3498,12 @@
     else if (b.id === 'm-back') { MS.pop(); renderModal(); }
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('tr.click')) e.target.click(); });
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'us-login') return;
+    e.preventDefault();
+    try { sessionStorage.setItem('fbToken', $('#us-pw').value); } catch (x) { /* storage blocked */ }
+    S.usage = null; S.usErr = ''; render();
+  });
   // tick-box dropdowns: remember which one is open across redraws; a click outside closes it
   document.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('msel')) { if (e.target.open) S.mselOpen = e.target.id; else if (S.mselOpen === e.target.id) S.mselOpen = null; } }, true);
   document.addEventListener('pointerdown', (e) => { document.querySelectorAll('details.msel[open]').forEach((d) => { if (!d.contains(e.target)) { d.open = false; if (S.mselOpen === d.id) S.mselOpen = null; } }); });
