@@ -1046,3 +1046,6 @@ dialog.fb.kd-dlg#kd-wdlg { max-width: min(62rem, calc(100vw - 24px)); }
 .cc-prog { height: 8px; border-radius: 99px; background: var(--line-2); overflow: hidden; }
 .cc-prog i { display: block; height: 100%; background: #45B87A; border-radius: 99px; transition: width .4s; }
 .cc-t td:nth-child(2) { white-space: nowrap; }
+.cl-bar { display: inline-block; width: 64px; height: 6px; border-radius: 99px; background: var(--line-2); vertical-align: middle; margin-left: 6px; overflow: hidden; }
+.cl-bar i { display: block; height: 100%; background: #45B87A; border-radius: 99px; }
+.cl-bar i.hi { background: #C0392B; } .cl-bar i.lo { background: var(--grey); }

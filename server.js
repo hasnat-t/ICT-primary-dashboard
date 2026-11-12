@@ -39,9 +39,7 @@ let eventStore = null;
 let targetStore = null;
 let kudosStore = null;
 let usageStore = null;
-let checkStore = null;
 const checkGate = CC.createGate(process.env.COACH_CHECK_PASSWORD || '');   // owner + coaches; set on Railway
-const checkLimit = KD.createLimiter(300, 20000);
 const usageLimit = KD.createLimiter(600, 200000);   // page views per visitor per hour
 // Thank-you wall: open to anyone with the link (owner 2026-11-10: no team code); the Gmail app password lives only on Railway.
 const kudosMailer = KD.createMailer({ user: process.env.GMAIL_USER || '', pass: process.env.GMAIL_APP_PASSWORD || '' });
@@ -466,23 +464,15 @@ async function handleKudos(req, res, url) {
   return json(404, { error: 'not found' });
 }
 
-// Coach school check: the owner and coaches (check password) mark which assigned schools are really theirs.
-async function handleCheck(req, res, url) {
+// Coach caseload: the page checks the password here (owner and coaches); the figures come from /api/data.
+async function handleCheck(req, res) {
   const json = (code, o) => send(res, code, JSON.stringify(o), TYPES['.json'], { 'Cache-Control': 'no-store' });
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const g = checkGate(req.headers['x-check-pass'], ip);
-  if (g === 'off') return json(503, { error: 'The coach school check is not set up yet: add COACH_CHECK_PASSWORD on Railway.' });
+  if (g === 'off') return json(503, { error: 'The coach caseload page is not set up yet: add COACH_CHECK_PASSWORD on Railway.' });
   if (g === 'blocked') return json(429, { error: 'Too many wrong passwords. Please try again in an hour.' });
-  if (g !== 'ok') return json(401, { error: 'Wrong password.', code: 'pass' });
-  if (!checkStore) return json(503, { error: 'Starting up, try again in a moment.' });
-  if (req.method === 'GET') return json(200, { items: await checkStore.list() });
-  if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
-  if (!checkLimit(ip)) return json(429, { error: 'Too many changes in an hour; please try again later.' });
-  if (!state.data || !state.data.dq) return json(503, { error: 'The school list is still loading; try again in a few minutes.' });
-  const v = CC.validate(await readJson(req, 2000), CC.schoolIndex(state.data.dq.schools));
-  if (v.error) return json(400, { error: v.error });
-  await checkStore.set(v.row);
-  return json(200, { ok: true, items: await checkStore.list() });
+  if (g !== 'ok') return json(401, { error: 'Wrong password.' });
+  return json(200, { ok: true });
 }
 
 // Dashboard usage: the page records opens and tab views (anonymous: a hashed random browser id); the admin reads it.
@@ -507,7 +497,7 @@ async function handleUsage(req, res, url) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/api/coachcheck') {
-    handleCheck(req, res, url).catch((e) => { log(`coach check error: ${e.message || e}`); send(res, 500, '{"error":"Could not save, please try again."}', TYPES['.json']); });
+    handleCheck(req, res).catch((e) => { log(`coach caseload error: ${e.message || e}`); send(res, 500, '{"error":"failed"}', TYPES['.json']); });
     return;
   }
   if (url.pathname === '/api/usage' || url.pathname === '/api/admin/usage') {
@@ -608,7 +598,6 @@ try {
   }
   feedbackStore = FB.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'feedback.json') });
   eventStore = EV.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'events.json') });
-  checkStore = CC.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'coachcheck.json') });
   usageStore = US.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'usage.json') });
   kudosStore = KD.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'kudos.json') });
   targetStore = TG.createStore({ pool: db.enabled() ? db.getPool() : null, file: path.join(DATA_DIR, 'targets.json') });

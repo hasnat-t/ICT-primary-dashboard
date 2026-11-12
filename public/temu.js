@@ -141,10 +141,10 @@
       ['#c-cal4', 'Coming up', 'Entries in the days ahead.'],
       ['#c-cal5', 'Recent', 'The latest entries that have ended.'],
     ]],
-    coachcheck: ['Coach school check', 'Coaches, this one is for you! Choose your name and tell us which schools are really yours — Yes or No — and add any school you visit that is missing. Password needed.', [
-      ['#c-cc', 'Choose your name', 'Pick your name; your schools appear below with their teachers.'],
-      ['#c-cc-all', 'Everyone’s answers', 'Who has answered, and how many schools each coach said Yes or No to.'],
-      ['#c-cc-fix', 'Changes to make', 'Schools to take off or add to a coach’s list in the app.'],
+    coachcheck: ['Coach caseload', 'Who has how many schools and teachers? Every coach’s current schools from the app, with total, primary and middle & high teachers — handy for deciding who can take another school. Password needed.', [
+      ['#c-cc', 'At a glance', 'Coaches, schools and teachers per coach on average, and schools with no coach.'],
+      ['#c-cc-all', 'Coaches', 'Sorted by teachers; red bar = well above average, grey = room for more. Click a coach for their schools.'],
+      ['#c-cc-none', 'Schools with no coach', 'The first ones to assign.'],
     ]],
     usage: ['Dashboard usage', 'Who is using this dashboard? People per day and per week, the most used tabs, and phone or computer. Admin password needed. Only a random browser id is kept — no names.', [
       ['#c-us', 'People per day', 'Today, yesterday, the daily average and this week, with a bar for every day.'],
@@ -405,7 +405,7 @@
   // ---------- find, go, who to visit next, who deserves a thank-you ----------
   // These ask the dashboard through window.Dash (its bridge in app.js) and only use data already on the page.
   const GO_TABS = [   // first match wins, so the specific phrases come before the general ones
-    ['coachcheck', ['coach school check', 'school check', 'my schools', 'assigned schools', 'which schools are mine']],
+    ['coachcheck', ['coach caseload', 'caseload', 'coach load', 'coach school check', 'assigned schools', 'schools per coach', 'schools with no coach']],
     ['usage', ['dashboard usage', 'usage', 'visitors', 'how many people use', 'who uses the dashboard']],
     ['kudos', ['thank-you wall', 'thank you wall', 'thank-you note', 'thank you note', 'sticky note', 'sticky notes', 'kudos', 'wall', 'thank a teammate', 'thank my team']],
     ['league', ['sector league', 'league', 'league table', 'standings', 'ranking', 'rankings']],

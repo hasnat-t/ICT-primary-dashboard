@@ -21,7 +21,7 @@
     ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar'], ['dq', 'Data quality']]],
     ['Insights', [['report', 'Monthly report'], ['league', 'Sector league'], ['targets', 'Targets'], ['impact', 'Does coaching work?'], ['spotlight', 'Leading & support'], ['cards', 'Appreciation cards'], ['trends', 'Analytics'], ['glossary', 'How we count']]],
-    ['Team', [['kudos', 'Thank-you wall'], ['coachcheck', 'Coach school check'], ['usage', 'Dashboard usage']]],
+    ['Team', [['kudos', 'Thank-you wall'], ['coachcheck', 'Coach caseload'], ['usage', 'Dashboard usage']]],
   ];
   const TABS = NAV.flatMap(([, items]) => items);
 
@@ -2525,7 +2525,7 @@
     ['Who is counted', [
       ['Primary teacher', 'G', 'A verified teacher account (not deleted, not a test account) at an ICT programme school, whose teaching level includes primary. Teachers with no level recorded are left out. Durbeen schools are not part of ICT here.', 'users, schools, school_programme · teacher-headcount §1e, teacher-levels §1b'],
       ['ICT teachers (all levels)', 'G', 'The Overview’s top strip: every verified teacher at an ICT programme school, whatever level they teach, counted once, as of the last refresh. Teach Primary / teach Middle or High overlap: a teacher tagged both is in both, so they never add up to the total. The rest of the dashboard counts primary teachers only.', 'users.teacher_level · teacher-headcount §1e, teacher-levels §1b'],
-      ['Coach school check', '', 'Team tab, password for the owner and coaches. Each coach says Yes or No for every school assigned to them in the app (the coach’s schools in leader_schools, from the data-quality refresh) and can add a school they visit that is missing. Teachers per school: total = all teacher accounts at the school; primary = teachers whose level includes primary; middle & high = whose level includes middle or high (a teacher of both is in both). Answers are saved and listed as changes to make in the app.', 'leader_schools, users.teacher_level · coaches-rules §3, teacher-levels §1b · owner request (2026-11-12)'],
+      ['Coach caseload', '', 'Team tab, password for the owner and coaches. Each coach’s schools as assigned in the app (leader_schools, role coach, test rows out), read at every refresh, so schools a coach adds or removes in the HITL flow show after the next refresh. Teachers per school: total = all teacher accounts at the programme school; primary = level includes primary; middle & high = level includes middle or high (a teacher of both is in both). A coach’s totals add up their schools, so a school shared by two coaches counts for both.', 'leader_schools, users.teacher_level · coaches-rules §3, teacher-levels §1b · owner request (2026-11-12)'],
       ['Dashboard usage', '', 'How many people open this dashboard (Team tab, admin password). A person = one browser on one device, kept as a random id (only its hash is stored; no name, no IP address). Opens = times the page was opened; a tab counts when someone switches to it. Days are Pakistan days, weeks Monday–Sunday. Bots and link previews are left out. Counting began on 11 Nov 2026.', 'owner request (2026-11-11)'],
       ['Thank-you wall', '', 'Sticky notes team members write to thank each other (Team tab). Anyone with the dashboard link can use it. A note may name the person’s email, and that person gets the note by email. Notes, reactions and comments are saved; the email address is never shown on the wall. Not built from the dashboard’s data.', 'owner request (2026-11-10)'],
       ['Sector league', 'P', 'Every full Monday–Sunday week since 1 Aug (holiday weeks with no activity skipped), each sector is ranked on five weekly measures: the share of its primary teachers who used a grade 1–5 lesson plan, recorded a DC lesson, were observed by a coach, got an exam paper, and its average DC classroom-practice score (teaching practices + student engagement). 1st earns 6 points, 6th earns 1; tied sectors share the higher points; no figure = 0. Week position by points, then LP engagement. Season = points summed since August; wins = weeks at 1st; form = the last 5 positions.', 'the same data as the rest of the page · owner-defined (2026-11-10)'],
@@ -3342,11 +3342,12 @@
     return head + weeks + tabs + dev;
   }
 
-  // ---------- coach school check (owner request 2026-11-12) ----------
-  // Each coach marks whether every school assigned to them in the app is really theirs, and adds missing ones.
-  // Password (COACH_CHECK_PASSWORD on Railway) for the owner and the coaches only; kept in this browser after the
-  // first time. Schools and their coaches come from the data-quality refresh (S.data.dq.schools: emis, sector, name,
-  // all-level teachers, "Coach A, Coach B"); primary teachers from S.data.teachers, middle/high from S.data.mh.
+  // ---------- coach caseload (owner request 2026-11-12) ----------
+  // Each coach's current schools and teachers, so the owner can see who has room for more schools. Straight from the
+  // app's assignments (leader_schools, read by the data-quality refresh into S.data.dq.schools: emis, sector, name,
+  // all-level teachers, "Coach A, Coach B"), so a school a coach adds or removes in the HITL flow shows at the next
+  // refresh. Primary teachers from S.data.teachers, middle/high from S.data.mh. Password (COACH_CHECK_PASSWORD on
+  // Railway) for the owner and the coaches; kept in this browser.
   const ccPass = () => { try { return localStorage.getItem('ccPass') || ''; } catch (e) { return ''; } };
   function ccIndex() {
     const D = S.data;
@@ -3358,83 +3359,66 @@
       coaches: String(r[4] || '').split(', ').map((x) => x.trim()).filter(Boolean), prim: prim.get(String(r[0])) || 0, mh: mh.get(String(r[0])) || 0 }));
     const coaches = new Map();
     for (const s of list) for (const c of s.coaches) { if (!coaches.has(c)) coaches.set(c, []); coaches.get(c).push(s); }
-    S.ccIdx = { d: D, list, coaches, byEmis: new Map(list.map((s) => [s.emis, s])) };
+    S.ccIdx = { d: D, list, coaches };
     return S.ccIdx;
   }
-  async function ccCall(body) {
-    const r = await fetch('/api/coachcheck', { method: body ? 'POST' : 'GET', headers: { 'x-check-pass': ccPass(), ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
-    const j = await r.json().catch(() => ({}));
-    if (r.status === 401) { try { localStorage.removeItem('ccPass'); } catch (e) { /* ignore */ } S.cc = null; S.ccErr = 'That password is not right.'; render(); throw new Error(S.ccErr); }
-    if (!r.ok) throw new Error(j.error || 'Something went wrong.');
-    return j;
-  }
-  async function ccLoad() {
+  async function ccCheck() {
     S.ccLoading = true;
-    try { const j = await ccCall(); S.cc = j.items || []; S.ccErr = ''; S.ccAt = Date.now(); } catch (e) { if (ccPass()) S.ccErr = e.message; }
+    try {
+      const r = await fetch('/api/coachcheck', { headers: { 'x-check-pass': ccPass() }, cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { S.ccOk = true; S.ccErr = ''; }
+      else { try { localStorage.removeItem('ccPass'); } catch (e) { /* ignore */ } S.ccOk = false; S.ccErr = r.status === 401 ? 'That password is not right.' : j.error || 'Could not open the page.'; }
+    } catch (e) { S.ccErr = 'Could not open the page.'; }
     S.ccLoading = false;
     if (S.tab === 'coachcheck') render();
   }
-  const ccAns = (coach, emis) => { const x = (S.cc || []).find((a) => a.coach === coach && a.emis === emis); return x ? x.answer : ''; };
+  const ccSchoolTable = (id, rows, showCoaches, empty = '<span class="cc-red">no coach</span>') => table(id, [
+    { k: 'name', label: 'School', val: (r) => r.name, fmt: (r) => `${esc(r.name)} <span class="dim">EMIS ${esc(r.emis)}</span>` },
+    { k: 'sector', label: 'Sector', val: (r) => r.sector },
+    { k: 'total', label: 'Total teachers', num: true, val: (r) => r.total, fmt: (r) => N(r.total) },
+    { k: 'prim', label: 'Primary teachers', num: true, val: (r) => r.prim, fmt: (r) => N(r.prim) },
+    { k: 'mh', label: 'Middle & high teachers', num: true, val: (r) => r.mh, fmt: (r) => N(r.mh) },
+    ...(showCoaches ? [{ k: 'co', label: 'Other coaches', val: (r) => r.coaches.join(', '), fmt: (r) => (r.coaches.length ? esc(r.coaches.join(', ')) : empty) }] : []),
+  ], rows, { noLegend: true, sort: { k: 'total', dir: -1 } });
   function viewCoachCheck() {
-    const note = 'Coaches: choose your name, then for each school say whether it really is your school. If a school you visit is missing, add it. Your answers save at once, and the ICT team uses them to fix the school lists in the app. Teachers = teacher accounts at the school (primary and middle/high overlap: a teacher of both is in both).';
+    const note = 'Each coach’s schools and teachers right now, from the school lists in the app: when a coach adds or removes a school in the HITL flow, it shows here after the next refresh (07:13 and 14:13). Teachers = teacher accounts at the school; primary and middle & high overlap (a teacher of both is in both), so they can add to more than the total. A school with two coaches counts for both.';
     if (!ccPass()) {
-      return card('c-cc', 'Coach school check', note, `<form id="cc-login" class="us-login"><input class="inp" id="cc-pw" type="password" inputmode="numeric" autocomplete="off" placeholder="Password" aria-label="Password" required><button class="btn dark" type="submit">Open</button></form>${S.ccErr ? `<p class="note warn">${esc(S.ccErr)}</p>` : ''}`);
+      return card('c-cc', 'Coach caseload', note, `<form id="cc-login" class="us-login"><input class="inp" id="cc-pw" type="password" inputmode="numeric" autocomplete="off" placeholder="Password" aria-label="Password" required><button class="btn dark" type="submit">Open</button></form>${S.ccErr ? `<p class="note warn">${esc(S.ccErr)}</p>` : ''}`);
     }
-    if (!S.data.dq) return card('c-cc', 'Coach school check', note, '<p class="note warn">The school list could not be loaded in the last refresh. Please try again after the next one.</p>');
-    if (!S.cc || Date.now() - (S.ccAt || 0) > 60000) { if (!S.ccLoading) ccLoad(); if (!S.cc) return card('c-cc', 'Coach school check', note, `<p class="note">${S.ccErr ? esc(S.ccErr) : 'Loading…'}</p>`); }
+    if (!S.ccOk) { if (!S.ccLoading) ccCheck(); return card('c-cc', 'Coach caseload', note, '<p class="note">Opening…</p>'); }
+    if (!S.data.dq) return card('c-cc', 'Coach caseload', note, '<p class="note warn">The school lists could not be loaded in the last refresh. They will appear after the next one.</p>');
     const I = ccIndex();
-    let me = S.ccCoach; if (me === undefined) { try { me = localStorage.getItem('ccCoach') || ''; } catch (e) { me = ''; } S.ccCoach = me; }
-    if (me && !I.coaches.has(me)) me = S.ccCoach = '';
-    const names = [...I.coaches.keys()].filter((c) => !S.sector || I.coaches.get(c).some((s) => s.sector === S.sector)).sort((a, b) => a.localeCompare(b));
-    const secOf = (c) => [...new Set(I.coaches.get(c).map((s) => s.sector))].join(', ');
-    const pick = `<div class="cc-pick"><label class="fb-l" for="cc-coach">Your name</label><select class="sel" id="cc-coach"><option value="">— choose your name —</option>${names.map((c) => `<option value="${esc(c)}" ${c === me ? 'selected' : ''}>${esc(c)} (${esc(secOf(c))})</option>`).join('')}</select>${S.sector ? `<span class="dim">Showing coaches in ${esc(S.sector)}; choose All sectors at the top to see everyone.</span>` : ''}</div>`;
-    let mine = '';
-    if (me) {
-      const sch = I.coaches.get(me).slice().sort((a, b) => a.sector.localeCompare(b.sector) || a.name.localeCompare(b.name));
-      const added = (S.cc || []).filter((a) => a.coach === me && a.answer === 'add').map((a) => I.byEmis.get(a.emis)).filter(Boolean);
-      const done = sch.filter((s) => ccAns(me, s.emis)).length;
-      const row = (s, isAdd) => {
-        const a = isAdd ? 'add' : ccAns(me, s.emis);
-        const others = s.coaches.filter((c) => c !== me);
-        const btn = isAdd ? `<span class="cc-tag add">Added by you</span> <button type="button" class="cc-x" data-ccset="${esc(s.emis)}|" title="Remove">Remove</button>`
-          : `<span class="cc-yn" role="group" aria-label="Is this your school?"><button type="button" class="cc-b yes" data-ccset="${esc(s.emis)}|${a === 'yes' ? '' : 'yes'}" aria-pressed="${a === 'yes'}">Yes</button><button type="button" class="cc-b no" data-ccset="${esc(s.emis)}|${a === 'no' ? '' : 'no'}" aria-pressed="${a === 'no'}">No</button></span>`;
-        return `<tr class="${a ? `cc-${a}` : ''}"><td class="name"><b>${esc(s.name)}</b> <span class="dim">EMIS ${esc(s.emis)}</span></td><td>${esc(s.sector)}</td><td class="n">${N(s.total)}</td><td class="n">${N(s.prim)}</td><td class="n">${N(s.mh)}</td><td>${others.length ? esc(others.join(', ')) : '<span class="dim">—</span>'}</td><td class="cc-act">${btn}</td></tr>`;
-      };
-      const rest = I.list.filter((s) => !s.coaches.includes(me) && !added.some((x) => x.emis === s.emis)).sort((a, b) => a.sector.localeCompare(b.sector) || a.name.localeCompare(b.name));
-      const addForm = `<div class="cc-addf"><label class="fb-l" for="cc-addsel">Add a school you visit that is missing</label><div class="row"><select class="sel" id="cc-addsel"><option value="">— choose a school —</option>${[...new Set(rest.map((s) => s.sector))].map((sec) => `<optgroup label="${esc(sec)}">${rest.filter((s) => s.sector === sec).map((s) => `<option value="${esc(s.emis)}">${esc(s.name)} (EMIS ${esc(s.emis)})</option>`).join('')}</optgroup>`).join('')}</select><button type="button" class="btn" data-ccadd="1">Add</button></div></div>`;
-      mine = card('c-cc-me', `${me} · ${N(sch.length)} school${sch.length === 1 ? '' : 's'}`, `${N(done)} of ${N(sch.length)} answered. Press <b>Yes</b> if it is your school, <b>No</b> if it is not; press again to undo.`,
-        `<div class="scroll"><table class="cc-t"><thead><tr><th>School</th><th>Sector</th><th class="n">Total teachers</th><th class="n">Primary teachers</th><th class="n">Middle &amp; high teachers</th><th>Other coaches on this school</th><th>My school?</th></tr></thead><tbody>${sch.map((s) => row(s, false)).join('')}${added.map((s) => row(s, true)).join('')}</tbody></table></div>${addForm}`,
-        `<div class="cc-prog"><i style="width:${sch.length ? Math.round((done / sch.length) * 100) : 0}%"></i></div>`);
-    }
-    // everyone's progress and the changes to make
-    const coachRows = names.map((c) => {
-      const sch = I.coaches.get(c);
-      const ans = sch.map((s) => ccAns(c, s.emis));
-      return { c, sec: secOf(c), n: sch.length, yes: ans.filter((a) => a === 'yes').length, no: ans.filter((a) => a === 'no').length,
-        open: ans.filter((a) => !a).length, add: (S.cc || []).filter((a) => a.coach === c && a.answer === 'add').length };
-    });
-    const sum = card('c-cc-all', 'Everyone’s answers', 'Click a coach to see their list.',
+    const inSec = (s) => !S.sector || s.sector === S.sector;
+    const rows = [...I.coaches.entries()].filter(([, sch]) => sch.some(inSec)).map(([c, sch]) => ({
+      c, sch, sec: [...new Set(sch.map((s) => s.sector))].sort().join(', '), n: sch.length,
+      total: sch.reduce((x, s) => x + s.total, 0), prim: sch.reduce((x, s) => x + s.prim, 0), mh: sch.reduce((x, s) => x + s.mh, 0),
+      pschools: sch.filter((s) => s.prim > 0).length, mhschools: sch.filter((s) => s.mh > 0).length, shared: sch.filter((s) => s.coaches.length > 1).length,
+    }));
+    const tot = (k) => rows.reduce((x, r) => x + r[k], 0);
+    const nos = I.list.filter((s) => !s.coaches.length && inSec(s));
+    const avg = rows.length ? tot('total') / rows.length : 0;
+    const kpis = `<div class="kpis">${kpi('Coaches', N(rows.length), S.sector ? `with a school in ${esc(S.sector)}` : 'with at least one school')}${kpi('Schools per coach', rows.length ? (tot('n') / rows.length).toFixed(1) : '—', 'on average')}${kpi('Teachers per coach', rows.length ? Math.round(avg).toLocaleString() : '—', 'on average, all levels')}${kpi('Schools with no coach', N(nos.length), nos.length ? 'listed below' : 'every school has one')}</div>`;
+    const head = card('c-cc', `Coach caseload · ${scopeName()}`, note, `${kpis}<p class="note"><button type="button" class="dl" data-ccout="1">Sign out of this page</button></p>`);
+    const bar = (r) => { const w = avg ? Math.min(100, (r.total / (avg * 2)) * 100) : 0; return `<span class="cl-bar"><i class="${r.total > avg * 1.3 ? 'hi' : r.total < avg * 0.7 ? 'lo' : ''}" style="width:${w.toFixed(0)}%"></i></span>`; };
+    const list = card('c-cc-all', 'Coaches', 'Sorted by teachers, most first. Bar = teachers against twice the average: red = well above average, grey = well below (room for more). Click a coach for their schools.',
       table('ccall', [
-        { k: 'c', label: 'Coach', val: (r) => r.c, fmt: (r) => `${esc(r.c)}${r.open === 0 ? ' <span class="cc-tag yes">done</span>' : ''}` },
+        { k: 'c', label: 'Coach', val: (r) => r.c, fmt: (r) => `<b>${esc(r.c)}</b>` },
         { k: 'sec', label: 'Sector', val: (r) => r.sec },
-        { k: 'n', label: 'Schools in the app', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
-        { k: 'yes', label: 'Yes', num: true, val: (r) => r.yes, fmt: (r) => N(r.yes) },
-        { k: 'no', label: 'No', num: true, val: (r) => r.no, fmt: (r) => (r.no ? `<b class="cc-red">${N(r.no)}</b>` : '0') },
-        { k: 'open', label: 'Not answered', num: true, val: (r) => r.open, fmt: (r) => N(r.open) },
-        { k: 'add', label: 'Added', num: true, val: (r) => r.add, fmt: (r) => (r.add ? `<b>${N(r.add)}</b>` : '0') },
-      ], coachRows, { noLegend: true, sort: { k: 'c', dir: 1 }, onRow: (k) => { S.ccCoach = k; try { localStorage.setItem('ccCoach', k); } catch (e) { /* ignore */ } render(); window.scrollTo(0, 0); }, rowKey: (r) => r.c }));
-    const fixes = (S.cc || []).filter((a) => a.answer !== 'yes' && I.coaches.has(a.coach) && I.byEmis.has(a.emis) && (!S.sector || I.byEmis.get(a.emis).sector === S.sector))
-      .map((a) => ({ ...a, s: I.byEmis.get(a.emis) }));
-    const fix = card('c-cc-fix', `Changes to make in the app · ${N(fixes.length)}`, '<b>Remove</b> = the coach said No: take the school off their list. <b>Add</b> = the coach says they visit a school that is not on their list.',
-      fixes.length ? table('ccfix', [
-        { k: 'answer', label: 'Change', val: (r) => r.answer, fmt: (r) => (r.answer === 'no' ? '<span class="cc-tag no">Remove</span>' : '<span class="cc-tag add">Add</span>') },
-        { k: 'coach', label: 'Coach', val: (r) => r.coach },
-        { k: 'school', label: 'School', val: (r) => r.s.name, fmt: (r) => `${esc(r.s.name)} <span class="dim">EMIS ${esc(r.emis)}</span>` },
-        { k: 'sector', label: 'Sector', val: (r) => r.s.sector },
-        { k: 'when', label: 'Answered', val: (r) => r.updated_at, fmt: (r) => esc(r.updated_at.slice(0, 10)) },
-      ], fixes, { noLegend: true, sort: { k: 'coach', dir: 1 } }) : '<p class="note">Nothing yet.</p>');
-    const head = card('c-cc', 'Coach school check', note, `${pick}<p class="note"><button type="button" class="dl" data-ccout="1">Sign out of this page</button></p>`);
-    return head + mine + sum + fix;
+        { k: 'n', label: 'Schools', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+        { k: 'pschools', label: 'With primary', num: true, val: (r) => r.pschools, fmt: (r) => N(r.pschools), title: 'Schools that have primary teachers' },
+        { k: 'mhschools', label: 'With middle & high', num: true, val: (r) => r.mhschools, fmt: (r) => N(r.mhschools), title: 'Schools that have middle or high teachers' },
+        { k: 'total', label: 'Total teachers', num: true, val: (r) => r.total, fmt: (r) => `${N(r.total)} ${bar(r)}` },
+        { k: 'prim', label: 'Primary teachers', num: true, val: (r) => r.prim, fmt: (r) => N(r.prim) },
+        { k: 'mh', label: 'Middle & high teachers', num: true, val: (r) => r.mh, fmt: (r) => N(r.mh) },
+        { k: 'shared', label: 'Shared schools', num: true, val: (r) => r.shared, fmt: (r) => (r.shared ? N(r.shared) : '0'), title: 'Schools that another coach also has' },
+      ], rows, { noLegend: true, sort: { k: 'total', dir: -1 }, onRow: (k) => { S.ccCoach = S.ccCoach === k ? '' : k; render(); setTimeout(() => { const el = document.getElementById('c-cc-me'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }, rowKey: (r) => r.c }));
+    const sel = S.ccCoach && I.coaches.get(S.ccCoach);
+    const mine = !sel ? '' : card('c-cc-me', `${S.ccCoach} · ${N(sel.length)} school${sel.length === 1 ? '' : 's'}`, 'Other coaches on the same school are shown beside it (— = only this coach).',
+      ccSchoolTable('ccme', sel.map((s) => ({ ...s, coaches: s.coaches.filter((c) => c !== S.ccCoach) })), true, '<span class="dim">—</span>'));
+    const none = card('c-cc-none', `Schools with no coach · ${N(nos.length)}`, 'Programme schools no coach has in the app yet — the first ones to assign.',
+      nos.length ? ccSchoolTable('ccnone', nos, false) : '<p class="note">None: every school has a coach.</p>');
+    return head + list + mine + none;
   }
 
   // Save a section as a PNG. Scrolling tables and grids are opened up first, and the section widened to its full content,
@@ -3532,16 +3516,7 @@
     else if (b.dataset.lgv) { lgStop(); S.lgView = b.dataset.lgv; S.lgOpen = false; render(); }
     else if (b.dataset.lgsec) { S.lgSel = S.lgSel === b.dataset.lgsec ? '' : b.dataset.lgsec; document.querySelectorAll('.lg-row[data-lgsec]').forEach((x) => x.classList.toggle('sel', x.dataset.lgsec === S.lgSel)); const L = lgData(); const d = document.getElementById('lg-detail'); if (d) d.innerHTML = lgDetail(L, S.lgWeek); const bc = document.getElementById('c-lg-b'); if (bc) bc.outerHTML = lgBump(L, S.lgWeek); }
     else if (b.dataset.lgopen) { lgStop(); S.sector = b.dataset.lgopen; S.school = ''; S.tab = 'overview'; render(); window.scrollTo(0, 0); }
-    else if (b.dataset.ccset !== undefined) {
-      const [emis, answer] = b.dataset.ccset.split('|');
-      b.disabled = true;
-      ccCall({ coach: S.ccCoach, emis, answer }).then((j) => { S.cc = j.items; S.ccAt = Date.now(); render(); }).catch((err) => { alert(err.message); b.disabled = false; });
-    }
-    else if (b.dataset.ccadd) {
-      const emis = $('#cc-addsel') && $('#cc-addsel').value; if (!emis) return;
-      ccCall({ coach: S.ccCoach, emis, answer: 'add' }).then((j) => { S.cc = j.items; S.ccAt = Date.now(); render(); }).catch((err) => alert(err.message));
-    }
-    else if (b.dataset.ccout) { try { localStorage.removeItem('ccPass'); } catch (e) { /* ignore */ } S.cc = null; S.ccErr = ''; render(); }
+    else if (b.dataset.ccout) { try { localStorage.removeItem('ccPass'); } catch (e) { /* ignore */ } S.ccOk = false; S.ccErr = ''; render(); }
     else if (b.dataset.usdays) { S.usDays = +b.dataset.usdays; render(); }
     else if (b.dataset.usout) { try { sessionStorage.removeItem('fbToken'); } catch (e) { /* ignore */ } S.usage = null; S.usErr = ''; render(); }
     else if (b.dataset.tgadd) targetForm();
@@ -3605,7 +3580,7 @@
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('tr.click')) e.target.click(); });
   document.addEventListener('submit', (e) => {
-    if (e.target.id === 'cc-login') { e.preventDefault(); try { localStorage.setItem('ccPass', $('#cc-pw').value.trim()); } catch (x) { /* storage blocked */ } S.cc = null; S.ccErr = ''; render(); return; }
+    if (e.target.id === 'cc-login') { e.preventDefault(); try { localStorage.setItem('ccPass', $('#cc-pw').value.trim()); } catch (x) { /* storage blocked */ } S.ccOk = false; S.ccErr = ''; render(); return; }
     if (e.target.id !== 'us-login') return;
     e.preventDefault();
     try { sessionStorage.setItem('fbToken', $('#us-pw').value); } catch (x) { /* storage blocked */ }
@@ -3620,7 +3595,6 @@
     else if (t.id === 'sector') { S.sector = t.value; S.school = ''; render(); }
     else if (t.id === 'school') { S.school = t.value; if (t.value !== '') S.sector = S.data.schools[+t.value].sector; render(); }
     else if (t.id === 'missing') { S.missing = t.value; render(); }
-    else if (t.id === 'cc-coach') { S.ccCoach = t.value; try { localStorage.setItem('ccCoach', t.value); } catch (x) { /* ignore */ } render(); }
     else if (t.dataset.msel) {
       const key = t.dataset.msel, every = document.querySelectorAll(`[data-msel="${key}"]`).length;
       let cur = (S[key] || []).filter((x) => x !== t.value);
