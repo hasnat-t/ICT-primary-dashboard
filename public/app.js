@@ -1741,8 +1741,27 @@
   const mhLevels = (M) => M.levels.filter((l) => !mhTrain().length || mhTrain().includes(l.vendor)).sort((a, b) => MH_ORDER.indexOf(a.vendor) - MH_ORDER.indexOf(b.vendor) || a.order - b.order);
   const MH_ORDER = ['TALEEMABAD', 'OXBRIDGE', 'BEACONHOUSE', 'ISAPS'];
   // The teachers in the filters, as [index, teacher]: sector, school (matched by EMIS) and the level tag.
+  // The school chosen with this page's own search (S.mhSch = index in M.schools; owner request 2026-11-12: the top School
+  // filter lists only schools with primary teachers, so a middle/high-only school such as EMIS 251 could not be picked).
+  const mhPicked = () => (S.mhSch !== undefined && S.mhSch !== null && S.mhSch !== '' && S.data.mh.schools[+S.mhSch] ? +S.mhSch : null);
+  const mhSelEmis = () => (mhPicked() !== null ? String(S.data.mh.schools[mhPicked()][0]) : S.school !== '' ? String(S.data.schools[+S.school].emis) : null);
+  function mhSearchResults() {
+    const M = S.data.mh, q = String(S.mhQ || '').trim().toLowerCase();
+    if (!q) return '';
+    const n = new Map(); for (const t of M.teachers) n.set(t[0], (n.get(t[0]) || 0) + 1);
+    const hits = M.schools.map((s, i) => [i, s]).filter(([, s]) => String(s[0]).toLowerCase().includes(q) || String(s[2]).toLowerCase().includes(q))
+      .sort((a, b) => (String(a[1][0]) === q ? -1 : 0) - (String(b[1][0]) === q ? -1 : 0) || String(a[1][2]).localeCompare(String(b[1][2])));
+    if (!hits.length) return `<p class="note">No middle or high school matches “${esc(S.mhQ)}”.</p>`;
+    return `<div class="mh-hits">${hits.slice(0, 12).map(([i, s]) => `<button type="button" class="mh-hit" data-mhsch="${i}"><b>${esc(s[2])}</b> <span class="dim">EMIS ${esc(s[0])} · ${esc(s[1])} · ${N(n.get(i) || 0)} middle &amp; high teachers</span></button>`).join('')}</div>${hits.length > 12 ? `<p class="note">${N(hits.length - 12)} more — type more of the name or the EMIS.</p>` : ''}`;
+  }
+  function mhSearchBox() {
+    const p = mhPicked(), sc = p !== null ? S.data.mh.schools[p] : null;
+    return `<div class="mh-s"><label class="fb-l" for="mhq">Find a school</label><input class="inp" id="mhq" type="search" autocomplete="off" placeholder="School name or EMIS, e.g. 251 or G-9/4" value="${esc(S.mhQ || '')}">
+      ${sc ? `<span class="mh-pick">Showing <b>${esc(sc[2])}</b> <span class="dim">EMIS ${esc(sc[0])} · ${esc(sc[1])}</span> <button type="button" class="x" data-mhsch="" aria-label="Show all schools again" title="Show all schools again">×</button></span>` : ''}
+      <div id="mhq-res">${mhSearchResults()}</div></div>`;
+  }
   function mhScope(extra) {
-    const M = S.data.mh, selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
+    const M = S.data.mh, selEmis = mhSelEmis();
     return M.teachers.map((t, i) => [i, t]).filter(([, t]) => {
       const sc = M.schools[t[0]];
       return (!S.sector || sc[1] === S.sector) && (!selEmis || sc[0] === selEmis) && (!mhTags().length || mhTags().includes(t[2])) && (!extra || extra(t, sc));
@@ -1810,19 +1829,19 @@
     if (!M) return card('c-mh', 'Middle & high training', '', '<p class="note">Middle & high training could not be loaded in the last refresh. It will appear after the next one.</p>');
     const L = mhLevels(M), core = L.filter((l) => l.vendor !== 'ISAPS');
     const list = mhScope(), g = mhGroup(list.map((x) => x[1]), L);
-    const level = S.school !== '' ? 'teacher' : S.sector ? 'school' : 'sector';
+    const level = mhSelEmis() !== null ? 'teacher' : S.sector ? 'school' : 'sector';
     const rows = level === 'teacher' ? mhTeacherRows(list) : mhGroupRows(list, level === 'school' ? (t) => t[0] : (t) => M.schools[t[0]][1], L);
     const onRow = (k) => modalOpen(level === 'sector' ? { kind: 'mhsector', key: k } : level === 'school' ? { kind: 'mhschool', key: +k } : { kind: 'mhteacher', key: +k });
     // counts per tag inside the sector / school filters, whatever is ticked
-    const selEmis = S.school !== '' ? String(S.data.schools[+S.school].emis) : null;
+    const selEmis = mhSelEmis();
     const tagN = (k) => M.teachers.filter((t) => t[2] === k && (!S.sector || M.schools[t[0]][1] === S.sector) && (!selEmis || M.schools[t[0]][0] === selEmis)).length;
-    const filters = `<div class="row mh-f">${msel('mhtags', 'mhTags', mhTagText(), MH_COMBOS.map(([k, l]) => [k, l, tagN(k)]))}${msel('mhtrain', 'mhTrain', mhTrainText(), MH_ORDER.filter((v) => M.levels.some((l) => l.vendor === v)).map((v) => [v, MH_VENDOR[v] || v]))}</div>`;
-    const head = card('c-mh', `Middle & high training · ${scopeName()}${mhTagText() !== 'All level tags' ? ` · ${mhTagText()}` : ''}${mhTrain().length ? ` · ${mhTrainText()}` : ''} · all time`,
+    const filters = `<div class="row mh-f">${msel('mhtags', 'mhTags', mhTagText(), MH_COMBOS.map(([k, l]) => [k, l, tagN(k)]))}${msel('mhtrain', 'mhTrain', mhTrainText(), MH_ORDER.filter((v) => M.levels.some((l) => l.vendor === v)).map((v) => [v, MH_VENDOR[v] || v]))}</div>${mhSearchBox()}`;
+    const head = card('c-mh', `Middle & high training · ${mhPicked() !== null ? esc(M.schools[mhPicked()][2]) : scopeName()}${mhTagText() !== 'All level tags' ? ` · ${mhTagText()}` : ''}${mhTrain().length ? ` · ${mhTrainText()}` : ''} · all time`,
       `Every teacher whose level includes <b>Middle</b> or <b>High</b>, in any combination (Primary too). Levels shown: ${L.map((l) => esc(mhLevelName(l))).join(', ')}. The <b>${MH_VENDOR.ISAPS}</b> is always shown on its own: its pass marks and composite certificate are not comparable. <b>Done</b> = certified on every level of that training; for <b>${MH_VENDOR.BEACONHOUSE}</b>, any one of its levels. Use the two filters to pick level tags and trainings. Training is all time, so the period filter does not apply.`,
       mhKpis(g, L), filters);
     const byLevel = card('c-mh-t', `By ${level}`, level === 'teacher' ? 'Each level shows ✓ Certified, or modules finished of the level’s total. Click a teacher for their progress. Contains teacher names — internal use only.' : `Click a ${level} to see its ${level === 'sector' ? 'schools' : 'teachers'}.`,
       rows.length ? table('mht', mhCols(level, L), rows, { level, onRow, rowKey: (r) => r.key, foot: level === 'teacher' ? null : { g, name: 'Total' } })
-        : '<p class="note">No middle or high teachers here. The School filter lists schools with primary teachers; pick the sector instead to see every middle & high school in it.</p>');
+        : '<p class="note">No middle or high teachers here. The School filter at the top lists schools with primary teachers; use <b>Find a school</b> above to pick any middle or high school.</p>');
 
     // analytics: per training level, per level tag
     const lrows = L.map((l) => ({ key: l.id, l, x: g.lv[l.id] }));
@@ -3517,6 +3536,7 @@
     else if (b.dataset.lgsec) { S.lgSel = S.lgSel === b.dataset.lgsec ? '' : b.dataset.lgsec; document.querySelectorAll('.lg-row[data-lgsec]').forEach((x) => x.classList.toggle('sel', x.dataset.lgsec === S.lgSel)); const L = lgData(); const d = document.getElementById('lg-detail'); if (d) d.innerHTML = lgDetail(L, S.lgWeek); const bc = document.getElementById('c-lg-b'); if (bc) bc.outerHTML = lgBump(L, S.lgWeek); }
     else if (b.dataset.lgopen) { lgStop(); S.sector = b.dataset.lgopen; S.school = ''; S.tab = 'overview'; render(); window.scrollTo(0, 0); }
     else if (b.dataset.ccout) { try { localStorage.removeItem('ccPass'); } catch (e) { /* ignore */ } S.ccOk = false; S.ccErr = ''; render(); }
+    else if (b.dataset.mhsch !== undefined) { S.mhSch = b.dataset.mhsch; if (S.mhSch !== '') { S.mhQ = ''; S.school = ''; S.sector = ''; } render(); }
     else if (b.dataset.usdays) { S.usDays = +b.dataset.usdays; render(); }
     else if (b.dataset.usout) { try { sessionStorage.removeItem('fbToken'); } catch (e) { /* ignore */ } S.usage = null; S.usErr = ''; render(); }
     else if (b.dataset.tgadd) targetForm();
@@ -3592,8 +3612,8 @@
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (t.id === 'presetSel') { if (t.value === 'custom') { S.preset = 'custom'; render(); } else setPreset(t.value); }
-    else if (t.id === 'sector') { S.sector = t.value; S.school = ''; render(); }
-    else if (t.id === 'school') { S.school = t.value; if (t.value !== '') S.sector = S.data.schools[+t.value].sector; render(); }
+    else if (t.id === 'sector') { S.sector = t.value; S.school = ''; S.mhSch = ''; render(); }
+    else if (t.id === 'school') { S.mhSch = ''; S.school = t.value; if (t.value !== '') S.sector = S.data.schools[+t.value].sector; render(); }
     else if (t.id === 'missing') { S.missing = t.value; render(); }
     else if (t.dataset.msel) {
       const key = t.dataset.msel, every = document.querySelectorAll(`[data-msel="${key}"]`).length;
@@ -3638,6 +3658,7 @@
     const pk = { 'p-head': 'pHead', 'p-msg': 'pMsg', 'p-foot': 'pFoot', 'p-minplans': 'pMinPlans', 'p-mindc': 'pMinDc' }[e.target.id];
     if (c && pk) { c[pk] = pk.startsWith('pMin') ? Math.max(0, Math.min(999, Math.floor(+e.target.value || 0))) : e.target.value; refreshPoster(); }
   });
+  document.addEventListener('input', (e) => { if (e.target.id === 'mhq') { S.mhQ = e.target.value; const r = document.getElementById('mhq-res'); if (r) r.innerHTML = mhSearchResults(); } });
   document.addEventListener('input', (e) => { if (e.target.id === 'search') { S.search = e.target.value; render(); } else if (e.target.id === 'gsearch') { S.gq = e.target.value; render(); } });
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.close(); });
   // A pasted or edited link (replaceState in writeHash does not fire this).

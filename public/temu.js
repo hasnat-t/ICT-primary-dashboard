@@ -122,7 +122,7 @@
       ['#c-tr-t', 'By sector, school or teacher', 'The same per sector, school or teacher. Click a row to drill in.'],
     ]],
     mhtraining: ['Middle & high training', 'Every teacher tagged Middle or High, in any mix (Primary too), and their training: NIETE Trainings, Game-Based Teaching (GBTLA), AI-Powered Subject Pedagogy (any one certified level completes it) and the Teacher Development Programme (always shown on its own). All time, so the period filter takes the day off here.', [
-      ['#c-mh', 'Headline and filters', 'Tick level tags and trainings in the two dropdowns; every tile, column and popup follows them.'],
+      ['#c-mh', 'Headline and filters', 'Tick level tags and trainings in the two dropdowns; every tile, column and popup follows them. <b>Find a school</b> searches every middle or high school by name or EMIS — even ones with no primary teachers.'],
       ['#c-mh-t', 'By sector, school or teacher', 'Click a sector for its schools, a school for its teachers, a teacher for their progress on every level.'],
       ['#c-mh-l', 'By training level', 'Teachers who finished a module, every module, and were certified on each level.'],
       ['#c-mh-c', 'By level tag', 'The same figures for Middle, High, Middle + High and the Primary mixes.'],

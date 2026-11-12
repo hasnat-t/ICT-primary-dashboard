@@ -1049,3 +1049,11 @@ dialog.fb.kd-dlg#kd-wdlg { max-width: min(62rem, calc(100vw - 24px)); }
 .cl-bar { display: inline-block; width: 64px; height: 6px; border-radius: 99px; background: var(--line-2); vertical-align: middle; margin-left: 6px; overflow: hidden; }
 .cl-bar i { display: block; height: 100%; background: #45B87A; border-radius: 99px; }
 .cl-bar i.hi { background: #C0392B; } .cl-bar i.lo { background: var(--grey); }
+/* middle & high: find a school */
+.mh-s { display: grid; gap: 6px; }
+.mh-s .inp { max-width: 28rem; }
+.mh-pick { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 6px 6px 12px; border-radius: 999px; background: var(--line-2); width: max-content; max-width: 100%; }
+.mh-pick .x { font: inherit; font-size: 1.1rem; width: 2rem; height: 2rem; border-radius: 50%; border: 0; background: var(--panel); color: var(--fg); cursor: pointer; }
+.mh-hits { display: grid; gap: 4px; max-width: 40rem; }
+.mh-hit { font: inherit; text-align: left; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.mh-hit:hover { border-color: var(--navy); background: var(--panel-2); }
