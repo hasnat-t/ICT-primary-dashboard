@@ -32,6 +32,16 @@
     return i - ((wd + 6) % 7);
   }
   function monthKey(start, i) { return dayToDate(start, i).slice(0, 7).replace('-', ''); }
+  // School days are Monday to Friday, as in the Rumi sprint scoreboard (owner, 2026-11-12). Holidays on a weekday
+  // still count as school days, as they do there.
+  function isSchoolDay(start, i) { const wd = new Date(Date.parse(start) + i * DAY).getUTCDay(); return wd >= 1 && wd <= 5; }
+  function schoolDayCount(P, from, to) {
+    const lo = Math.max(from, 0), hi = Math.min(to, P.data.today);
+    const key = `${lo}:${hi}`;
+    P._sdm = P._sdm || new Map();
+    if (!P._sdm.has(key)) { let n = 0; for (let d = lo; d <= hi; d++) if (P.sd[d]) n++; P._sdm.set(key, n); }
+    return P._sdm.get(key);
+  }
 
   // Which exact distinct-children bucket covers [from, to], given data exists only from day 0 to `today`:
   // a single day, a Monday-Sunday week, a calendar month, or the whole period. Otherwise null.
@@ -70,7 +80,7 @@
   const pct = (f) => (f[1] ? (100 * f[0]) / f[1] : null);
 
   function blankTeacher() {
-    return { g15: false, g612: false, lpDays: 0, plans: 0, opened: 0, taught: 0, saidTaught: 0, answered: 0,
+    return { g15: false, g612: false, lpDays: 0, lpSD: 0, sd: 0, plans: 0, opened: 0, taught: 0, saidTaught: 0, answered: 0,
       dc: 0, hitl: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, kidsL: null, kidsV: null, exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, fde: 0, fdeReq: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0 };
   }
@@ -87,7 +97,7 @@
     const training = new Array(nT).fill(null);
     for (const r of data.training || []) training[r[0]] = r;
     const modules = data.modules || MODULES;
-    return { data, lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
+    return { data, sd: Array.from({ length: Math.max(data.today || 0, 0) + 8 }, (_, i) => isSchoolDay(data.window_start, i)), lp: by(data.lp), obs: by(data.obs), ex: by(data.exams), fde: by((data.exd || []).filter((r) => r[13])), qs: by(data.qscore), made: by(q.made), sit: by(q.sit), bk: by(q.buckets), schoolSit, schoolBk, training, modules,
       grades: (() => { const g = new Array(nT).fill(null); for (const r of data.tgr || []) g[r[0]] = r[1]; return g; })(),
       parts: { fico_ind: !!data.fi, pilot: !!data.pilot, observe2: !!data.o2, teacher_grades: !!data.tgr, lp: !!data.lp, obs: !!data.obs, exams: !!data.exams, exam_detail: !!data.exd, quiz_scores: !!data.qscore, quiz: !!data.quiz, quiz_sectors: !!data.quiz_sectors, training: !!data.training, mh_training: !!data.mh, headcount: !!data.hc, data_quality: !!data.dq } };
   }
@@ -108,6 +118,7 @@
       if (r[2]) t.g15 = true;
       if (r[3]) t.g612 = true;
       if (r[2] || r[3]) t.lpDays++;
+      if (r[2] && P.sd[r[1]]) t.lpSD++;   // a school day on which the teacher used a grade 1-5 plan
       t.plans += r[4]; t.saidTaught += r[5]; t.answered += r[6]; t.opened += r[7] || 0;
     }
     for (const r of P.obs[ti]) {
@@ -129,6 +140,7 @@
       if (r[1] < from || r[1] > to) continue;
       if (r[2] === 'L') { t.sitL += r[3]; t.finL += r[4]; } else { t.sitV += r[3]; t.finV += r[4]; }
     }
+    t.sd = schoolDayCount(P, from, to);
     const k = kidsFrom(P.bk[ti], P.sit[ti], b);
     if (k) { t.kidsL = k.L; t.kidsV = k.V; }
     const tr = P.training[ti];
@@ -139,7 +151,7 @@
   }
 
   function blankGroup() {
-    return { teachers: 0, g15: 0, lpAny: 0, plans: 0, opened: 0, openedT: 0, generatedT: 0, taught: 0, answered: 0, teachersTaught: 0,
+    return { teachers: 0, g15: 0, lpSD: 0, sd: 0, lpAny: 0, plans: 0, opened: 0, openedT: 0, generatedT: 0, taught: 0, answered: 0, teachersTaught: 0,
       dc: 0, dcT: 0, hitl: 0, hitlT: 0, hitlC: 0, hitlP: 0, hitlA: 0, ficoD: blankFico(), ficoH: blankFico(), odd: 0,
       made: 0, madeT: 0, sitL: 0, finL: 0, sitV: 0, finV: 0, quizT: 0, quizLT: 0, kidsL: null, kidsV: null,
       exReq: 0, exOk: 0, exFail: 0, exStuck: 0, exEdit: 0, exT: 0, fde: 0, fdeReq: 0, fdeT: 0, qF: 0, qC: 0, qA: 0, qM: 0, qD: 0, qN: 0, qT: 0,
@@ -149,6 +161,7 @@
     g.teachers++;
     if (t.g15) g.g15++;
     if (t.g15 || t.g612) g.lpAny++;
+    g.lpSD += t.lpSD; g.sd = t.sd;
     g.plans += t.plans; g.opened += t.opened; if (t.opened) g.openedT++; if (t.plans) g.generatedT++; g.taught += t.taught; g.answered += t.answered; if (t.taught) g.teachersTaught++;
     g.dc += t.dc; if (t.dc) g.dcT++;
     g.hitl += t.hitl; if (t.hitl) g.hitlT++; g.hitlC += t.hitlC; g.hitlP += t.hitlP; g.hitlA += t.hitlA;
@@ -163,6 +176,45 @@
     if (m) g.didModule++;
     g.mods += m;
     for (let l = 1; l <= 4; l++) if (t.certs.includes(String(l))) g.cert[l - 1]++;
+  }
+
+  // LP engagement, the Rumi sprint-scoreboard way (owner, 2026-11-12): for each school day (Mon-Fri) the share of the
+  // teachers who used a grade 1-5 plan (generated or opened in the app) that day, averaged over the school days in the
+  // period. With a fixed teacher list that is: teacher-school-days with a plan / (teachers x school days).
+  function lpDay(g) { return g && g.teachers && g.sd ? (100 * g.lpSD) / (g.teachers * g.sd) : null; }
+
+  // Thursday-to-Wednesday weeks (the sprint scoreboard's weeks) since the first Thursday in the data, for the
+  // sector/school filter; the date filter does not apply. Per week: school days so far, LP engagement (average school
+  // day) and reach (used a plan at least once in the week), for the selection and for each sector.
+  function sprintWeeks(P, opts = {}) {
+    const { data } = P;
+    const first = (4 - new Date(Date.parse(data.window_start)).getUTCDay() + 7) % 7;
+    const hasSchool = opts.school !== undefined && opts.school !== null && opts.school !== '';
+    const inScope = (T) => !(opts.sector && data.schools[T.s].sector !== opts.sector) && !(hasSchool && T.s !== +opts.school);
+    const n = { all: 0 }, secOf = [];
+    data.teachers.forEach((T, ti) => {
+      if (!inScope(T)) { secOf[ti] = null; return; }
+      const sec = data.schools[T.s].sector; secOf[ti] = sec; n.all++; n[sec] = (n[sec] || 0) + 1;
+    });
+    const weeks = [];
+    for (let s = first; s <= data.today; s += 7) {
+      weeks.push({ from: s, to: s + 6, partial: s + 6 > data.today, days: schoolDayCount(P, s, s + 6), act: { all: 0 }, who: { all: new Set() } });
+    }
+    for (const r of data.lp || []) {
+      if (r[0] < 0 || !r[2] || r[1] < first || r[1] > data.today) continue;
+      const sec = secOf[r[0]]; if (!sec) continue;
+      const w = weeks[Math.floor((r[1] - first) / 7)]; if (!w) continue;
+      for (const k of ['all', sec]) {
+        if (P.sd[r[1]]) w.act[k] = (w.act[k] || 0) + 1;
+        (w.who[k] = w.who[k] || new Set()).add(r[0]);
+      }
+    }
+    const fig = (w, k) => ({ teachers: n[k] || 0, avg: n[k] && w.days ? (100 * (w.act[k] || 0)) / (n[k] * w.days) : null, reach: n[k] ? (100 * (w.who[k] ? w.who[k].size : 0)) / n[k] : null });
+    return weeks.map((w) => {
+      const sectors = {};
+      for (const k of Object.keys(n)) if (k !== 'all') sectors[k] = fig(w, k);
+      return { from: w.from, to: w.to, partial: w.partial, days: w.days, all: fig(w, 'all'), sectors };
+    });
   }
 
   // One teacher's figures in the same shape as a group, so tables can share column definitions.
@@ -574,7 +626,7 @@
   //              the end of each week (DC classroom practice: the average over the same stretch).
   // Denominator = primary teachers on the current roster in that scope. Keys must match METRICS in targets.js.
   const TARGET_METRICS = {
-    lp: { label: 'LP engagement', week: 'of teachers used a grade 1–5 lesson plan in the week', period: 'of teachers used a grade 1–5 lesson plan at least once in the target period', short: 'teachers using a lesson plan' },
+    lp: { label: 'LP reach', week: 'of teachers used a grade 1–5 lesson plan in the week', period: 'of teachers used a grade 1–5 lesson plan at least once in the target period', short: 'teachers using a lesson plan' },
     dc: { label: 'DC coverage', week: 'of teachers recorded a Digital Coach lesson in the week', period: 'of teachers recorded a Digital Coach lesson at least once in the target period', short: 'teachers recording a DC lesson' },
     hitl: { label: 'HITL coverage', week: 'of teachers observed by a coach in the week', period: 'of teachers observed by a coach at least once in the target period', short: 'teachers observed by a coach' },
     ex: { label: 'Exam generator use', week: 'of teachers who got an exam paper in the week', period: 'of teachers who got an exam paper at least once in the target period', short: 'teachers getting an exam paper' },
@@ -691,7 +743,7 @@
   // Sector league (owner request 2026-11-10): every full Monday-Sunday week since 1 Aug, each sector is ranked on five
   // weekly measures (the same as Targets, each week): LP engagement, DC coverage, HITL coverage, DC classroom practice
   // and exam generator use. Per measure 1st = 6 points ... 6th = 1 (n sectors: n .. 1); tied sectors share the higher
-  // points; a sector with no figure gets 0. Week position by points, then LP engagement, then name. Season = sums to
+  // points; a sector with no figure gets 0. Week position by points, then LP reach, then name. Season = sums to
   // that week; wins = weeks at 1st; form = last 5 positions; best = best position so far.
   const LEAGUE_MEASURES = ['lp', 'dc', 'hitl', 'dcfico', 'ex'];
   function sectorLeague(P) {
@@ -963,5 +1015,5 @@
       weeks: { D: grid(wk.D).sort((a, b) => a.key - b.key), H: grid(wk.H).sort((a, b) => a.key - b.key) }, weekStart: (w) => FI_W0 + 7 * w, firstDay: FI_W0 + 1 };
   }
 
-  return { LEAGUE_MEASURES, sectorLeague, TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  return { lpDay, sprintWeeks, isSchoolDay, LEAGUE_MEASURES, sectorLeague, TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

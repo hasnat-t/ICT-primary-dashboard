@@ -29,8 +29,9 @@
       ['#c-hm', 'Sectors at a glance', 'Every sector side by side on every measure, as a share of its primary teachers. Click a sector to focus the whole page on it.'],
       ['#c-stairs', 'Certification staircase', 'How many primary teachers hold each NIETE level certificate, Level 0 to Level 3. The dots are the six sectors.'],
     ]],
-    lp: ['Lesson plans', 'Who used a grade 1–5 lesson plan: generated one with Rumi (WhatsApp or the portal) or opened one in the teacher app. LP engagement % = teachers who used at least one ÷ primary teachers.', [
+    lp: ['Lesson plans', 'Who used a grade 1–5 lesson plan: generated one with Rumi (WhatsApp or the portal) or opened one in the teacher app. LP engagement % = the share who used one on an average school day (Monday to Friday), the Rumi sprint scoreboard’s method; Reach % = used at least one in the period.', [
       ['#c-lp', 'Headline', 'Engagement, plans generated, plans opened in the app and plans taught (seen in DC recordings) for your period.'],
+      ['#c-lp-sw', 'Sprint weeks', 'Thursday-to-Wednesday weeks, the same as the Rumi sprint scoreboard: LP engagement on an average school day, reach, and each sector.'],
       ['#c-lp-trend', 'Over time', 'Plans by day, week or month. Switch with “Group charts by” in the filter bar.'],
       ['#c-lp-t', 'By sector, school or teacher', 'The same measures per sector. Pick a sector to see its schools, a school to see its teachers. Click any row for the details; Download CSV takes the table to Excel.'],
       ['#c-lps', 'By subject', 'Plans generated and taught for each subject.'],
@@ -220,7 +221,7 @@
     ['Why are some teachers missing from the figures?', 'Usually their account has <b>no level recorded</b>, so they are not counted as primary (or middle/high). The <b>Data quality</b> tab lists them school by school, with possible duplicate accounts and schools with no coach.', 'dq', '#c-dq'],
     ['How many teachers are in ICT?', 'The <b>ICT teachers</b> strip at the top of the Overview: every teacher at an ICT programme school, counted once, with how many teach Primary, Middle or High, or both. It follows the Sector filter and updates with every refresh.', 'overview', '.hc2'],
     ['What are the champions?', 'The trophy cards on the Overview: the sector that did best yesterday on each feature, as a share of its teachers. Streak = it also won the days before; “Best day since August” = its record. I throw confetti for them once a day.', 'overview', '.champs'],
-    ['What is LP engagement?', 'The share of primary teachers who used at least one grade 1–5 lesson plan in the period: generated with Rumi or opened in the teacher app. Using one counts. Admiring one from afar does not.', 'lp', '#c-lp'],
+    ['What is LP engagement?', 'On an average school day (Monday to Friday), the share of primary teachers who used a grade 1–5 lesson plan: generated with Rumi or opened in the teacher app. Same method as the Rumi sprint scoreboard. Reach is the other number: teachers who used at least one plan in the period.', 'lp', '#c-lp'],
     ['What is the difference between DC and HITL?', '<b>DC</b> is the Digital Coach: the teacher records their own lesson and the AI scores it. <b>HITL</b> is a human coach in the classroom with /observe. Both use FICO, but they are never added together. Robot and human, separate tables, like a good wedding.', 'dc', '#c-dc'],
     ['What is FICO?', 'The lesson-observation framework with four sections: lesson-plan fidelity, subject knowledge, teaching practices and student engagement. Bands: Exemplary 80%+, Proficient 70–79.9%, Developing 60–69.9%, Needs support under 60%. Not the credit score. Nobody’s getting a loan here.', 'fico', '#c-fico'],
     ['What is /observe2?', 'The impact team’s pilot where coaches score 17 indicators themselves. It has its own tab and is never added to HITL or FICO.', 'observe2', '#c-o2'],

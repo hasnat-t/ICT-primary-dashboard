@@ -178,7 +178,8 @@
     schools: { k: 'schools', label: 'Schools', num: true, levels: ['sector'], val: (r) => r.schools, fmt: (r) => N(r.schools) },
     teachers: { k: 'teachers', label: 'Primary teachers', num: true, levels: ['sector', 'school'], val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
     g15: { k: 'g15', label: 'Used a grade 1–5 plan', num: true, title: 'Teachers who used a grade 1–5 lesson plan in the period: generated one with Rumi (WhatsApp or portal) or opened one in the teacher app', val: (r) => r.g15, fmt: (r) => (r.t ? yn(r.g15) : N(r.g15)) },
-    usage: { k: 'usage', label: 'LP engagement %', num: true, levels: ['sector', 'school'], title: 'Teachers who used a grade 1–5 lesson plan (generated or opened in the teacher app) ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => covD(r, (g) => ratio(g.g15, g.teachers)) },
+    lpDay: { k: 'lpDay', label: 'LP engagement % (avg school day)', num: true, levels: ['sector', 'school'], title: 'For each school day (Mon–Fri) in the period, the share of primary teachers who used a grade 1–5 plan (generated or opened in the teacher app); then the average of those days. Same method as the Rumi sprint scoreboard', val: (r) => Calc.lpDay(r), fmt: (r) => covD(r, (g) => Calc.lpDay(g)) },
+    usage: { k: 'usage', label: 'Reach %', num: true, levels: ['sector', 'school'], title: 'Reach: teachers who used a grade 1–5 lesson plan (generated or opened in the teacher app) at least once in the period ÷ primary teachers', val: (r) => ratio(r.g15, r.teachers), fmt: (r) => covD(r, (g) => ratio(g.g15, g.teachers)) },
     opened: { k: 'opened', label: 'Plans opened in the app', num: true, title: 'Grade 1–5 lesson plans opened in the teacher app (reading a plan there counts as using lesson plans, but is not generating one)', val: (r) => r.opened, fmt: (r) => N(r.opened) },
     plans: { k: 'plans', label: 'Plans generated', num: true, title: 'Grade 1–5 lesson plans Rumi generated for the teacher (lesson_plans rows; plans opened only in the teacher app between 12 and 13 Oct are not rows)', val: (r) => r.plans, fmt: (r) => N(r.plans) },
     taught: { k: 'taught', label: 'Plans taught', num: true, title: 'Provisional: DC observations in which the teacher attached one of her recent Rumi lesson plans (the plan she generated was taught and recorded)', val: (r) => r.taught, fmt: (r) => cnt(r, r.taught) },
@@ -309,7 +310,8 @@
   const tierPill = (p) => { const b = band(p); return b ? `<span class="sc ${b}"><i>${TIER[b][0]}</i>${TIER[b][1]}</span>` : '<span class="pill-t">No data</span>'; };
   const tierBg = (p) => ({ b4: 'var(--t4)', b3: 'var(--t3)', b2: 'var(--t2)', b1: 'var(--t1)' }[band(p)] || 'var(--line)');
   const MET = {
-    lp: { label: 'LP engagement', f: (g) => ratio(g.g15, g.teachers) },
+    lp: { label: 'LP reach', f: (g) => ratio(g.g15, g.teachers) },
+    lpd: { label: 'LP engagement', f: (g) => Calc.lpDay(g), noTier: true },   // average school day, the sprint-scoreboard way
     dc: { label: 'DC coverage', f: (g) => ratio(g.dcT, g.teachers) },
     hitl: { label: 'HITL coverage', f: (g) => ratio(g.hitlT, g.teachers) },
     ex: { label: 'Exam generator', f: (g) => ratio(g.exT, g.teachers) },
@@ -337,11 +339,11 @@
     const dots = secs.map(([n, s]) => {
       const x = f(s); if (x === null) return '';
       const on = n === S.sector, sz = on ? 16 : 11;
-      return `<button class="d ${on ? 'on' : ''}" type="button" data-focus="sector:${esc(n)}" title="${esc(n)}: ${P1(x)}" aria-label="${esc(n)} ${P1(x)}" style="top:${14 - sz / 2}px;left:calc(${pos(x).toFixed(2)}% - ${sz / 2}px);width:${sz}px;height:${sz}px;background:${tierBg(x)}"></button>`;
+      return `<button class="d ${on ? 'on' : ''}" type="button" data-focus="sector:${esc(n)}" title="${esc(n)}: ${P1(x)}" aria-label="${esc(n)} ${P1(x)}" style="top:${14 - sz / 2}px;left:calc(${pos(x).toFixed(2)}% - ${sz / 2}px);width:${sz}px;height:${sz}px;background:${MET[key].noTier ? 'var(--navy)' : tierBg(x)}"></button>`;
     }).join('');
     const tick = all !== null ? `<div class="tk" style="left:calc(${pos(all).toFixed(2)}% - 1px)" title="All ICT ${P1(all)}"></div>` : '';
     return `<article class="hcard"><div class="hcard-h"><span class="hcard-l">${esc(label)}</span>${allTime ? '<span class="pill-t">All-time</span>' : ''}</div>
-      <div class="hcard-v"><span class="big">${P1(v)}</span>${tierPill(v)}</div><span class="hnote">${note}</span>
+      <div class="hcard-v"><span class="big">${P1(v)}</span>${MET[key].noTier ? '<span class="pill-t">Average school day</span>' : tierPill(v)}</div><span class="hnote">${note}</span>
       <div class="strip" role="img" aria-label="Sector spread; the grey tick is All ICT"><div class="ln"></div>${tick}${dots}</div>${chg}${cmp}</article>`;
   }
 
@@ -566,7 +568,7 @@
     const lv = [0, 1, 2, 3].map((i) => ratio(g.cert[i], g.teachers));
 
     const hero = `<section class="hero" aria-label="Headline metrics">
-      ${heroCard('lp', 'Lesson-plan engagement', `${N(g.g15)} of ${N(g.teachers)} teachers used a grade 1–5 lesson plan`, g, A, secs)}
+      ${heroCard('lpd', 'LP engagement', `Share of teachers who used a grade 1–5 plan on an average school day (Mon–Fri). Reach: ${N(g.g15)} of ${N(g.teachers)} (${P1(ratio(g.g15, g.teachers))}) used one at least once`, g, A, secs)}
       ${heroCard('dc', 'DC coverage', `${N(g.dcT)} teachers recorded a lesson on the Digital Coach`, g, A, secs)}
       ${heroCard('hitl', 'HITL coverage', `${N(g.hitlT)} teachers observed by a coach`, g, A, secs)}
       ${heroCard('l3', 'Teacher Leader certified', `${N(g.cert[3])} teachers hold Level 3`, g, A, secs, true)}</section>`;
@@ -601,7 +603,7 @@
         else if (lowV < 70) att.push({ v: lowV, focus: `sector:${lowN}`, title: `${lowN} trails on ${MET[k].label}`, body: `${P1(lowV)} against ${P1(MET[k].f(A))} across ICT; ${hiN} leads at ${P1(hiV)}.`, tag: `Focus ${lowN} →` });
       }
       const best = secs.map(([n, s]) => [n, ((MET.lp.f(s) || 0) + (MET.dc.f(s) || 0)) / 2, s]).sort((a, b) => b[1] - a[1])[0];
-      if (best) att.push({ v: 85, focus: `sector:${best[0]}`, title: `${best[0]} leads on lesson plans and recordings`, body: `LP engagement ${P1(MET.lp.f(best[2]))} and DC coverage ${P1(MET.dc.f(best[2]))}.`, tag: `Focus ${best[0]} →` });
+      if (best) att.push({ v: 85, focus: `sector:${best[0]}`, title: `${best[0]} leads on lesson plans and recordings`, body: `LP reach ${P1(MET.lp.f(best[2]))} and DC coverage ${P1(MET.dc.f(best[2]))}.`, tag: `Focus ${best[0]} →` });
     } else {
       for (const k of ['hitl', 'dc', 'ex', 'lp']) {
         const v = MET[k].f(g), a = MET[k].f(A);
@@ -628,7 +630,7 @@
       heat = heatmap(`Schools in ${S.sector}`, `% of each school's primary teachers · ${periodText()}. Select a school to focus; its teachers are listed below.`, heatRows(schRows, total, 'school'), 'c-hm');
     }
 
-    const rates = [['Lesson-plan engagement', MET.lp.f(g)], ['DC coverage', MET.dc.f(g)], ['HITL coverage', MET.hitl.f(g)], ['Exam generator use', MET.ex.f(g)], ['Teacher Leader (L3)', MET.l3.f(g)]];
+    const rates = [['LP engagement (average school day)', MET.lpd.f(g)], ['LP reach', MET.lp.f(g)], ['DC coverage', MET.dc.f(g)], ['HITL coverage', MET.hitl.f(g)], ['Exam generator use', MET.ex.f(g)], ['Teacher Leader (L3)', MET.l3.f(g)]];
     const fname = S.school !== '' ? S.data.schools[+S.school].name : S.sector || 'All ICT';
     const focus = `<aside class="focus" aria-label="Focus"><div class="focus-h"><div><span class="fk">${S.school !== '' ? 'School focus' : S.sector ? 'Sector focus' : 'Programme focus'}</span><h2>${esc(fname)}</h2>
       <span class="fs">${scoped ? `${N(g.schools)} school${g.schools === 1 ? '' : 's'} · ${N(g.teachers)} primary teachers` : `${secs.length} sectors · ${N(A.schools)} schools · ${periodText()}`}</span></div>
@@ -727,17 +729,34 @@
   }
 
   function viewLp(R) { return viewLpBase(R) + lpAnalytics(); }
+  // Thursday-to-Wednesday weeks, the Rumi sprint scoreboard's weeks and method, so the two can be read side by side.
+  function lpSprintCard() {
+    const W = Calc.sprintWeeks(S.P, sel()).filter((w) => w.days);
+    if (!W.length) return '';
+    const dd = (i) => new Date(Date.parse(S.data.window_start) + i * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const secs = !S.sector && S.school === '' ? Object.keys(W[W.length - 1].sectors).sort() : [];
+    const cols = [
+      { k: 'wk', label: 'Week (Thu–Wed)', val: (r) => r.from, fmt: (r) => `${esc(dd(r.from))} – ${esc(dd(r.to))}${r.partial ? ' <span class="dim">(so far)</span>' : ''}` },
+      { k: 'days', label: 'School days', num: true, val: (r) => r.days, fmt: (r) => N(r.days) },
+      { k: 'avg', label: 'LP engagement % (avg school day)', num: true, val: (r) => r.all.avg, fmt: (r) => P1(r.all.avg) },
+      { k: 'reach', label: 'Reach %', num: true, title: 'Used a grade 1–5 plan at least once in the week', val: (r) => r.all.reach, fmt: (r) => P1(r.all.reach) },
+      ...secs.map((n) => ({ k: `s:${n}`, label: n, num: true, title: `${n}: LP engagement % (average school day)`, val: (r) => (r.sectors[n] ? r.sectors[n].avg : null), fmt: (r) => P1(r.sectors[n] ? r.sectors[n].avg : null) })),
+    ];
+    return card('c-lp-sw', `Sprint weeks · ${scopeName()}`, 'The same weeks (Thursday to Wednesday) and method as the Rumi sprint scoreboard: for each school day, Monday to Friday, the share of primary teachers who used a grade 1–5 plan (generated or opened in the teacher app) that day, then the average of the week’s school days. <b>Reach</b> = used one at least once in the week. Teachers are this dashboard’s own primary-teacher count. Every week since August; the date filter does not apply, the Sector and School filters do. A weekday holiday still counts as a school day.',
+      table('lpsw', cols, W, { sort: { k: 'wk', dir: -1 }, noLegend: true }));
+  }
   function viewLpBase(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
     return card('c-lp', `Lesson plans · ${scopeName()} · ${periodText()}`,
-      'A teacher <b>uses</b> a lesson plan by generating one with Rumi (picking a curriculum lesson or typing a topic, on WhatsApp or the portal) or by <b>opening</b> one in the teacher app. LP engagement % = primary teachers who used at least one grade 1–5 plan in the period ÷ all primary teachers. <b>Plans generated</b> counts only plans Rumi generated for the teacher; <b>Plans opened in the app</b> counts plans read there. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she generated the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher generating a Rumi plan.',
-      `<div class="kpis">${kpiP('LP engagement', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} teachers ${S.prevR ? dPts(ratio(a.g15, a.teachers), ratio(S.prevR.all.g15, S.prevR.all.teachers)) : ''}`)}
+      'A teacher <b>uses</b> a lesson plan by generating one with Rumi (picking a curriculum lesson or typing a topic, on WhatsApp or the portal) or by <b>opening</b> one in the teacher app. <b>LP engagement %</b> (the Rumi sprint-scoreboard method) = for each school day (Monday to Friday) the share of primary teachers who used a grade 1–5 plan that day, averaged over the school days in the period. <b>Reach %</b> = primary teachers who used at least one plan in the period ÷ all primary teachers. <b>Plans generated</b> counts only plans Rumi generated for the teacher; <b>Plans opened in the app</b> counts plans read there. <b>Plans taught</b> (provisional) = DC observations in which the teacher attached one of her recent Rumi lesson plans: she generated the plan, taught it, recorded the lesson and submitted that plan with it. The system does not store which plan, so this counts lessons, not named plans; 99.6% of them came within 14 days of the teacher generating a Rumi plan.',
+      `<div class="kpis">${kpi('LP engagement', P1(Calc.lpDay(a)), `average school day · ${N(a.sd)} school day${a.sd === 1 ? '' : 's'} ${S.prevR ? dPts(Calc.lpDay(a), Calc.lpDay(S.prevR.all)) : ''}`)}${kpiP('Reach', ratio(a.g15, a.teachers), `${N(a.g15)} of ${N(a.teachers)} used one at least once ${S.prevR ? dPts(ratio(a.g15, a.teachers), ratio(S.prevR.all.g15, S.prevR.all.teachers)) : ''}`)}
         ${kpi('Plans generated', N(a.plans), 'grade 1–5')}${kpi('Plans taught', N(a.taught), `${P1(ratio(a.taught, a.dc))} of DC observations`)}
         ${kpi('Teachers who taught one', N(a.teachersTaught))}${kpi('Any plan incl. grade 6–12', N(a.lpAny), 'teachers')}</div>`)
       + card('c-lp-trend', `Lesson plans over time`, '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.plans, g.taught] })),
         [{ name: 'Plans generated', color: GREEN }, { name: 'Plans taught, seen in DC', color: NAVY }]), granSeg())
-      + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.usage, COL.plans, COL.opened, COL.taught, COL.tTaught], rows,
+      + lpSprintCard()
+      + card('c-lp-t', `By ${level}`, '', table('lp', [nameCol(level), COL.teachers, COL.g15, COL.lpDay, COL.usage, COL.plans, COL.opened, COL.taught, COL.tTaught], rows,
         { level, onRow: (k) => drill(level, k), rowKey: (r) => r.key, foot: a }));
   }
 
@@ -1893,7 +1912,7 @@
   // animated: rows slide to their new places (transform), numbers count up, arrows bounce or shake, and "Play season"
   // replays every week since August. The week controls repaint the rows in place (lgPaint), without a full render, so
   // the movement shows. Reduced motion: no movement (CSS and lgMotion()). Owner request 2026-11-10.
-  const LG_M = { lp: ['LP engagement', 'var(--a1)'], dc: ['DC coverage', 'var(--a3)'], hitl: ['HITL coverage', 'var(--a2)'], dcfico: ['DC classroom practice', 'var(--a4)'], ex: ['Exam generator', 'var(--a5)'] };
+  const LG_M = { lp: ['LP reach', 'var(--a1)'], dc: ['DC coverage', 'var(--a3)'], hitl: ['HITL coverage', 'var(--a2)'], dcfico: ['DC classroom practice', 'var(--a4)'], ex: ['Exam generator', 'var(--a5)'] };
   const lgMotion = () => !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   let lgTimer = null;
   function lgStop(pause) { S.lgPaused = !!pause && !!lgTimer; if (lgTimer) { clearInterval(lgTimer); lgTimer = null; } const b = document.querySelector('[data-lgw="play"]'); if (b) b.textContent = '▶ Play season'; }
@@ -2547,7 +2566,7 @@
       ['Coach caseload', '', 'Team tab, password for the owner and coaches. Each coach’s schools as assigned in the app (leader_schools, role coach, test rows out), read at every refresh, so schools a coach adds or removes in the HITL flow show after the next refresh. Teachers per school: total = all teacher accounts at the programme school; primary = level includes primary; middle & high = level includes middle or high (a teacher of both is in both). A coach’s totals add up their schools, so a school shared by two coaches counts for both.', 'leader_schools, users.teacher_level · coaches-rules §3, teacher-levels §1b · owner request (2026-11-12)'],
       ['Dashboard usage', '', 'How many people open this dashboard (Team tab, admin password). A person = one browser on one device, kept as a random id (only its hash is stored; no name, no IP address). Opens = times the page was opened; a tab counts when someone switches to it. Days are Pakistan days, weeks Monday–Sunday. Bots and link previews are left out. Counting began on 11 Nov 2026.', 'owner request (2026-11-11)'],
       ['Thank-you wall', '', 'Sticky notes team members write to thank each other (Team tab). Anyone with the dashboard link can use it. A note may name the person’s email, and that person gets the note by email. Notes, reactions and comments are saved; the email address is never shown on the wall. Not built from the dashboard’s data.', 'owner request (2026-11-10)'],
-      ['Sector league', 'P', 'Every full Monday–Sunday week since 1 Aug (holiday weeks with no activity skipped), each sector is ranked on five weekly measures: the share of its primary teachers who used a grade 1–5 lesson plan, recorded a DC lesson, were observed by a coach, got an exam paper, and its average DC classroom-practice score (teaching practices + student engagement). 1st earns 6 points, 6th earns 1; tied sectors share the higher points; no figure = 0. Week position by points, then LP engagement. Season = points summed since August; wins = weeks at 1st; form = the last 5 positions.', 'the same data as the rest of the page · owner-defined (2026-11-10)'],
+      ['Sector league', 'P', 'Every full Monday–Sunday week since 1 Aug (holiday weeks with no activity skipped), each sector is ranked on five weekly measures: the share of its primary teachers who used a grade 1–5 lesson plan, recorded a DC lesson, were observed by a coach, got an exam paper, and its average DC classroom-practice score (teaching practices + student engagement). 1st earns 6 points, 6th earns 1; tied sectors share the higher points; no figure = 0. Week position by points, then LP reach. Season = points summed since August; wins = weeks at 1st; form = the last 5 positions.', 'the same data as the rest of the page · owner-defined (2026-11-10)'],
       ['Targets', 'P', 'Goals set by the team on the Targets tab, each with a start and an end date, for the primary teachers in the target’s scope. Counted each week (Monday–Sunday: share of teachers who used a grade 1–5 plan / recorded a DC lesson / were observed by a coach / got an exam paper that week; DC classroom practice = that week’s average teaching practices + student engagement score) or over the whole period (share active at least once from the start date; DC classroom practice = the average since the start). Forecast = a least-squares straight line through the full weeks since the start (each week: the last 6 when fewer than 3), carried to the end date: on track if it reaches the goal, close if within 5 points, off track otherwise; achieved when the latest figure is at or above the goal; not started before the start date; met or missed after the end.', 'the same data as the rest of the page · owner-defined (2026-11-09)'],
       ['Coaching effect (Does coaching work?)', 'P', 'For each coach (HITL) visit: the teacher’s own Digital Coach score (AI-scored FICO) in the 1, 2 or 3 weeks after the visit minus the weeks before (visit day left out; recordings needed on both sides, both windows ended), minus the average change over the same days of teachers in the same sector and starting band (below 60 / 60–69.9 / 70%+) who had no visit then (at least 5). Averaged over visits, with a 95% range of ±1.96 standard errors. Classroom practice = teaching practices + student engagement; subject knowledge uses FICO v3 only. Shows what follows a visit, not proof it caused it.', 'coaching_sessions · coaching-query-rules §1, fico-scores-rules §2 (owner-defined method, 2026-11-09)'],
       ['Data quality checks', 'G', 'The Data quality tab, as of the last refresh, over every programme school and every teacher level: teachers with no level recorded, a blank name, or the same name as another account at their school (a possible duplicate); schools with no coach assigned (a coach account with the school in its assigned schools), no teacher accounts, or only 1–2; coach accounts with no school; and observation section scores outside 0 to the maximum.', 'users, schools, school_programme, leader_schools · teacher-headcount §1e, teacher-levels §1b, coaches-rules §3'],
@@ -2557,7 +2576,8 @@
       ['Change vs previous period', '', 'Small green ▲ / red ▼ marks compare the selected period with the period of the same length just before it — percentage points for shares, per cent for counts. Not shown for “Since 1 Aug” (there is no earlier period).', ''],
     ]],
     ['Lesson plans', [
-      ['Used a grade 1–5 plan / LP engagement %', 'G', 'A teacher used a lesson plan if they generated one with Rumi (WhatsApp or portal) or opened one in the teacher app. LP engagement % = teachers who used at least one grade 1–5 plan in the period ÷ primary teachers.', 'lesson_plans, niete_lp_opens (viewer) · lp-query-rules §0, §6'],
+      ['LP engagement % (average school day)', 'P', 'The Rumi sprint scoreboard’s method (owner, 2026-11-12): for each school day (Monday to Friday) in the period, the share of primary teachers who used a grade 1–5 plan that day (generated with Rumi or opened in the teacher app); then the average of those days. Weekends are left out; a weekday holiday still counts. Sprint weeks run Thursday to Wednesday. The teacher count is this dashboard’s own, so it reads about 3 points above the scoreboard. Example: 10 teachers, 3 on Monday, 1 on Tuesday, 2 on Wednesday, 1 on Thursday, none on Friday = (30+10+20+10+0) ÷ 5 = 14%.', 'lesson_plans, niete_lp_opens (viewer) · lp-query-rules §0, §6; daily average: owner-defined, to match the Rumi RDF'],
+      ['Used a grade 1–5 plan / LP reach %', 'G', 'A teacher used a lesson plan if they generated one with Rumi (WhatsApp or portal) or opened one in the teacher app. LP reach % = teachers who used at least one grade 1–5 plan in the period ÷ primary teachers (in the example above, 4 different teachers = 40%). Sector league, Targets, Compare and the champions use reach.', 'lesson_plans, niete_lp_opens (viewer) · lp-query-rules §0, §6'],
       ['Plans generated', 'G', 'Grade 1–5 plans Rumi generated for the teacher.', 'lesson_plans · lp-query-rules §1'],
       ['Plans opened in the app', 'G', 'Grade 1–5 plans read in the teacher app. Using a plan this way counts as engagement but not as generating one.', 'niete_lp_opens (source viewer, k5/fln)'],
       ['Plans taught', 'P', 'Digital Coach recordings where the teacher attached one of their recently generated Rumi plans — they generated the plan, taught it and recorded the lesson. The system does not say which plan, so this counts lessons.', 'coaching_sessions (lesson_plan_link_method = selected_recent) · owner definition'],
@@ -2631,7 +2651,7 @@
       { k: 'urF', label: 'Urdu: fluent', num: true, title: '40+ correct words a minute', val: (r) => r.urF, fmt: (r) => pc(r.urF) },
       { k: 'urC', label: 'Urdu: reads with understanding', num: true, val: (r) => r.urC, fmt: (r) => pc(r.urC) },
       { k: 'ma', label: 'Maths: every benchmark', num: true, val: (r) => r.ma, fmt: (r) => pc(r.ma) },
-      { k: 'lp', label: 'LP engagement', num: true, title: 'Since 1 Aug', val: (r) => r.lp, fmt: (r) => cov(r.lp) },
+      { k: 'lp', label: 'LP reach', num: true, title: 'Since 1 Aug', val: (r) => r.lp, fmt: (r) => cov(r.lp) },
       { k: 'dcP', label: 'Teaching practices (DC)', num: true, val: (r) => r.dcP, fmt: (r) => sc(r.dcP) },
       { k: 'hitlP', label: 'Teaching practices (HITL)', num: true, val: (r) => r.hitlP, fmt: (r) => sc(r.hitlP) },
       { k: 'dcE', label: 'Student engagement (DC)', num: true, val: (r) => r.dcE, fmt: (r) => sc(r.dcE) },
@@ -2645,7 +2665,7 @@
       return sxx && syy ? { r: sxy / Math.sqrt(sxx * syy), n: p.length } : null;
     };
     const words = (c) => (Math.abs(c.r) < 0.2 ? 'no clear link' : `${Math.abs(c.r) < 0.4 ? 'a weak' : Math.abs(c.r) < 0.6 ? 'a moderate' : 'a strong'} ${c.r > 0 ? 'positive' : 'negative'} link`);
-    const pairs = [['HITL teaching practices', 'hitlP'], ['DC teaching practices', 'dcP'], ['LP engagement', 'lp']]
+    const pairs = [['HITL teaching practices', 'hitlP'], ['DC teaching practices', 'dcP'], ['LP reach', 'lp']]
       .map(([l, k]) => [l, corr(schools.map((x) => x.urF), schools.map((x) => x[k]))]).filter(([, c]) => c);
     const corrText = pairs.length ? `<ul class="facts">${pairs.map(([l, c]) => `<li>Urdu fluency and ${esc(l)}: ${words(c)} across ${N(c.n)} schools (r = ${c.r.toFixed(2)}).</li>`).join('')}</ul>`
       : `<p class="note">${schools.length < 8 ? `Only ${N(schools.length)} school${schools.length === 1 ? ' has' : 's have'} 5 or more tested children so far — too few to say whether better teaching goes with better reading. This fills in as testing continues.` : 'Not enough scored results yet to compare.'}</p>`;
@@ -2685,7 +2705,7 @@
     const kp = (k, cv, pv, sub) => kpi(k, P1(cv), `${sub} ${chgP(cv, pv)}`);
     const kn = (k, cv, pv, sub) => kpi(k, N(cv), `${sub} ${chgN(cv, pv)}`);
     const head = `<div class="kpis">
-      ${kp('LP engagement', share(a.g15, a.teachers), b ? share(b.g15, b.teachers) : null, `${N(a.g15)} of ${N(a.teachers)} teachers`)}
+      ${kp('LP reach', share(a.g15, a.teachers), b ? share(b.g15, b.teachers) : null, `${N(a.g15)} of ${N(a.teachers)} teachers`)}
       ${kp('DC coverage', share(a.dcT, a.teachers), b ? share(b.dcT, b.teachers) : null, `${N(a.dcT)} teachers`)}
       ${kp('HITL coverage', share(a.hitlT, a.teachers), b ? share(b.hitlT, b.teachers) : null, `${N(a.hitlT)} teachers`)}
       ${kp('Exam generator', share(a.exT, a.teachers), b ? share(b.exT, b.teachers) : null, `${N(a.exT)} teachers`)}
@@ -2699,7 +2719,7 @@
     const secCols = [
       { k: 'name', label: 'Sector', val: (r) => r.key, fmt: (r) => esc(r.key) },
       { k: 't', label: 'Primary teachers', num: true, val: (r) => r.g.teachers, fmt: (r) => N(r.g.teachers) },
-      { k: 'lp', label: 'LP engagement', num: true, val: (r) => share(r.g.g15, r.g.teachers), fmt: (r) => cell(share(r.g.g15, r.g.teachers), r.p ? share(r.p.g15, r.p.teachers) : null) },
+      { k: 'lp', label: 'LP reach', num: true, val: (r) => share(r.g.g15, r.g.teachers), fmt: (r) => cell(share(r.g.g15, r.g.teachers), r.p ? share(r.p.g15, r.p.teachers) : null) },
       { k: 'dc', label: 'DC coverage', num: true, val: (r) => share(r.g.dcT, r.g.teachers), fmt: (r) => cell(share(r.g.dcT, r.g.teachers), r.p ? share(r.p.dcT, r.p.teachers) : null) },
       { k: 'hitl', label: 'HITL coverage', num: true, val: (r) => share(r.g.hitlT, r.g.teachers), fmt: (r) => cell(share(r.g.hitlT, r.g.teachers), r.p ? share(r.p.hitlT, r.p.teachers) : null) },
       { k: 'dcp', label: 'Teaching practices (DC)', num: true, val: (r) => sp(r.g, 'hlp', 'ficoD'), fmt: (r) => sc(sp(r.g, 'hlp', 'ficoD')) },
@@ -3168,7 +3188,7 @@
   }
   function miniKpis(g) {
     return `<div class="kpis">${kpi('Primary teachers', N(g.teachers), `${N(g.schools)} school${g.schools === 1 ? '' : 's'}`)}
-      ${kpiP('LP engagement', ratio(g.g15, g.teachers), `${N(g.g15)} used a plan`)}${kpiP('DC coverage', ratio(g.dcT, g.teachers), `${N(g.dcT)} recorded`)}
+      ${kpiP('LP reach', ratio(g.g15, g.teachers), `${N(g.g15)} used a plan`)}${kpiP('DC coverage', ratio(g.dcT, g.teachers), `${N(g.dcT)} recorded`)}
       ${kpiP('HITL coverage', ratio(g.hitlT, g.teachers), `${N(g.hitlT)} observed`)}${kpiP('Exam generator', ratio(g.exT, g.teachers), `${N(g.exT)} teachers`)}</div>`;
   }
   function renderModal() {

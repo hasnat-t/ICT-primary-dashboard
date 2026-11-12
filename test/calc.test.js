@@ -242,3 +242,24 @@ test('FICO indicators: DC and HITL kept apart, weeks follow the period, sector f
   assert.strictEqual(C.ficoIndStats(C.prepare(data), { from: 0, to: 90, sector: 'B' }).ind[10].dcN, 2);
   assert.strictEqual(F.weeks.D.length, 1);                 // week 3 (days 58-64) is outside 37-50
 });
+
+test('LP engagement on an average school day and sprint weeks (Thu-Wed), the Rumi scoreboard way', () => {
+  const P = C.prepare(sample());
+  // Sat 1 - Fri 7 Aug: school days = Mon 3 - Fri 7 (5); T0 used a plan on Mon 3 -> 1 / (4 teachers x 5) = 5%
+  const R = C.rollup(P, { from: 0, to: 6 });
+  assert.strictEqual(R.all.sd, 5);
+  assert.strictEqual(R.all.lpSD, 1);
+  assert.strictEqual(C.lpDay(R.all), 5);
+  assert.strictEqual(C.lpDay(R.sectors.get('B')), 0);
+  // a weekend-only range has no school days
+  assert.strictEqual(C.lpDay(C.rollup(P, { from: 0, to: 1 }).all), null);
+  const W = C.sprintWeeks(P, {});
+  assert.strictEqual(W[0].from, 5);                       // Thu 6 Aug
+  assert.strictEqual(W[0].days, 5);                       // Thu, Fri, Mon, Tue, Wed
+  assert.strictEqual(W[0].all.avg, 5);                    // T0 on Mon 10 Aug
+  assert.strictEqual(W[0].all.reach, 25);
+  assert.ok(Math.abs(W[0].sectors.A.avg - 100 / 15) < 1e-9);   // 1 / (3 x 5)
+  assert.strictEqual(W[2].sectors.B.avg, 20);             // T3 on Fri 21 Aug: 1 / (1 x 5)
+  assert.strictEqual(W[W.length - 1].partial, true);      // today = day 30 is mid-week
+  assert.deepStrictEqual(Object.keys(C.sprintWeeks(P, { sector: 'B' })[0].sectors), ['B']);
+});
