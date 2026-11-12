@@ -1020,3 +1020,29 @@ dialog.fb.kd-dlg#kd-wdlg { max-width: min(62rem, calc(100vw - 24px)); }
 .us-base { stroke: var(--ctl); }
 .us-ax { font-size: 10px; fill: var(--muted); }
 .us-v { font-size: 10px; fill: var(--fg-2); font-weight: 600; }
+
+/* coach school check */
+.cc-pick { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.cc-pick .sel { min-width: min(100%, 22rem); }
+.cc-t { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cc-t th, .cc-t td { padding: 9px 10px; border-bottom: 1px solid var(--line-2); text-align: left; vertical-align: middle; }
+.cc-t th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.cc-t .n { text-align: right; font-variant-numeric: tabular-nums; }
+.cc-t tr.cc-yes td { background: rgba(69, 184, 122, .1); }
+.cc-t tr.cc-no td { background: rgba(163, 54, 31, .08); }
+.cc-t tr.cc-add td { background: rgba(122, 85, 194, .08); }
+.cc-yn { display: inline-flex; gap: 6px; }
+.cc-b { font: inherit; font-weight: 600; min-width: 56px; min-height: 36px; border-radius: 999px; border: 1px solid var(--ctl); background: var(--panel); color: var(--fg); cursor: pointer; }
+.cc-b.yes[aria-pressed="true"] { background: #1F7A4C; border-color: #1F7A4C; color: #FFF; }
+.cc-b.no[aria-pressed="true"] { background: #A3361F; border-color: #A3361F; color: #FFF; }
+.cc-x { font: inherit; font-size: 12px; border: 0; background: transparent; color: var(--muted); text-decoration: underline; cursor: pointer; }
+.cc-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.cc-tag.yes { background: rgba(69, 184, 122, .18); color: #1F7A4C; }
+.cc-tag.no { background: rgba(163, 54, 31, .14); color: #A3361F; }
+.cc-tag.add { background: rgba(122, 85, 194, .16); color: #5B3EA6; }
+.cc-red { color: #A3361F; }
+.cc-addf { display: grid; gap: 6px; margin-top: 6px; }
+.cc-addf .sel { min-width: min(100%, 26rem); }
+.cc-prog { height: 8px; border-radius: 99px; background: var(--line-2); overflow: hidden; }
+.cc-prog i { display: block; height: 100%; background: #45B87A; border-radius: 99px; transition: width .4s; }
+.cc-t td:nth-child(2) { white-space: nowrap; }
