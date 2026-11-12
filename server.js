@@ -34,6 +34,15 @@ if (!REFRESH_TIMES_PKT.length) throw new Error('REFRESH_TIMES_PKT has no valid H
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const CACHE_FILE = path.join(DATA_DIR, 'data.json');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';   // opens the feedback review page; set on Railway, never in code
+// Admin password checks are limited: 10 wrong tries per visitor an hour, then blocked (owner chose a short password,
+// 2026-11-12). Returns 'ok' | 'wrong' | 'blocked' | 'off'. A request without the header is not a try.
+let adminGate = null;
+function adminCheck(req) {
+  if (!req.headers['x-admin-token']) return ADMIN_TOKEN ? 'wrong' : 'off';
+  adminGate = adminGate || CC.createGate(ADMIN_TOKEN, 10);
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  return adminGate(req.headers['x-admin-token'], ip);
+}
 let feedbackStore = null;
 let eventStore = null;
 let targetStore = null;
@@ -339,7 +348,7 @@ async function handleFeedback(req, res, url) {
   }
   if (!url.pathname.startsWith('/api/admin/feedback')) return json(404, { error: 'not found' });
   if (!ADMIN_TOKEN) return json(503, { error: 'The review page is not set up yet: add ADMIN_TOKEN on Railway.' });
-  if (!FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong password.' });
+  { const a = adminCheck(req); if (a === 'blocked') return json(429, { error: 'Too many wrong passwords. Please try again in an hour.' }); if (a !== 'ok') return json(401, { error: 'Wrong password.' }); }
   if (req.method === 'GET' && url.pathname === '/api/admin/feedback') {
     const status = FB.STATUSES.includes(url.searchParams.get('status')) ? url.searchParams.get('status') : null;
     const days = Math.min(Math.max(parseInt(url.searchParams.get('days') || '30', 10) || 30, 1), 3650);
@@ -411,7 +420,7 @@ async function handleKudos(req, res, url) {
   if (!kudosStore) return json(503, { error: 'The wall is starting up, try again in a moment.' });
   const viewer = KD.viewerOf(req);
   if (!viewer) return json(400, { error: 'Please reload the page.' });
-  const admin = FB.isAdmin(req, ADMIN_TOKEN);
+  const admin = adminCheck(req) === 'ok';
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const p = url.pathname;
   if (req.method === 'GET' && p === '/api/kudos') {
@@ -487,7 +496,7 @@ async function handleUsage(req, res, url) {
   }
   if (req.method === 'GET' && url.pathname === '/api/admin/usage') {
     if (!ADMIN_TOKEN) return json(503, { error: 'The usage page is not set up yet: add ADMIN_TOKEN on Railway.' });
-    if (!FB.isAdmin(req, ADMIN_TOKEN)) return json(401, { error: 'Wrong password.' });
+    { const a = adminCheck(req); if (a === 'blocked') return json(429, { error: 'Too many wrong passwords. Please try again in an hour.' }); if (a !== 'ok') return json(401, { error: 'Wrong password.' }); }
     const days = Math.min(Math.max(parseInt(url.searchParams.get('days') || '60', 10) || 60, 7), 400);
     return json(200, US.summarize(await usageStore.all(), pktStamp().slice(0, 10), days));
   }
