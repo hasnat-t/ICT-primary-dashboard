@@ -1,10 +1,14 @@
 {
-  "_note": "Coach table display fixes requested by Hasnat (2026-10-28). Keys are the first 8 characters of the observer's user id. Hidden coaches are left out of the per-coach table only; their HITL observations still count in every total.",
-  "hide_roles": ["principal"],
+  "_note": "Coach display fixes requested by Hasnat (2026-10-28, 2026-11-12). Keys are the first 8 characters of the user id. Hidden accounts hold the coach role in the app but are staff, not coaches (owner, 2026-11-12): they are left out of the per-coach HITL table (their observations still count in every total) and are not counted as coaches on Coach caseload and Data quality.",
+  "hide_roles": [
+    "principal"
+  ],
   "hide": {
     "a8bf5a34": "Hasnat Tariq",
     "b0a2d9ff": "Amena Ahmed",
-    "c30c79f1": "Haroon Yaseen"
+    "c30c79f1": "Haroon Yaseen",
+    "9c77257d": "Hasnat Tariq (second account)",
+    "060929f8": "Rifat Yasmeen"
   },
   "rename": {
     "21f1119a": "Irum Afzal"

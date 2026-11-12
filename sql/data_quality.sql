@@ -29,7 +29,8 @@ tf AS (
   FROM t
 ),
 co AS (
-  SELECT ls.school_id, STRING_AGG(DISTINCT REPLACE(REPLACE(COALESCE(NULLIF(TRIM(u.name), ''), '(no name)'), '|', ' '), '~', ' '), ', ') AS coaches,
+  -- "id8=name" so config/coach-overrides.json can rename coaches and drop staff accounts that hold the coach role (dq.js)
+  SELECT ls.school_id, STRING_AGG(DISTINCT CONCAT(SUBSTR(u.id, 1, 8), '=', REPLACE(REPLACE(REPLACE(COALESCE(NULLIF(TRIM(u.name), ''), '(no name)'), '|', ' '), '~', ' '), ',', ' ')), ', ') AS coaches,
          COUNT(DISTINCT u.id) AS ncoach
   FROM `Niete_Rumi_db.leader_schools` ls
   JOIN `Niete_Rumi_db.users` u ON u.id = ls.leader_user_id

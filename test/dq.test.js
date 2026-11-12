@@ -21,3 +21,12 @@ test('dq: refuses a short answer, bad flags and count mismatches', () => {
   assert.throws(() => buildDq([{ ...ok, n: 2 }], [], 1), /record count mismatch/);
   assert.throws(() => buildDq([ok], [{ school_id: 'coaches', n: 1, t: 'x|A|B' }], 1), /malformed/);
 });
+
+test('dq: coach overrides rename coaches and drop staff accounts', () => {
+  const ov = { hide: { aaaaaaaa: 'Staff' }, rename: { bbbbbbbb: 'New Name' } };
+  const rows = [{ school_id: 'a', emis: 1, sector: 'B.K', school_name: 'S', teachers: 5, ncoach: 3, coaches: 'aaaaaaaa=Staff, bbbbbbbb=Old Name, cccccccc=Coach', n: 0, t: null },
+    { school_id: 'b', emis: 2, sector: 'B.K', school_name: 'T', teachers: 1, ncoach: 1, coaches: 'aaaaaaaa=Staff', n: 0, t: null }];
+  const d = buildDq(rows, [{ school_id: 'coaches', n: 2, t: 'aaaaaaaa|Staff~dddddddd|Free' }], 1, ov);
+  assert.deepStrictEqual(d.schools.map((s) => [s[4], s[5]]), [['New Name, Coach', 2], ['', 0]]);
+  assert.deepStrictEqual(d.coaches, ['Free']);
+});
