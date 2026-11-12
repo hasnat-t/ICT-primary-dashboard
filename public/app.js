@@ -34,11 +34,16 @@
     const mon = Calc.mondayOf(st, T);
     const mStart = (d) => Calc.dateToDay(st, `${iso(d).slice(0, 8)}01`);
     const thisM = mStart(T), lastM = mStart(thisM - 1);
+    // Sprint weeks run Thursday to Wednesday, as on the Rumi sprint scoreboard (owner, 2026-11-12). Kept apart from the
+    // Monday-Sunday weeks; the 5th element marks them so the Period list shows them in their own group.
+    const thu = T - ((new Date(Date.parse(st) + T * 86400000).getUTCDay() + 3) % 7);
+    const sprint = [['sweek', 'This sprint week', thu, T, 1], ['lastsweek', 'Last sprint week', thu - 7, thu - 1, 1]];
+    for (let f = thu - 14; f + 6 >= 0; f -= 7) sprint.push([`sw${f}`, `${nice(Math.max(f, 0))} – ${nice(f + 6)}`, f, f + 6, 1]);
     return [
       ['today', 'Today', T, T], ['yesterday', 'Yesterday', T - 1, T - 1],
       ['week', 'This week', mon, T], ['lastweek', 'Last week', mon - 7, mon - 1],
       ['month', 'This month', thisM, T], ['lastmonth', 'Last month', Math.max(lastM, 0), thisM - 1],
-      ['30', 'Last 30 days', Math.max(T - 29, 0), T], ['all', 'Since 1 Aug', 0, T], ['custom', 'Custom…', null, null],
+      ['30', 'Last 30 days', Math.max(T - 29, 0), T], ['all', 'Since 1 Aug', 0, T], ['custom', 'Custom…', null, null], ...sprint,
     ];
   }
   function setPreset(id) {
@@ -46,6 +51,11 @@
     const p = presets().find((x) => x[0] === id);
     if (p && p[2] !== null) { S.from = Math.max(p[2], 0); S.to = p[3]; }
     render();
+  }
+  // The Period list: calendar presets, then the sprint weeks in their own group.
+  function presetOptions(customLabel) {
+    const ps = presets(), opt = ([k, l]) => `<option value="${k}" ${S.preset === k ? 'selected' : ''}>${esc(k === 'custom' && customLabel ? customLabel : l)}</option>`;
+    return ps.filter((p) => !p[4]).map(opt).join('') + `<optgroup label="Sprint weeks (Thursday–Wednesday)">${ps.filter((p) => p[4]).map(opt).join('')}</optgroup>`;
   }
   const periodText = () => (S.from === S.to ? niceY(S.from) : `${nice(S.from)} – ${niceY(S.to)}`);
   const bucketLabel = (g) => (S.gran === 'day' ? nice(g.from) : S.gran === 'week' ? `w/c ${nice(g.from)}` : `${MONTHS[+iso(g.from).slice(5, 7) - 1]} ${iso(g.from).slice(0, 4)}`);
@@ -1387,7 +1397,7 @@
   // look broken on this tab.) Opening the tab on Today or Yesterday moves it to Last 30 days: a day is too short.
   function cardRange() { return { from: S.from, to: S.to, text: periodText() }; }
   function cardPeriodField(label) {
-    return `<div class="fld"><label for="cm-per">${label} <span class="dim">(same as the Period filter above)</span></label><select class="sel" id="cm-per">${presets().map(([k, l]) => `<option value="${k}" ${S.preset === k ? 'selected' : ''}>${esc(k === 'custom' ? 'Choose dates…' : l)}</option>`).join('')}</select>
+    return `<div class="fld"><label for="cm-per">${label} <span class="dim">(same as the Period filter above)</span></label><select class="sel" id="cm-per">${presetOptions('Choose dates…')}</select>
       ${S.preset === 'custom' ? `<div class="row"><input class="inp" type="date" id="cm-cfrom" value="${iso(S.from)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="From"><span class="dim">to</span><input class="inp" type="date" id="cm-cto" value="${iso(S.to)}" min="${iso(0)}" max="${iso(S.data.today)}" aria-label="To"></div>` : `<span class="dim">${esc(periodText())}</span>`}</div>`;
   }
   const cardModeSeg = () => `<div class="row cm-mode"><div class="seg" role="group" aria-label="What to make"><button type="button" data-cmmode="card" aria-pressed="${cardState().mode === 'card'}">One card</button><button type="button" data-cmmode="poster" aria-pressed="${cardState().mode === 'poster'}">School stars poster</button></div></div>`;
@@ -1598,7 +1608,7 @@
   function posterHtml(f) {
     const c = cardState(), g = f.R.all;
     const head = esc(c.pHead || 'Our ICT stars shine').replace(/\b(stars?)\b/i, '<em>$1</em>');
-    const when = { today: 'today', yesterday: 'yesterday', week: 'this week', lastweek: 'last week', month: 'this month', lastmonth: 'last month' }[S.preset] || 'in this period';
+    const when = { today: 'today', yesterday: 'yesterday', week: 'this week', lastweek: 'last week', sweek: 'this sprint week', lastsweek: 'last sprint week', month: 'this month', lastmonth: 'last month' }[S.preset] || 'in this period';
     const rankName = c.pRank === 'overall' ? 'all chosen indicators' : (POSTER_IND.find(([k]) => k === c.pRank) || POSTER_FICO.map(([k, l]) => [`f-${k}`, l]).find(([k]) => k === c.pRank) || [0, 'all chosen indicators'])[1].toLowerCase();
     const chips = [];
     if (c.pMinPlans > 0) chips.push([`${c.pMinPlans}+`, `lesson plans ${when}`]);
@@ -3258,7 +3268,7 @@
     $('#nav').innerHTML = NAV.map(([t, items]) => `<div class="nav-g">${t ? `<span class="nav-t">${t}</span>` : ''}${items.map(([k, l]) => `<button type="button" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</div>`).join('');
     $('#h1').textContent = TABS.find((t) => t[0] === S.tab)[1];
     $('#crumbs').innerHTML = crumbs();
-    $('#presetSel').innerHTML = presets().map(([k, l]) => `<option value="${k}" ${S.preset === k ? 'selected' : ''}>${l}</option>`).join('');
+    $('#presetSel').innerHTML = presetOptions();
     $('#custom').hidden = S.preset !== 'custom';
     $('#from').value = iso(S.from); $('#to').value = iso(S.to);
     $('#from').min = $('#to').min = iso(0); $('#from').max = $('#to').max = iso(S.data.today);
