@@ -854,8 +854,9 @@
   const FICO_V3_KEY = { teacher_subject_knowledge: 'tsk', high_leverage_practices: 'hlp', student_engagement: 'se', lesson_plan_fidelity: 'lpf' };
   const isFde = (f) => f === 'e' || f === 'm' || f === 'g';
   const fdeGroup = (form, key) => (form === 'e' ? key.slice(0, 2) : form === 'm' ? (key === 'i1' ? 'b' : key === 'i10' || key === 'i11' ? 'a' : 'd') : key);
-  // A visit belongs to the middle & high view when the teacher is not primary, or when it used a grade 6-12 (FDE) form.
-  const hmIsMh = (r) => r[0] < 0 || isFde(r[5]);
+  // The form decides (owner 2026-11-17): middle & high observations use the FDE grade 6-12 forms; FICO (v3, v6) is the
+  // primary form, whatever level the teacher's account carries.
+  const hmIsMh = (r) => isFde(r[5]);
   // One row resolved to its teacher and school, or null when outside the filters.
   function hmResolve(P, r, opts) {
     const { data } = P, hm = data.hm;
@@ -893,14 +894,14 @@
     for (const x of rows) if (x.r[0] >= 0) { const k = `${x.r[0]}:${x.r[1]}:${x.r[2]}`; if (!m.has(k)) m.set(k, []); m.get(k).push(x.r[5]); }
     return m;
   }
-  // Every HITL observation in the filters: the primary set (data.obs, src H, any form) plus visits of teachers who are not primary.
+  // Every HITL observation in the filters (data.obs src H + teachers not on the primary list), split by FORM: FICO = primary, FDE = middle & high.
   function hitlAll(P, opts) {
     const { data } = P;
     const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
     const role = new Map((data.coaches || []).map((c) => [c.id, c.role]));
     const rows = hmRows(P, opts) || [];
     const pForm = primaryForms(rows);
-    const out = { all: 0, prim: 0, mh: 0, form: {}, obs: { c: 0, p: 0, o: 0 }, weeks: new Map(), primT: new Set(), mhT: new Set(), hasHm: !!data.hm };
+    const out = { all: 0, prim: 0, mh: 0, untagged: 0, form: {}, obs: { c: 0, p: 0, o: 0 }, weeks: new Map(), primT: new Set(), mhT: new Set(), hasHm: !!data.hm };
     const add = (d, isMh) => { const w = mondayOf(data.window_start, d); if (!out.weeks.has(w)) out.weeks.set(w, { p: 0, m: 0 }); out.weeks.get(w)[isMh ? 'm' : 'p']++; };
     for (let ti = 0; ti < data.teachers.length; ti++) {
       const T = data.teachers[ti];
@@ -911,26 +912,29 @@
         if (r[2] !== 'H' || r[1] < from || r[1] > to) continue;
         const k = `${ti}:${r[1]}:${r[14]}`, i = seen.get(k) || 0; seen.set(k, i + 1);
         const f = (pForm.get(k) || [])[i] || 'f';
-        out.all++; out.prim++; out.primT.add(ti); out.form[f] = (out.form[f] || 0) + 1;
+        const mh = isFde(f);
+        out.all++; out[mh ? 'mh' : 'prim']++; out[mh ? 'mhT' : 'primT'].add(`p${ti}`); out.form[f] = (out.form[f] || 0) + 1;
         const ro = role.get(r[14]); out.obs[ro === 'principal' ? 'p' : ro === 'coach' ? 'c' : 'o']++;
-        add(r[1], false);
+        add(r[1], mh);
       }
     }
     for (const x of rows) {
-      if (x.r[0] >= 0) continue;         // primary teachers are already in data.obs, whatever the form
-      out.all++; out.mh++; out.mhT.add(x.key); out.form[x.r[5]] = (out.form[x.r[5]] || 0) + 1; out.obs[x.r[3]]++;
-      add(x.r[1], true);
+      if (x.r[0] >= 0) continue;         // primary-list teachers are already in data.obs, whatever the form
+      const mh = isFde(x.r[5]);
+      out.all++; out[mh ? 'mh' : 'prim']++; out[mh ? 'mhT' : 'primT'].add(x.key); out.form[x.r[5]] = (out.form[x.r[5]] || 0) + 1; out.obs[x.r[3]]++;
+      if (!mh) out.untagged++;           // primary form, teacher not on the primary list (account level has no Primary)
+      add(x.r[1], mh);
     }
     out.weeks = [...out.weeks.entries()].sort((a, b) => a[0] - b[0]).map(([w, v]) => ({ from: w, ...v }));
     out.primT = out.primT.size; out.mhT = out.mhT.size;
     return out;
   }
   const lvlNum = (c) => (c >= '1' && c <= '4' ? +c : null);
-  // FICO v6 visits (primary teachers, or middle/high with mh = true). Final = the coach's 17 levels (Rumi's 11 until reviewed).
-  function v6Stats(P, opts, mh) {
+  // FICO v6 visits (the primary form, whatever the teacher's account level). Final = the coach's 17 levels (Rumi's 11 until reviewed).
+  function v6Stats(P, opts) {
     const rows = hmRows(P, opts);
     if (!rows) return null;
-    const v = rows.filter((x) => x.r[5] === '6' && (mh ? x.r[0] < 0 : x.r[0] >= 0));
+    const v = rows.filter((x) => x.r[5] === '6');
     const ind = O2.map(([id, name], i) => ({ id, name, group: id[0], ai: V6_AI.includes(i), c: { 1: 0, 2: 0, 3: 0, 4: 0, n: 0, i: 0, '-': 0 }, sum: 0, k: 0, same: 0, up: 0, down: 0, cmp: 0 }));
     const T = new Set(), Sc = new Set(), coach = new Map(), sector = new Map();
     let pctS = 0, pctN = 0, aiS = 0, aiN = 0, reviewed = 0, changed = 0, C = 0, first = null;
@@ -971,7 +975,7 @@
     return { n: v.length, teachers: T.size, schools: Sc.size, C, reviewed, changed, first, pct: pctN ? pctS / pctN : null, ai: aiN ? aiS / aiN : null, ind,
       grp: grp(groups), coaches: roll(coach), sectors: roll(sector) };
   }
-  // Middle & high view: visits of non-primary teachers on any form, plus every FDE grade 6-12 form.
+  // Middle & high view: every visit on an FDE grade 6-12 form, whoever was observed.
   function mhObsStats(P, opts) {
     const rows = hmRows(P, opts);
     if (!rows) return null;
@@ -1036,13 +1040,13 @@
         if (r[2] !== 'H' || r[1] < from || r[1] > to || !pr.has(r[14])) continue;
         const k = `${ti}:${r[1]}:${r[14]}`, i = seen.get(k) || 0; seen.set(k, i + 1);
         const f = (pForm.get(k) || [])[i] || 'f';
-        const g = get(r[14]); g.prim++; g.t.add(`p${ti}`); g.s.add(String(data.schools[T.s].emis)); if (r[3] === 'C') g.C++;
+        const g = get(r[14]); g[isFde(f) ? 'mh' : 'prim']++; g.t.add(`p${ti}`); g.s.add(String(data.schools[T.s].emis)); if (r[3] === 'C') g.C++;
         g.form[f] = (g.form[f] || 0) + 1; g.last = Math.max(g.last, r[1]);
       }
     }
     for (const x of rows) {
       if (x.r[3] !== 'p' || x.r[0] >= 0) continue;
-      const g = get(x.r[2]); g.mh++; g.t.add(x.key); g.s.add(x.emis); if (x.r[4] === 'C') g.C++;
+      const g = get(x.r[2]); g[isFde(x.r[5]) ? 'mh' : 'prim']++; g.t.add(x.key); g.s.add(x.emis); if (x.r[4] === 'C') g.C++;
       g.form[x.r[5]] = (g.form[x.r[5]] || 0) + 1; g.last = Math.max(g.last, x.r[1]);
     }
     const primE = new Set(data.schools.map((s) => String(s.emis)));

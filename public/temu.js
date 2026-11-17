@@ -72,7 +72,7 @@
     ]],
     hitl: ['HITL observations', 'Human in the loop: a coach observes a lesson in person with /observe, and an AI pre-fills the form for the coach to check.', [
       ['#c-hitl', 'Headline', 'Observations of primary teachers held, teachers observed, and the debrief stages: debriefed, debrief pending, awaiting review.'],
-      ['#c-hitl-all', 'All coach and principal observations', 'Every HITL observation — primary, middle and high teachers, by coaches and principals — and which form was used: old FICO, the new FICO v6, or the FDE grade 6–12 forms.'],
+      ['#c-hitl-all', 'All coach and principal observations', 'Every HITL observation by coaches and principals, split by form: FICO (old and v6) is the primary form, the FDE grade 6–12 forms are the middle & high form.'],
       ['#c-hitl-trend', 'Over time', 'Observations by day, week or month.'],
       ['#c-hitl-t', 'By sector, school or teacher', 'The same figures per sector, school or teacher.'],
       ['#c-hx', 'What stands out', 'The highlights from this period’s observations.'],
@@ -87,8 +87,8 @@
       ['#c-v6s', 'FICO v6 by sector', 'FICO v6 observations and scores per sector.'],
       ['#c-v6c', 'FICO v6 by observer', 'Each coach’s FICO v6 observations, how often they changed Rumi’s levels, and the scores they gave.'],
     ]],
-    hitlmh: ['M&H observations', 'Coach and principal visits to middle and high teachers, and every visit on the FDE grade 6–12 forms. Each form keeps its own scale.', [
-      ['#c-hmh', 'Headline', 'Observations, teachers, observers and how many used the FDE grade 6–12 forms.'],
+    hitlmh: ['M&H observations', 'Coach and principal visits on the middle & high forms: the FDE grade 6–12 forms. Each form keeps its own scale.', [
+      ['#c-hmh', 'Headline', 'Observations on the FDE grade 6–12 forms, teachers, observers and schools.'],
       ['#c-hmh-fm', 'Which form', 'How many observations used each form, with each form’s own average.'],
       ['#c-hmh-w', 'By week', 'Observations each week, by form.'],
       ['#c-hmh-s', 'By sector', 'Middle and high observations per sector.'],

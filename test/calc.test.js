@@ -280,9 +280,10 @@ test('HITL beyond primary FICO v3: all observations, FICO v6, middle & high, pri
   };
   const P = C.prepare(data), o = { from: 0, to: 30 };
   const A = C.hitlAll(P, o);
-  assert.deepStrictEqual([A.all, A.prim, A.mh, A.primT, A.mhT], [5, 3, 2, 1, 1]);
+  // the form decides: FICO = primary form (even for the middle-tagged teacher), FDE = middle & high
+  assert.deepStrictEqual([A.all, A.prim, A.mh, A.untagged, A.primT, A.mhT], [5, 4, 1, 1, 2, 1]);
   assert.strictEqual(A.form['6'], 1);
-  assert.strictEqual(A.form.f, 2 + 1);                  // two primary v3 + one middle/high v3
+  assert.strictEqual(A.form.f, 2 + 1);
   assert.strictEqual(A.obs.p, 1);
   const V = C.v6Stats(P, o);
   assert.strictEqual(V.n, 1);
@@ -291,10 +292,10 @@ test('HITL beyond primary FICO v3: all observations, FICO v6, middle & high, pri
   assert.strictEqual(V.ind[0].same, 1);                  // C1: Rumi 4, coach 4
   assert.deepStrictEqual([V.ind[5].same, V.ind[2].cmp], [1, 0]);   // C6 kept; C3 is coach-only, never compared
   const M = C.mhObsStats(P, o);
-  assert.strictEqual(M.n, 2);
+  assert.strictEqual(M.n, 1);
   assert.deepStrictEqual(M.forms.e.sec.s2, [10, 12, 1]);
-  assert.deepStrictEqual(M.fv3.hlp, [30, 48, 1]);
-  assert.strictEqual(M.by.observer.length, 2);
+  assert.strictEqual(M.forms.f, undefined);
+  assert.strictEqual(M.by.observer.length, 1);
   assert.strictEqual(C.mhObsStats(P, { from: 0, to: 30, sector: 'A' }).n, 0);
   const R = C.principalStats(P, o);
   assert.deepStrictEqual(R.map((r) => [r.name, r.prim, r.mh, r.school]), [['Head B', 0, 1, 'Middle S9']]);
