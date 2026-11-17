@@ -96,3 +96,29 @@ test('headcount: all ICT and sectors, buckets must add up', () => {
   assert.throws(() => buildHeadcount([{ ...rows[1], no_level: 90 }]), /do not add up/);
   assert.throws(() => buildHeadcount([rows[0]]), /no ICT total/);
 });
+
+test('hitl_more: primary teachers point into the roster, middle/high teachers get their own list', () => {
+  const ro = roster();
+  const lv = '42-3-2-32---23333', fin = '42233223223223333';
+  const hm = U.buildHitlMore([
+    { school_id: 'sB', emis: '20', sector: 'Tarnol', school_name: 'IMCG G-14/4', n: 3,
+      t: [`aaaa1111|P|||107|cccc0001|c|C|6|64.7|64.7||||${lv}|${fin}|v6_children=4/8,v6_subject=12/16,v6_teacher=14/20|u`,
+        'dddd4444|M|Sana|MH|40|cccc0002|p|P|f|70.9||||m|||high_leverage_practices=34/48|r',
+        'dddd4444|M|Sana|MH|107|cccc0002|p|C|e|78.4||Proficient|6|e|||s2b=10/12,s3a=8/8|u'].join('~') },
+    { school_id: 'sX', emis: '99', sector: 'Nilore', school_name: 'IMSG Middle', n: 1, t: 'eeee5555|U|  ||101|cccc0001|c|A|m|42.4|||7|m|||i1=2/3,i2=0/3|u' },
+  ], ro);
+  assert.strictEqual(hm.rows.length, 4);
+  assert.deepStrictEqual(hm.rows[0], [1, 107, 'cccc0001', 'c', 'C', '6', 64.7, 64.7, '', null, '', lv, fin, { v6_children: [4, 8], v6_subject: [12, 16], v6_teacher: [14, 20] }, 'u']);
+  assert.strictEqual(hm.rows[1][0], -1);
+  assert.strictEqual(hm.rows[2][0], -1);                      // same teacher, same index
+  assert.deepStrictEqual(hm.teachers, [[0, 'Sana', 'MH', 'M'], [1, '(no name)', '', 'U']]);
+  assert.deepStrictEqual(hm.schools[1], ['99', 'Nilore', 'IMSG Middle']);
+  assert.deepStrictEqual(hm.rows[3].slice(5, 10), ['m', 42.4, null, '', 7]);
+  assert.throws(() => U.buildHitlMore([{ school_id: 'sB', n: 1, t: 'aaaa1111|Q|||1|c|c|C|f||||||||u' }], ro), /malformed/);
+  assert.throws(() => U.buildHitlMore([{ school_id: 'sB', n: 1, t: 'zzzz9999|P|||1|cccc0001|c|C|6|||||||||u' }], ro), /not in the roster/);
+});
+
+test('coaches: a principal carries their own school', () => {
+  assert.deepStrictEqual(U.buildCoaches([{ school_id: 'coaches', n: 2, t: 'cccc0001|A|coach||~cccc0002|B|principal|411|IMSB Said Pur' }], {}),
+    [{ id: 'cccc0001', name: 'A', role: 'coach' }, { id: 'cccc0002', name: 'B', role: 'principal', emis: '411', school: 'IMSB Said Pur' }]);
+});

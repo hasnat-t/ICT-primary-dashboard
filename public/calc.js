@@ -835,6 +835,226 @@
       hidden: all.filter((c) => c.hide && c.role !== 'principal').length, hasCoach, hasCoachList: !!data.coaches };
   }
 
+  // ---------- HITL visits beyond the primary FICO (v3) set (data.hm, sql/hitl_more.sql) ----------
+  // FICO v6 (from 13 Nov 2026), the FDE grade 6-12 forms, and every visit of a middle/high teacher. PROVISIONAL (owner
+  // 2026-11-17): the rules expect v6 but do not yet say how it is stored. Each form is reported on its own and never pooled
+  // with FICO v3 or /observe2 (fico-v6-rules.md §2.1-§2.3). Row: [ref, day, obs8, orole, stage, form, pct, appPct, band,
+  // grade, subj, ai17, fin17, secs, edit]; ref >= 0 = primary teacher index, else -1 - index into hm.teachers.
+  const HM_FORM = { f: 'FICO (v3)', 6: 'FICO v6', e: 'FDE English & Urdu form', m: 'FDE Maths & Science form', g: 'FDE General form', h: 'HOTS', x: 'Other form' };
+  const HM_FORM_ORDER = ['6', 'f', 'e', 'm', 'g', 'h', 'x'];
+  const V6_AI = [0, 1, 3, 5, 7, 8, 12, 13, 14, 15, 16];   // the 11 indicators Rumi scores before the coach reviews (C1 C2 C4 C6 C8 D1 D5 F1-F4)
+  const FDE_SEC = {
+    e: { s2: 'Teacher practices', s3: 'Student engagement', s4: 'Language skills', s5: 'Assessment & feedback', s6: 'Inclusivity & differentiation' },
+    g: { env: 'Classroom environment', delivery: 'Lesson delivery', management: 'Classroom management', command: 'Command of teaching', assessment: 'Student assessment', work: 'Students’ work' },
+    m: { b: 'Before the lesson (indicator 1)', d: 'During the lesson (indicators 2–9)', a: 'After the lesson (indicators 10–11)' },
+  };
+  const FDE_ITEM = { s2b: 'Lesson planning & objectives', s2c: 'Language instruction (English)', s2d: 'Language instruction (Urdu)', s2e: 'Teaching strategies', s2f: 'Classroom management',
+    s2g: 'Use of teaching aids', s3a: 'Participation', s3b: 'Language use', s3c: 'Collaboration', s3d: 'Interest & motivation', s4a: 'Listening', s4b: 'Speaking', s4c: 'Reading', s4d: 'Writing',
+    s5: 'Assessment & feedback', s6: 'Inclusivity & differentiation' };
+  const FICO_V3_KEY = { teacher_subject_knowledge: 'tsk', high_leverage_practices: 'hlp', student_engagement: 'se', lesson_plan_fidelity: 'lpf' };
+  const isFde = (f) => f === 'e' || f === 'm' || f === 'g';
+  const fdeGroup = (form, key) => (form === 'e' ? key.slice(0, 2) : form === 'm' ? (key === 'i1' ? 'b' : key === 'i10' || key === 'i11' ? 'a' : 'd') : key);
+  // A visit belongs to the middle & high view when the teacher is not primary, or when it used a grade 6-12 (FDE) form.
+  const hmIsMh = (r) => r[0] < 0 || isFde(r[5]);
+  // One row resolved to its teacher and school, or null when outside the filters.
+  function hmResolve(P, r, opts) {
+    const { data } = P, hm = data.hm;
+    let teacher, lv, emis, sector, school, si = null;
+    if (r[0] >= 0) {
+      const T = data.teachers[r[0]], Sx = data.schools[T.s];
+      teacher = T.name; lv = T.lv || 'P'; emis = String(Sx.emis); sector = Sx.sector; school = Sx.name; si = T.s;
+    } else {
+      const t = hm.teachers[-1 - r[0]], sc = hm.schools[t[0]];
+      teacher = t[1]; lv = t[2] || ''; [emis, sector, school] = sc;
+    }
+    if (opts.sector && sector !== opts.sector) return null;
+    if (opts.school !== undefined && opts.school !== null && opts.school !== '') {
+      const want = data.schools[+opts.school];
+      if (!want || String(want.emis) !== emis) return null;
+    }
+    if (opts.emis && emis !== String(opts.emis)) return null;
+    return { r, key: r[0] >= 0 ? `p${r[0]}` : `m${-1 - r[0]}`, teacher, lv, emis, sector, school, si };
+  }
+  function hmRows(P, opts) {
+    const hm = P.data.hm;
+    if (!hm) return null;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, P.data.today);
+    const out = [];
+    for (const r of hm.rows) {
+      if (r[1] < from || r[1] > to) continue;
+      const x = hmResolve(P, r, opts);
+      if (x) out.push(x);
+    }
+    return out;
+  }
+  // Primary visits on a form other than FICO v3, keyed teacher:day:observer, so data.obs rows can be told apart.
+  function primaryForms(rows) {
+    const m = new Map();
+    for (const x of rows) if (x.r[0] >= 0) { const k = `${x.r[0]}:${x.r[1]}:${x.r[2]}`; if (!m.has(k)) m.set(k, []); m.get(k).push(x.r[5]); }
+    return m;
+  }
+  // Every HITL observation in the filters: the primary set (data.obs, src H, any form) plus visits of teachers who are not primary.
+  function hitlAll(P, opts) {
+    const { data } = P;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const role = new Map((data.coaches || []).map((c) => [c.id, c.role]));
+    const rows = hmRows(P, opts) || [];
+    const pForm = primaryForms(rows);
+    const out = { all: 0, prim: 0, mh: 0, form: {}, obs: { c: 0, p: 0, o: 0 }, weeks: new Map(), primT: new Set(), mhT: new Set(), hasHm: !!data.hm };
+    const add = (d, isMh) => { const w = mondayOf(data.window_start, d); if (!out.weeks.has(w)) out.weeks.set(w, { p: 0, m: 0 }); out.weeks.get(w)[isMh ? 'm' : 'p']++; };
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      const T = data.teachers[ti];
+      if (opts.sector && data.schools[T.s].sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      const seen = new Map();
+      for (const r of P.obs[ti]) {
+        if (r[2] !== 'H' || r[1] < from || r[1] > to) continue;
+        const k = `${ti}:${r[1]}:${r[14]}`, i = seen.get(k) || 0; seen.set(k, i + 1);
+        const f = (pForm.get(k) || [])[i] || 'f';
+        out.all++; out.prim++; out.primT.add(ti); out.form[f] = (out.form[f] || 0) + 1;
+        const ro = role.get(r[14]); out.obs[ro === 'principal' ? 'p' : ro === 'coach' ? 'c' : 'o']++;
+        add(r[1], false);
+      }
+    }
+    for (const x of rows) {
+      if (x.r[0] >= 0) continue;         // primary teachers are already in data.obs, whatever the form
+      out.all++; out.mh++; out.mhT.add(x.key); out.form[x.r[5]] = (out.form[x.r[5]] || 0) + 1; out.obs[x.r[3]]++;
+      add(x.r[1], true);
+    }
+    out.weeks = [...out.weeks.entries()].sort((a, b) => a[0] - b[0]).map(([w, v]) => ({ from: w, ...v }));
+    out.primT = out.primT.size; out.mhT = out.mhT.size;
+    return out;
+  }
+  const lvlNum = (c) => (c >= '1' && c <= '4' ? +c : null);
+  // FICO v6 visits (primary teachers, or middle/high with mh = true). Final = the coach's 17 levels (Rumi's 11 until reviewed).
+  function v6Stats(P, opts, mh) {
+    const rows = hmRows(P, opts);
+    if (!rows) return null;
+    const v = rows.filter((x) => x.r[5] === '6' && (mh ? x.r[0] < 0 : x.r[0] >= 0));
+    const ind = O2.map(([id, name], i) => ({ id, name, group: id[0], ai: V6_AI.includes(i), c: { 1: 0, 2: 0, 3: 0, 4: 0, n: 0, i: 0, '-': 0 }, sum: 0, k: 0, same: 0, up: 0, down: 0, cmp: 0 }));
+    const T = new Set(), Sc = new Set(), coach = new Map(), sector = new Map();
+    let pctS = 0, pctN = 0, aiS = 0, aiN = 0, reviewed = 0, changed = 0, C = 0, first = null;
+    const blank = () => ({ n: 0, t: new Set(), s: new Set(), C: 0, pS: 0, pN: 0, aS: 0, aN: 0, rv: 0, ch: 0, g: { C: [0, 0], D: [0, 0], F: [0, 0] } });
+    for (const x of v) {
+      const r = x.r, fin = r[12] && r[12].replace(/-/g, '').length ? r[12] : r[11] || '';
+      if (first === null || r[1] < first) first = r[1];
+      T.add(x.key); Sc.add(x.emis); if (r[4] === 'C') C++;
+      if (r[14] !== 'a') { reviewed++; if (r[14] === 'r') changed++; }
+      const pc = r[6] !== null ? r[6] : r[7];
+      if (pc !== null) { pctS += pc; pctN++; }
+      let as = 0, an = 0;                // Rumi's own score on its 11 indicators, before the coach
+      for (const i of V6_AI) { const l = lvlNum((r[11] || '')[i]); if (l !== null) { as += l; an++; } }
+      if (an) { aiS += (100 * as) / (4 * an); aiN++; }
+      for (const [m, k] of [[coach, r[2]], [sector, x.sector]]) {
+        if (!m.has(k)) m.set(k, blank());
+        const g = m.get(k); g.n++; g.t.add(x.key); g.s.add(x.emis); if (r[4] === 'C') g.C++;
+        if (pc !== null) { g.pS += pc; g.pN++; }
+        if (an) { g.aS += (100 * as) / (4 * an); g.aN++; }
+        if (r[14] !== 'a') { g.rv++; if (r[14] === 'r') g.ch++; }
+        for (let i = 0; i < 17; i++) { const l = lvlNum(fin[i]); if (l !== null) { g.g[O2[i][0][0]][0] += l; g.g[O2[i][0][0]][1]++; } }
+      }
+      for (let i = 0; i < 17; i++) {
+        const ch = fin[i] || '-', o = ind[i];
+        o.c[ch in o.c ? ch : '-']++;
+        const l = lvlNum(ch); if (l !== null) { o.sum += l; o.k++; }
+        if (o.ai && r[14] !== 'a' && r[12]) {
+          const a = lvlNum((r[11] || '')[i]), b = lvlNum(r[12][i]);
+          if (a !== null && b !== null) { o.cmp++; if (a === b) o.same++; else if (b > a) o.up++; else o.down++; }
+        }
+      }
+    }
+    const grp = (g) => Object.fromEntries(Object.entries(g).map(([k, [s, n]]) => [k, n ? (100 * s) / (4 * n) : null]));
+    const roll = (m) => [...m.entries()].map(([key, g]) => ({ key, n: g.n, teachers: g.t.size, schools: g.s.size, C: g.C, pct: g.pN ? g.pS / g.pN : null, ai: g.aN ? g.aS / g.aN : null,
+      reviewed: g.rv, changed: g.ch, grp: grp(g.g) })).sort((a, b) => b.n - a.n);
+    const groups = { C: [0, 0], D: [0, 0], F: [0, 0] };
+    for (const o of ind) { groups[o.group][0] += o.sum; groups[o.group][1] += o.k; }
+    return { n: v.length, teachers: T.size, schools: Sc.size, C, reviewed, changed, first, pct: pctN ? pctS / pctN : null, ai: aiN ? aiS / aiN : null, ind,
+      grp: grp(groups), coaches: roll(coach), sectors: roll(sector) };
+  }
+  // Middle & high view: visits of non-primary teachers on any form, plus every FDE grade 6-12 form.
+  function mhObsStats(P, opts) {
+    const rows = hmRows(P, opts);
+    if (!rows) return null;
+    const v = rows.filter((x) => hmIsMh(x.r));
+    const blank = () => ({ n: 0, t: new Set(), s: new Set(), C: 0, obs: new Set(), form: {}, pS: {}, pN: {}, p: 0, c: 0, o: 0, last: 0 });
+    const tot = blank(), by = { sector: new Map(), school: new Map(), grade: new Map(), subj: new Map(), observer: new Map(), teacher: new Map(), lv: new Map() };
+    const forms = {};
+    const fv3 = { tsk: [0, 0, 0], hlp: [0, 0, 0], se: [0, 0, 0], lpf: [0, 0, 0] };
+    const weeks = new Map();
+    for (const x of v) {
+      const r = x.r, f = r[5];
+      const lvKey = x.lv.includes('P') && (x.lv.includes('M') || x.lv.includes('H')) ? 'Primary + middle/high' : x.lv.includes('H') && x.lv.includes('M') ? 'Middle + high'
+        : x.lv.includes('H') ? 'High' : x.lv.includes('M') ? 'Middle' : x.lv === 'P' ? 'Primary (on a grade 6–12 form)' : 'No level on the account';
+      const keys = { sector: x.sector, school: x.emis, grade: r[9] ? `Grade ${r[9]}` : 'Grade not recorded', subj: r[10] || '', observer: r[2], teacher: x.key, lv: lvKey };
+      const gs = [tot];
+      for (const [k, m] of Object.entries(by)) {
+        if (!m.has(keys[k])) m.set(keys[k], Object.assign(blank(), { name: k === 'school' ? x.school : k === 'teacher' ? x.teacher : null, sector: x.sector, emis: x.emis, lv: x.lv, school: x.school }));
+        gs.push(m.get(keys[k]));
+      }
+      for (const g of gs) {
+        g.n++; g.t.add(x.key); g.s.add(x.emis); if (r[4] === 'C') g.C++; g.obs.add(r[2]); g.form[f] = (g.form[f] || 0) + 1; g[r[3]]++;
+        if (r[6] !== null) { g.pS[f] = (g.pS[f] || 0) + r[6]; g.pN[f] = (g.pN[f] || 0) + 1; }
+        g.last = Math.max(g.last, r[1]);
+      }
+      const w = mondayOf(P.data.window_start, r[1]);
+      if (!weeks.has(w)) weeks.set(w, {});
+      weeks.get(w)[f] = (weeks.get(w)[f] || 0) + 1;
+      if (!forms[f]) forms[f] = { n: 0, pS: 0, pN: 0, bands: {}, sec: {}, item: {} };
+      const F = forms[f]; F.n++;
+      if (r[6] !== null) { F.pS += r[6]; F.pN++; }
+      if (r[8]) F.bands[r[8]] = (F.bands[r[8]] || 0) + 1;
+      for (const [k, [s, m]] of Object.entries(r[13] || {})) {
+        if (s === null || !m) continue;
+        if (f === 'f') { const kk = FICO_V3_KEY[k]; if (kk) { fv3[kk][0] += s; fv3[kk][1] += m; fv3[kk][2]++; } continue; }
+        if (!isFde(f)) continue;
+        const gk = fdeGroup(f, k);
+        F.sec[gk] = F.sec[gk] || [0, 0, 0]; F.sec[gk][0] += s; F.sec[gk][1] += m; F.sec[gk][2]++;
+        F.item[k] = F.item[k] || [0, 0, 0]; F.item[k][0] += s; F.item[k][1] += m; F.item[k][2]++;
+      }
+    }
+    const fin = (g, key) => ({ key, name: g.name, sector: g.sector, emis: g.emis, lv: g.lv, school: g.school, n: g.n, teachers: g.t.size, schools: g.s.size, C: g.C, observers: g.obs.size,
+      form: g.form, pct: Object.fromEntries(Object.keys(g.pN).map((k) => [k, g.pS[k] / g.pN[k]])), c: g.c, p: g.p, o: g.o, last: g.last });
+    return { n: v.length, tot: fin(tot, 'all'), forms, fv3, weeks: [...weeks.entries()].sort((a, b) => a[0] - b[0]).map(([w, c]) => ({ from: w, c })),
+      by: Object.fromEntries(Object.entries(by).map(([k, m]) => [k, [...m.entries()].map(([key, g]) => fin(g, key)).sort((a, b) => b.n - a.n)])) };
+  }
+  // Principals observing: each principal's HITL visits of primary teachers (data.obs) and of middle/high teachers or on
+  // grade 6-12 forms (data.hm), with their own school.
+  function principalStats(P, opts) {
+    const { data } = P;
+    const from = Math.max(opts.from, 0), to = Math.min(opts.to, data.today);
+    const pr = new Map((data.coaches || []).filter((c) => c.role === 'principal').map((c) => [c.id, c]));
+    const m = new Map();
+    const get = (id) => { if (!m.has(id)) m.set(id, { key: id, prim: 0, mh: 0, t: new Set(), s: new Set(), form: {}, C: 0, last: 0 }); return m.get(id); };
+    const rows = hmRows(P, opts) || [];
+    const pForm = primaryForms(rows);
+    for (let ti = 0; ti < data.teachers.length; ti++) {
+      const T = data.teachers[ti];
+      if (opts.sector && data.schools[T.s].sector !== opts.sector) continue;
+      if (opts.school !== undefined && opts.school !== null && opts.school !== '' && T.s !== +opts.school) continue;
+      const seen = new Map();
+      for (const r of P.obs[ti]) {
+        if (r[2] !== 'H' || r[1] < from || r[1] > to || !pr.has(r[14])) continue;
+        const k = `${ti}:${r[1]}:${r[14]}`, i = seen.get(k) || 0; seen.set(k, i + 1);
+        const f = (pForm.get(k) || [])[i] || 'f';
+        const g = get(r[14]); g.prim++; g.t.add(`p${ti}`); g.s.add(String(data.schools[T.s].emis)); if (r[3] === 'C') g.C++;
+        g.form[f] = (g.form[f] || 0) + 1; g.last = Math.max(g.last, r[1]);
+      }
+    }
+    for (const x of rows) {
+      if (x.r[3] !== 'p' || x.r[0] >= 0) continue;
+      const g = get(x.r[2]); g.mh++; g.t.add(x.key); g.s.add(x.emis); if (x.r[4] === 'C') g.C++;
+      g.form[x.r[5]] = (g.form[x.r[5]] || 0) + 1; g.last = Math.max(g.last, x.r[1]);
+    }
+    const primE = new Set(data.schools.map((s) => String(s.emis)));
+    const mhE = new Set(((data.mh && data.mh.schools) || []).map((s) => String(s[0])));
+    return [...m.values()].map((g) => {
+      const c = pr.get(g.key) || {};
+      const lev = [primE.has(String(c.emis)) ? 'Primary' : '', mhE.has(String(c.emis)) ? 'Middle/high' : ''].filter(Boolean).join(' + ') || '—';
+      return { key: g.key, name: c.name || '(no name)', emis: c.emis || '', school: c.school || '', schoolLevel: lev, prim: g.prim, mh: g.mh, n: g.prim + g.mh,
+        teachers: g.t.size, schools: g.s.size, C: g.C, form: g.form, last: g.last };
+    }).sort((a, b) => b.n - a.n);
+  }
+
   // /observe2 (fico17): the impact team's coach-scored rubric. Never pooled with /observe (FICO).
   const O2 = [['C1', "The teacher's questions"], ['C2', 'When an answer was wrong'], ['C3', 'Who got to answer'], ['C4', "Children's choices"],
     ['C5', 'Switching activities'], ['C6', 'Safe to be wrong'], ['C7', 'Group work'], ['C8', 'Books and materials'],
@@ -1015,5 +1235,5 @@
       weeks: { D: grid(wk.D).sort((a, b) => a.key - b.key), H: grid(wk.H).sort((a, b) => a.key - b.key) }, weekStart: (w) => FI_W0 + 7 * w, firstDay: FI_W0 + 1 };
   }
 
-  return { lpDay, sprintWeeks, isSchoolDay, LEAGUE_MEASURES, sectorLeague, TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
+  return { lpDay, sprintWeeks, isSchoolDay, LEAGUE_MEASURES, sectorLeague, TARGET_METRICS, targetSeries, targetForecast, IMPACT_SEC, IMPACT_LABEL, coachImpact, FICO_IND, FICO_SEC, ficoIndStats, PILOT_DC, pilotStats, O2, O2_GROUP, observe2Stats, HM_FORM, HM_FORM_ORDER, V6_AI, FDE_SEC, FDE_ITEM, hmIsMh, hmRows, hitlAll, v6Stats, mhObsStats, principalStats, addFico, hitlStats, dcStats, examStats, quizGrid, lessonStats, subjectName, dayToDate, dateToDay, mondayOf, monthKey, childBucket, prepare, rollup, series, asGroup, pct, SECTIONS, SECTION_LABEL, MODULES, blankFico };
 }));

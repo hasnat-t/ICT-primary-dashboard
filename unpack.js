@@ -226,10 +226,11 @@ function buildCoaches(rows, ov = require('./config/coach-overrides.json')) {
   const seen = new Set();
   for (const r of rows) {
     for (const p of records('coaches', r, '|')) {
-      if (p.length !== 3) throw new Error('coaches: malformed record');
+      if (p.length !== 3 && p.length !== 5) throw new Error('coaches: malformed record');
       if (seen.has(p[0])) throw new Error('coaches: duplicate coach key');
       seen.add(p[0]);
       const c = { id: p[0], name: (ov.rename || {})[p[0]] || p[1].trim(), role: p[2] };
+      if (p[3]) { c.emis = p[3]; c.school = p[4]; }   // a principal's own school
       if ((ov.hide_roles || []).includes(c.role) || (ov.hide || {})[p[0]]) c.hide = true;
       out.push(c);
     }
@@ -286,6 +287,41 @@ function buildObserve2(rows, ro) {
   }
   if (miss.n) throw new Error(`observe2: ${miss.n} records for teachers not in the roster`);
   return out;
+}
+
+// HITL visits the primary FICO dataset does not score (sql/hitl_more.sql): middle/high teachers (any form) and every
+// visit on FICO v6 or the FDE grade 6-12 forms. Primary teachers point into the main roster; middle/high and no-level
+// teachers get their own list. Schools come with emis/sector/name because many middle/high schools have no primary roster.
+// Row: [teacherRef, day, observer id8, observer role c/p/o, stage C/P/A, form, pct, appPct, band, grade, subject,
+//       ai17, fin17, sections {key: [score, max]}, edit]; teacherRef = primary index (grp P) or -1 - index into teachers.
+const HM_FORMS = new Set(['f', '6', 'e', 'm', 'g', 'h', 'x']);
+function buildHitlMore(rows, ro) {
+  const out = [], schools = [], teachers = [], tIndex = new Map();
+  const miss = { n: 0 };
+  for (const r of rows) {
+    const si = schools.push([String(r.emis ?? ''), String(r.sector || '(no sector)'), String(r.school_name || '')]) - 1;
+    for (const p of records('hitl_more', r, '|')) {
+      if (p.length !== 18 || !/^[PMU]$/.test(p[1]) || !HM_FORMS.has(p[8]) || !/^[cpo]$/.test(p[6]) || !/^[CPA]$/.test(p[7])) throw new Error('hitl_more: malformed record');
+      if (p[14] && p[14].length !== 17) throw new Error('hitl_more: malformed levels');
+      let who;
+      if (p[1] === 'P') {
+        who = teacherOf(ro, r.school_id, p[0], miss);
+        if (who === undefined) continue;
+      } else {
+        const k = `${r.school_id}:${p[0]}`;
+        if (!tIndex.has(k)) tIndex.set(k, teachers.push([si, p[2].trim() || '(no name)', p[3] || '', p[1]]) - 1);
+        who = -1 - tIndex.get(k);
+      }
+      const secs = {};
+      for (const x of p[16] ? p[16].split(',') : []) {
+        const m = /^([^=]+)=([^/]*)\/(.*)$/.exec(x);
+        if (m) secs[m[1]] = [num(m[2]), num(m[3])];
+      }
+      out.push([who, +p[4], p[5], p[6], p[7], p[8], num(p[9]), num(p[10]), p[11], p[12] ? +p[12] : null, p[13], p[14], p[15], secs, p[17]]);
+    }
+  }
+  if (miss.n) throw new Error(`hitl_more: ${miss.n} records for primary teachers not in the roster`);
+  return { schools, teachers, rows: out };
 }
 
 // FICO /observe2 pilot field forms (sql/pilot.sql). Teacher index is -1 when the teacher is not on this roster.
@@ -354,4 +390,4 @@ function buildHeadcount(rows) {
   return out;
 }
 
-module.exports = { records, buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, unquote, rosterSig, MIN_SCHOOLS };
+module.exports = { records, buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildHitlMore, buildPilot, buildFicoInd, unquote, rosterSig, MIN_SCHOOLS };

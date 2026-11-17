@@ -16,7 +16,7 @@
   const NAV = [
     ['', [['overview', 'Overview']]],
     ['Teaching', [['lp', 'Lesson plans'], ['quiz', 'Quizzes'], ['exams', 'Exam generator']]],
-    ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
+    ['Observation', [['dc', 'DC observations'], ['hitl', 'HITL observations'], ['hitlmh', 'M&H observations'], ['observe2', '/observe2 pilot'], ['fico', 'FICO scores']]],
     ['Children', [['egra', 'Learning assessment']]],
     ['Growth', [['training', 'Primary training'], ['mhtraining', 'Middle & high training']]],
     ['Directory', [['schools', 'All schools'], ['teachers', 'Teachers'], ['calendar', 'School calendar'], ['dq', 'Data quality']]],
@@ -851,6 +851,8 @@
     if (!H.hasCoach) return card('c-hx', 'HITL analytics', 'Updating now: the dashboard is refreshing after an update. This part appears by itself when it finishes.', '');
     const sp = (o, k) => (o.fico[k][2] ? fpct(o.fico[k]) : null);
     const E = H.edits, edited = E.u + E.n + E.r;
+    const mhBy = new Map();
+    for (const x of Calc.hmRows(S.P, sel()) || []) if (x.r[0] < 0) mhBy.set(x.r[2], (mhBy.get(x.r[2]) || 0) + 1);
     const named = H.coaches.filter((c) => c.key);
     const top = named[0];
     const avg = H.wd.map((v, i) => (H.wdDays[i] ? v / H.wdDays[i] : 0));
@@ -878,7 +880,8 @@
     const ccols = [
       { k: 'name', label: 'Coach', val: (r) => r.name, fmt: (r) => `${esc(r.name)}${r.role && r.role !== 'coach' ? ` <span class="dim">(${esc(r.role)})</span>` : ''}` },
       { k: 'sector', label: 'Main sector', title: 'The sector where most of this coach’s observations are', val: (r) => r.sector, fmt: (r) => esc(r.sector) },
-      { k: 'n', label: 'HITL observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'n', label: 'HITL observations', num: true, title: 'Observations of primary teachers, any form', val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'mh', label: 'Middle & high observations', num: true, title: 'Observations of middle and high teachers (any form) — see the M&H observations tab', val: (r) => mhBy.get(r.key) || 0, fmt: (r) => N(mhBy.get(r.key) || 0) },
       { k: 'teachers', label: 'Teachers observed', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
       { k: 'schools', label: 'Schools', num: true, val: (r) => r.schools, fmt: (r) => N(r.schools) },
       { k: 'deb', label: 'Debriefed', num: true, val: (r) => r.C / r.n, fmt: (r) => cov(ratio(r.C, r.n)) },
@@ -887,19 +890,10 @@
       ...DC_SECS.map(([k, l]) => ({ k, label: l, num: true, title: 'Average score this coach gave', val: (r) => sp(r, k), fmt: (r) => sc(sp(r, k)) })),
     ];
     const coaches = card('c-hc', 'By coach',
-      `Each coach's HITL observations of primary teachers. Click a coach to see their schools, teachers and debrief reports · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality.${H.principals.length ? ' Principals have their own table below.' : ''}${H.hidden ? ` ${N(H.hidden)} other accounts with only a handful of visits are not listed; their observations still count in every total.` : ''} Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
+      `Each coach's HITL observations of primary teachers on any form, with their middle & high observations beside them. Click a coach to see their schools, teachers and debrief reports · ${esc(scopeName())} · ${periodText()}. Contains coach names — internal use only. Sorted by observations: that is activity, not quality.${H.principals.length ? ' Principals have their own table below.' : ''}${H.hidden ? ` ${N(H.hidden)} other accounts with only a handful of visits are not listed; their observations still count in every total.` : ''} Scores are what the coach gave, so they also reflect the teachers each coach observes.${H.hasCoachList ? '' : ' Coach names are not loaded yet: the dashboard may still be refreshing.'}`,
       table('hc', ccols, H.coaches, { sort: { k: 'n', dir: -1 }, onRow: (k) => modalOpen({ kind: 'coach', key: k }), rowKey: (r) => r.key }));
 
-    const P0 = H.principals, pn = P0.reduce((a, c) => a + c.n, 0);
-    const pcols = [
-      { k: 'name', label: 'Principal', val: (r) => r.name, fmt: (r) => esc(r.name) },
-      { k: 'school', label: 'Main school', title: 'The school where most of this principal’s observations are', val: (r) => r.school, fmt: (r) => esc(r.school) },
-      ...ccols.slice(1),
-    ];
-    const principals = P0.length ? card('c-hpr', 'Principals doing HITL',
-      `School principals who held HITL observations of their primary teachers · ${esc(scopeName())} · ${periodText()}. ${N(P0.length)} principals held ${N(pn)} observations (${P1(ratio(pn, H.n))} of all HITL). They are counted in every HITL total above, but not in the coach table. Contains names — internal use only.`,
-      table('hpr', pcols, P0, { sort: { k: 'n', dir: -1 }, onRow: (k) => modalOpen({ kind: 'coach', key: k }), rowKey: (r) => r.key }))
-      : card('c-hpr', 'Principals doing HITL', `No principal held a HITL observation in ${periodText()}.`, '');
+    const principals = principalsCard();
 
     const D = Calc.dcStats(S.P, sel(), 'H');
     const G = D.gsrc;
@@ -917,6 +911,169 @@
     return `<div class="sec-h"><h2>HITL analytics</h2><p class="note">${N(H.n)} HITL observations of ${N(H.observed)} teachers · ${esc(scopeName())} · ${periodText()}. In-person coach observations only — never added to DC observations.</p></div>`
       + card('c-hx', 'What stands out', '', facts)
       + `<div class="cards2">${per}${days}</div>` + form + coaches + principals + grades;
+  }
+
+  // ---------- HITL beyond the primary FICO (v3) set: all observations, FICO v6, principals, middle & high ----------
+  // Provisional (owner 2026-11-17): FICO v6 and the FDE grade 6-12 forms are not yet described in the data rules.
+  // Each form keeps its own scale and is never added to FICO v3, /observe2 or another form (fico-v6-rules.md §2).
+  const FORM_C = { 6: '#1F4E8C', f: '#C4741C', e: '#1F7A4C', m: '#6BAF8B', g: '#8A5CC2', h: '#BBB', x: '#999' };
+  const SUBJ = { u: 'Urdu', m: 'Mathematics', e: 'English', i: 'Islamiat', s: 'Science', c: 'Social studies', g: 'General knowledge', o: 'Other subjects', '': 'Subject not recorded' };
+  const FORM_SCALE = { 6: 'coach’s final levels, 17 indicators (1–4)', f: 'old FICO overall score', e: 'form total, % of its maximum', m: 'average level, 0–3 scale, as %', g: 'share of checklist items ticked yes', h: 'overall score', x: 'overall score' };
+  const formList = (form) => Calc.HM_FORM_ORDER.filter((f) => form[f]).map((f) => `<span class="dim" title="${esc(Calc.HM_FORM[f])}">${esc(Calc.HM_FORM[f])}</span> ${N(form[f])}`).join(' · ') || '—';
+
+  function hitlAllCard() {
+    const A = Calc.hitlAll(S.P, sel());
+    const title = `All coach and principal observations · ${scopeName()} · ${periodText()}`;
+    if (!A.hasHm) return card('c-hitl-all', title, 'Middle & high and new-form observations are not loaded yet: the dashboard may still be refreshing after an update. This appears by itself when it finishes.', '');
+    const forms = Calc.HM_FORM_ORDER.filter((f) => A.form[f]).map((f) => [Calc.HM_FORM[f], A.form[f], FORM_C[f]]);
+    const who = [['Coaches', A.obs.c, '#1F4E8C'], ['Principals', A.obs.p, '#C4741C'], ['Other staff accounts', A.obs.o, '#BBB']].filter((x) => x[1]);
+    const kpis = `<div class="kpis">${kpi('All HITL observations', N(A.all), 'every teacher level, form and observer')}${kpi('Of primary teachers', N(A.prim), `${N(A.primT)} teachers · the figures below`)}
+      ${kpi('Of middle & high teachers', N(A.mh), `${N(A.mhT)} teachers · <a href="#tab=hitlmh">see M&amp;H observations</a>`)}${kpi('Held by principals', N(A.obs.p), `${P1(ratio(A.obs.p, A.all))} of all`)}</div>`;
+    const body = kpis + (A.all ? `<span class="lbl">Which form was used</span>${splitBar(forms, A.all)}<span class="lbl">Who observed</span>${splitBar(who, A.all)}` : '')
+      + (A.weeks.length > 1 ? chart(A.weeks.map((w) => ({ label: `w/c ${nice(w.from)}`, values: [w.p, w.m] })), [{ name: 'Primary teachers', color: '#C4741C' }, { name: 'Middle & high teachers', color: '#1F4E8C' }]) : '');
+    return card('c-hitl-all', title,
+      'Every HITL observation in the filters, whoever observed (coach or principal) and whichever form: the old FICO form (v3, to 13 Nov), the new <b>FICO v6</b> (from 13 Nov; everyone from 16 Nov) and the <b>FDE grade 6–12 forms</b>. The primary figures on this page (coverage, debriefs, by coach) count primary teachers only, on every form. Each form has its own scale, so scores are never added across forms: see <a href="#c-v6">FICO v6</a> below and the <a href="#tab=hitlmh">M&amp;H observations</a> tab.',
+      body);
+  }
+
+  function v6Section() {
+    const V = Calc.v6Stats(S.P, sel());
+    if (!V) return '';
+    const head = `<div class="sec-h"><h2>FICO v6 — the new coach form (primary)</h2><p class="note">From 13 Nov 2026 coaches score lessons on <b>FICO v6</b>: 17 indicators — C1–C8 what the teacher does, D1–D5 what the children do, F1–F4 subject knowledge — each at level 1–4. Rumi scores 11 of them first (C1, C2, C4, C6, C8, D1, D5, F1–F4); the coach reviews those and scores the other 6 alone. Scores here are the <b>coach’s final levels</b> (Rumi’s, until the coach has reviewed). <b>Provisional</b>: the data rules expect v6 but do not yet say how it is stored, and indicator names are read from the coaches’ notes. Never compared with or added to the old FICO (v3) scores on the FICO scores tab, or to /observe2.</p></div>`;
+    if (!V.n) return head + card('c-v6', 'FICO v6', `No FICO v6 observations of primary teachers in ${periodText()}.`, '');
+    const kpis = `<div class="kpis">${kpi('FICO v6 observations', N(V.n), `${N(V.teachers)} teachers · ${N(V.schools)} schools`)}${kpi('Reviewed by the coach', N(V.reviewed), `${P1(ratio(V.reviewed, V.n))} of observations`)}
+      ${kpi('Coach changed a level', P1(ratio(V.changed, V.reviewed)), `${N(V.changed)} of ${N(V.reviewed)} reviewed`)}${kpiP('Average final score', V.pct, 'coach’s 17 levels')}${kpiP('Rumi’s score before review', V.ai, 'its 11 indicators')}</div>
+      <div class="kpis">${['C', 'D', 'F'].map((g) => kpiP(Calc.O2_GROUP[g], V.grp[g], `${g} indicators, average level as %`)).join('')}</div>`;
+    const avg = (x) => (x.k ? x.sum / x.k : null);
+    const groups = ['C', 'D', 'F'].map((g) => `<div class="o2g"><span class="lbl">${g} · ${esc(Calc.O2_GROUP[g])}</span>${V.ind.filter((x) => x.group === g).map((x) => {
+      const tot = Object.values(x.c).reduce((s, v) => s + v, 0) || 1, a = avg(x);
+      const agree = x.cmp ? ` <span class="dim" title="Where the coach reviewed Rumi’s level: kept it ${N(x.same)}, raised it ${N(x.up)}, lowered it ${N(x.down)}">kept ${P0(ratio(x.same, x.cmp))} · ↑${N(x.up)} ↓${N(x.down)}</span>` : '';
+      return `<div class="o2r"><div class="o2n"><b>${x.id}</b> ${esc(x.name)} <span class="dim">${x.ai ? 'Rumi + coach' : 'coach only'}</span></div>
+        <div class="mbar">${LVL.map(([k, l, c]) => (x.c[k] ? `<span style="width:${(100 * x.c[k]) / tot}%;background:${c}" title="${l}: ${N(x.c[k])} (${P1(ratio(x.c[k], tot))})"></span>` : '')).join('')}</div>
+        <div class="o2v">${a === null ? '—' : `<span class="sc ${band((100 * a) / 4)}">${a.toFixed(1)} / 4</span>`}${agree}</div></div>`;
+    }).join('')}</div>`).join('');
+    const lvlLegend = `<div class="legend">${LVL.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+    const gcols = ['C', 'D', 'F'].map((g) => ({ k: `g${g}`, label: Calc.O2_GROUP[g], num: true, val: (r) => r.grp[g], fmt: (r) => sc(r.grp[g]) }));
+    const base = [
+      { k: 'n', label: 'Observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'deb', label: 'Debriefed', num: true, val: (r) => ratio(r.C, r.n), fmt: (r) => cov(ratio(r.C, r.n)) },
+      { k: 'ch', label: 'Coach changed a level', num: true, title: 'Share of reviewed observations where the coach changed at least one of Rumi’s levels', val: (r) => ratio(r.changed, r.reviewed), fmt: (r) => P1(ratio(r.changed, r.reviewed)) },
+      { k: 'pct', label: 'Final score', num: true, val: (r) => r.pct, fmt: (r) => sc(r.pct) },
+      { k: 'ai', label: 'Rumi before review', num: true, val: (r) => r.ai, fmt: (r) => sc(r.ai) },
+      ...gcols,
+    ];
+    const scols = [{ k: 'name', label: 'Sector', val: (r) => r.key, fmt: (r) => esc(r.key) }, ...base];
+    const ccols = [{ k: 'name', label: 'Observer', val: (r) => coachLabel(r.key), fmt: (r) => { const c = coachInfo(r.key); return `${esc(coachLabel(r.key))}${c && c.role && c.role !== 'coach' ? ` <span class="dim">(${esc(c.role)})</span>` : ''}`; } }, ...base];
+    return head + card('c-v6', `FICO v6 · ${scopeName()} · ${periodText()}`, '', kpis)
+      + card('c-v6i', 'The 17 indicators', `Coach’s final level on each indicator across ${N(V.n)} observations; the number is the average level out of 4 (leaving out not applicable and couldn’t tell). For the 11 indicators Rumi scores first, “kept” is how often the coach kept Rumi’s level, with how many times they raised (↑) or lowered (↓) it.`, `${lvlLegend}<div class="o2">${groups}</div>`)
+      + `<div class="cards2">${card('c-v6s', 'By sector', '', table('v6s', scols, V.sectors, { sort: { k: 'n', dir: -1 }, noLegend: true }))}${card('c-v6c', 'By observer', 'Contains names — internal use only. Counts are activity, not quality.', table('v6c', ccols, V.coaches, { sort: { k: 'n', dir: -1 }, noLegend: true }))}</div>`;
+  }
+
+  function principalsCard() {
+    const R = Calc.principalStats(S.P, sel());
+    const title = 'Principals doing HITL';
+    if (!R.length) return card('c-hpr', title, `No principal held a HITL observation in ${periodText()}.`, '');
+    const n = R.reduce((a, r) => a + r.n, 0), mh = R.reduce((a, r) => a + r.mh, 0);
+    const cols = [
+      { k: 'name', label: 'Principal', val: (r) => r.name, fmt: (r) => esc(r.name) },
+      { k: 'school', label: 'Own school', val: (r) => r.school, fmt: (r) => `${esc(r.school || '—')}${r.emis ? ` <span class="dim">${esc(r.emis)}</span>` : ''}` },
+      { k: 'lev', label: 'School has', title: 'Whether the principal’s school has primary and/or middle & high teachers on the programme', val: (r) => r.schoolLevel, fmt: (r) => esc(r.schoolLevel) },
+      { k: 'n', label: 'All observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'prim', label: 'Primary teachers', num: true, val: (r) => r.prim, fmt: (r) => N(r.prim) },
+      { k: 'mh', label: 'Middle & high teachers', num: true, val: (r) => r.mh, fmt: (r) => N(r.mh) },
+      { k: 'teachers', label: 'Teachers observed', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'deb', label: 'Debriefed', num: true, val: (r) => ratio(r.C, r.n), fmt: (r) => cov(ratio(r.C, r.n)) },
+      { k: 'forms', label: 'Forms used', val: (r) => Object.keys(r.form).join(''), fmt: (r) => formList(r.form) },
+      { k: 'last', label: 'Last observation', num: true, val: (r) => r.last, fmt: (r) => nice(r.last) },
+    ];
+    return card('c-hpr', title,
+      `School principals who observed their teachers — primary, middle or high — on any form · ${esc(scopeName())} · ${periodText()}. ${N(R.length)} principals held ${N(n)} observations (${N(mh)} of middle & high teachers). They count in every HITL total, but not in the coach table. Click a principal for their primary observations. Contains names — internal use only.`,
+      table('hpr', cols, R, { sort: { k: 'n', dir: -1 }, onRow: (k) => modalOpen({ kind: 'coach', key: k }), rowKey: (r) => r.key }));
+  }
+
+  function viewHitlMh() {
+    const M = Calc.mhObsStats(S.P, sel());
+    const title = `Middle & high observations · ${scopeName()} · ${periodText()}`;
+    const about = 'HITL observations of <b>middle and high teachers</b> (an account whose level has no Primary) on any form, plus every visit on the <b>FDE grade 6–12 forms</b> — English &amp; Urdu, Maths &amp; Science and the General form, from the FDE “Guidelines for the new academic session” (Annexure G) — whoever was observed. Coaches and principals both count. Each form has its own scale, so scores are shown form by form and never added together, nor to primary FICO. <b>Provisional</b>: the data rules do not yet cover these forms. The Sector filter applies; the School filter only matches schools that also have primary teachers.';
+    if (!M) return card('c-hmh', title, `${about}<br><br>Not loaded yet: the dashboard may still be refreshing after an update. This appears by itself when it finishes.`, '');
+    if (!M.n) return card('c-hmh', title, `${about}<br><br>No middle & high observations in this period.`, '');
+    const T = M.tot;
+    const kpis = `<div class="kpis">${kpi('Observations', N(M.n), 'held and scored')}${kpi('Teachers observed', N(T.teachers), `${N(T.schools)} schools`)}${kpi('Observers', N(T.observers), `${N(T.p)} observations by principals`)}
+      ${kpi('Debriefed', P1(ratio(T.C, T.n)), `${N(T.C)} of ${N(T.n)}`)}${kpi('On FDE grade 6–12 forms', N((T.form.e || 0) + (T.form.m || 0) + (T.form.g || 0)), 'English & Urdu, Maths & Science, General')}</div>`;
+    const fcols = [
+      { k: 'name', label: 'Form', val: (r) => Calc.HM_FORM_ORDER.indexOf(r.key), fmt: (r) => `<i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${FORM_C[r.key]}"></i> ${esc(Calc.HM_FORM[r.key])}` },
+      { k: 'n', label: 'Observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'pct', label: 'Average score', num: true, val: (r) => r.pct, fmt: (r) => (r.pct === null ? '—' : P1(r.pct)) },
+      { k: 'scale', label: 'What the score is', val: (r) => FORM_SCALE[r.key], fmt: (r) => `<span class="dim">${esc(FORM_SCALE[r.key])}</span>` },
+    ];
+    const frows = Object.entries(M.forms).map(([key, F]) => ({ key, n: F.n, pct: F.pN ? F.pS / F.pN : null }));
+    const wkf = Calc.HM_FORM_ORDER.filter((f) => M.forms[f]);
+    const weeks = M.weeks.length > 1 ? chart(M.weeks.map((w) => ({ label: `w/c ${nice(w.from)}`, values: wkf.map((f) => w.c[f] || 0) })), wkf.map((f) => ({ name: Calc.HM_FORM[f], color: FORM_C[f] }))) : '';
+    const secBars = (form, F, scale) => {
+      const keys = Object.keys(Calc.FDE_SEC[form]).filter((k) => F.sec[k]);
+      return `<div class="ladder">${keys.map((k) => { const [s, m, n] = F.sec[k], p = (100 * s) / m;
+        return `<div class="lrow"><div class="ll"><span>${esc(Calc.FDE_SEC[form][k])}</span><span>${scale(s, m, n)}</span></div><div class="lbar"><div style="width:${Math.min(100, p)}%;background:${FORM_C[form]}"></div></div><span class="lpct">${P0(p)}</span></div>`; }).join('')}</div>`;
+    };
+    let forms = '';
+    if (M.forms.e) {
+      const F = M.forms.e, bands = Object.entries(F.bands).sort((a, b) => b[1] - a[1]);
+      const items = Object.entries(F.item).map(([k, [s, m, n]]) => ({ key: k, name: Calc.FDE_ITEM[k] || k, p: (100 * s) / m, n })).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true }));
+      forms += card('c-hmh-e', `FDE English & Urdu form · ${N(F.n)} observations`, 'Points scored as a share of each section’s maximum. The band is the one printed on the form (its own ranges, not the dashboard’s FICO bands).',
+        `${bands.length ? `<span class="lbl">Band on the form</span>${splitBar(bands.map(([b, v], i) => [b, v, ['#1F7A4C', '#6BAF8B', '#F5D49A', '#EE9A86', '#BBB'][i] || '#BBB']), F.n)}` : ''}
+        <span class="lbl">By section</span>${secBars('e', F, (s, m, n) => `${N(n)} scored`)}
+        ${table('hmhe', [{ k: 'name', label: 'Item', val: (r) => r.key, fmt: (r) => esc(r.name) }, { k: 'p', label: 'Score, % of maximum', num: true, val: (r) => r.p, fmt: (r) => P1(r.p) }, { k: 'n', label: 'Observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) }], items, { noLegend: true })}`);
+    }
+    if (M.forms.m) {
+      const F = M.forms.m;
+      const items = Object.entries(F.item).map(([k, [s, m, n]]) => ({ key: k, a: (3 * s) / m, n })).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true }));
+      forms += card('c-hmh-m', `FDE Maths & Science form · ${N(F.n)} observations`, 'Eleven indicators, each rated 0–3: one before the lesson, eight during it, two after it. Average level per indicator.',
+        `${secBars('m', F, (s, m) => `average ${((3 * s) / m).toFixed(1)} / 3`)}
+        ${table('hmhm', [{ k: 'name', label: 'Indicator', val: (r) => +r.key.slice(1), fmt: (r) => `Indicator ${esc(r.key.slice(1))}` }, { k: 'a', label: 'Average level (0–3)', num: true, val: (r) => r.a, fmt: (r) => r.a.toFixed(1) }, { k: 'n', label: 'Observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) }], items, { noLegend: true })}`);
+    }
+    if (M.forms.g) {
+      const F = M.forms.g;
+      forms += card('c-hmh-g', `FDE General form · ${N(F.n)} observations`, 'A yes/no checklist in six parts. Share of the checklist items ticked yes in each part.', secBars('g', F, (s, m) => `${N(s)} of ${N(m)} ticked yes`));
+    }
+    if (M.forms.f) {
+      const F = M.fv3, rows = [['tsk', 'Subject knowledge'], ['hlp', 'Teaching practices'], ['se', 'Student engagement'], ['lpf', 'Lesson-plan fidelity (plan attached)']].filter(([k]) => F[k][2]);
+      forms += card('c-hmh-f', `Old FICO form (v3) used with middle & high teachers · ${N(M.forms.f.n)} observations`, 'The primary FICO form, used by coaches with middle and high teachers before the grade 6–12 forms arrived. Section scores as % of their maximum; kept apart from primary FICO.',
+        `<div class="kpis">${rows.map(([k, l]) => kpiP(l, (100 * F[k][0]) / F[k][1], `${N(F[k][2])} scored`)).join('')}</div>`);
+    }
+    if (M.forms['6']) {
+      const V = Calc.v6Stats(S.P, sel(), true);
+      forms += card('c-hmh-6', `FICO v6 used with middle & high teachers · ${N(V.n)} observations`, 'The new primary coach form, used with middle and high teachers. Coach’s final levels; kept apart from primary FICO v6.',
+        `<div class="kpis">${kpiP('Average final score', V.pct, '17 indicators')}${['C', 'D', 'F'].map((g) => kpiP(Calc.O2_GROUP[g], V.grp[g], `${g} indicators`)).join('')}</div>`);
+    }
+    const formCols = Calc.HM_FORM_ORDER.filter((f) => M.forms[f]).map((f) => ({ k: `f${f}`, label: Calc.HM_FORM[f], num: true, title: `Observations on the ${Calc.HM_FORM[f]}; average score in brackets (${FORM_SCALE[f]})`,
+      val: (r) => r.form[f] || 0, fmt: (r) => (r.form[f] ? `${N(r.form[f])}${r.pct[f] !== undefined ? ` <span class="dim">(${P0(r.pct[f])})</span>` : ''}` : '<span class="dim">—</span>') }));
+    const common = [
+      { k: 'n', label: 'Observations', num: true, val: (r) => r.n, fmt: (r) => N(r.n) },
+      { k: 'teachers', label: 'Teachers', num: true, val: (r) => r.teachers, fmt: (r) => N(r.teachers) },
+      { k: 'deb', label: 'Debriefed', num: true, val: (r) => ratio(r.C, r.n), fmt: (r) => cov(ratio(r.C, r.n)) },
+      ...formCols,
+    ];
+    const tb = (id, first, rows, extra = [], drop = []) => table(id, [first, ...extra, ...common.filter((c) => !drop.includes(c.k))], rows, { sort: { k: 'n', dir: -1 } });
+    const secT = tb('hmhs', { k: 'name', label: 'Sector', val: (r) => r.key, fmt: (r) => esc(r.key) }, M.by.sector, [{ k: 'schools', label: 'Schools', num: true, val: (r) => r.schools, fmt: (r) => N(r.schools) }]);
+    const schT = tb('hmhsc', { k: 'name', label: 'School', val: (r) => r.name, fmt: (r) => `${esc(r.name)} <span class="dim">${esc(r.key)}</span>` }, M.by.school, [{ k: 'sector', label: 'Sector', val: (r) => r.sector, fmt: (r) => esc(r.sector) }]);
+    const grT = tb('hmhg', { k: 'name', label: 'Grade', val: (r) => (/\d+/.test(r.key) ? +r.key.match(/\d+/)[0] : 99), fmt: (r) => esc(r.key) }, M.by.grade);
+    const sjT = tb('hmhj', { k: 'name', label: 'Subject', val: (r) => SUBJ[r.key] || r.key, fmt: (r) => esc(SUBJ[r.key] || r.key) }, M.by.subj);
+    const lvT = tb('hmhl', { k: 'name', label: 'Teacher’s level', val: (r) => r.key, fmt: (r) => esc(r.key) }, M.by.lv);
+    const obT = tb('hmho', { k: 'name', label: 'Observer', val: (r) => coachLabel(r.key), fmt: (r) => { const c = coachInfo(r.key); return `${esc(coachLabel(r.key))}${c && c.role ? ` <span class="dim">(${esc(c.role)})</span>` : ''}`; } }, M.by.observer,
+      [{ k: 'schools', label: 'Schools', num: true, val: (r) => r.schools, fmt: (r) => N(r.schools) }]);
+    const lvName = (lv) => [lv.includes('P') ? 'Primary' : '', lv.includes('M') ? 'Middle' : '', lv.includes('H') ? 'High' : ''].filter(Boolean).join(' + ') || 'No level';
+    const teT = tb('hmht', { k: 'name', label: 'Teacher', val: (r) => r.name, fmt: (r) => esc(r.name) }, M.by.teacher,
+      [{ k: 'school', label: 'School', val: (r) => r.school, fmt: (r) => `${esc(r.school)} <span class="dim">${esc(r.emis)}</span>` }, { k: 'lv', label: 'Level', val: (r) => r.lv, fmt: (r) => esc(lvName(r.lv)) },
+        { k: 'last', label: 'Last observed', num: true, val: (r) => r.last, fmt: (r) => nice(r.last) }], ['teachers']);
+    return card('c-hmh', title, about, kpis)
+      + `<div class="cards2">${card('c-hmh-fm', 'Which form', 'Each form’s average is on its own scale — compare within a form, not across.', table('hmhf', fcols, frows, { sort: { k: 'name', dir: 1 }, noLegend: true }))}${card('c-hmh-w', 'By week', 'Observations each week, by form.', weeks || '<p class="note">Too few weeks yet.</p>')}</div>`
+      + forms
+      + card('c-hmh-s', 'By sector', '', secT)
+      + card('c-hmh-sc', 'By school', 'Includes schools with no primary teachers.', schT)
+      + `<div class="cards2">${card('c-hmh-g2', 'By grade', 'Grade as recorded on the FDE grade 6–12 forms; other forms do not record it.', grT)}${card('c-hmh-j', 'By subject', 'Subject as recorded on the form.', sjT)}</div>`
+      + card('c-hmh-lv', 'By teacher’s level', 'From the level on the teacher’s account. “Primary (on a grade 6–12 form)” = a primary-tagged teacher observed with an FDE grade 6–12 form; they also count in the primary HITL figures.', lvT)
+      + card('c-hmh-o', 'By observer', 'Coaches and principals. Contains names — internal use only. Counts are activity, not quality.', obT)
+      + card('c-hmh-t', 'Teachers observed', 'Contains teacher names — internal use only.', teT);
   }
 
   // ---------- /observe2 pilot (fico17) ----------
@@ -2600,6 +2757,10 @@
       ['Changed scores / feedback only / unchanged', 'G', 'How the coach treated the AI’s pre-filled HITL form: rescored at least one indicator, rewrote only the written feedback, or submitted it as it was.', 'observer_edit_summary · coaching-query-rules §2d'],
       ['Lesson subject (DC)', 'G', 'The subject the Digital Coach heard in the recording, grouped into the primary subjects. HITL observations are not split by subject (only ~1 in 10 records one).', 'analysis_data.subject'],
       ['Lesson grade', 'P', 'Taken from the Rumi plan the teacher attached, else a clear grade typed in an attached plan, else the grades the teacher teaches on the class roster (a teacher on two grades counts in both).', 'lesson_plan_structured, class_teachers · coaching-query-rules §1g + owner choice'],
+      ['All HITL observations', 'G', 'Every held HITL observation of a programme-school teacher, primary, middle or high, by a coach or a principal, on any form. The primary HITL figures (coverage, debriefs, by coach) count primary teachers only.', 'coaching_sessions (leader_observation) · hitl_conducted · coaches-rules §3b'],
+      ['FICO v6', 'P', 'The coach form from 13 Nov 2026 (everyone from 16 Nov): 17 indicators at level 1–4 — C1–C8 what the teacher does, D1–D5 what the children do, F1–F4 subject knowledge. Rumi scores 11 first, the coach reviews them and scores the other 6. The dashboard uses the coach’s final levels (Rumi’s until reviewed). Never compared with or added to the old FICO scores; how v6 is stored is not yet in the data rules.', 'analysis_data.framework = fico17_v6 · levels, fico17_v6_review · fico-v6-rules §1–§2'],
+      ['Middle & high observations', 'P', 'HITL observations of teachers whose account level has no Primary, on any form, plus every visit on an FDE grade 6–12 form (English & Urdu, Maths & Science, General; FDE guidelines, Annexure G). Each form has its own scale and is never added to another.', 'analysis_data.framework = obs612-* / any form · teacher_level'],
+      ['Principals doing HITL', 'G', 'School principals who observed teachers with the HITL flow. They count in every HITL total but have their own table, apart from coaches.', 'observer users.role = principal · coaches-rules §3b'],
       ['/observe2 pilot', 'P', 'The impact team’s experiment: coaches score 17 indicators themselves (fico17). Never added to HITL or FICO figures. The pilot-study section reads the pilot’s field forms, which are not yet in the data rules.', 'observe2 in analysis_data, observation_field_forms'],
     ]],
     ['FICO scores', [
@@ -2777,10 +2938,11 @@
   function viewHitl(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
-    return card('c-hitl', `HITL observations · ${scopeName()} · ${periodText()}`, 'A coach observes the lesson in person. Held = conducted (scored, not cancelled, abandoned, failed or a test). Held = debriefed + debrief pending + awaiting review. <code>/observe2</code> observations use another rubric and are left out.',
+    return card('c-hitl', `HITL observations · ${scopeName()} · ${periodText()}`, 'A coach observes the lesson in person. Held = conducted (scored, not cancelled, abandoned, failed or a test). Held = debriefed + debrief pending + awaiting review. Primary teachers only, on every form (old FICO v3 and, from 13 Nov, FICO v6). <code>/observe2</code> observations use another rubric and are left out.',
       `<div class="kpis">${kpi('HITL observations', N(a.hitl), vsLine(S.prevR ? dPct(a.hitl, S.prevR.all.hitl) : ''))}${kpi('Teachers observed at least once', N(a.hitlT), `${P1(ratio(a.hitlT, a.teachers))} of ${N(a.teachers)} ${S.prevR ? dPts(ratio(a.hitlT, a.teachers), ratio(S.prevR.all.hitlT, S.prevR.all.teachers)) : ''}`)}
         ${kpi('Debriefed', N(a.hitlC), P1(ratio(a.hitlC, a.hitl)))}${kpi('Debrief pending', N(a.hitlP), '')}${kpi('Awaiting review', N(a.hitlA), '')}</div>
         <p class="note">${N(S.data.observe2_excluded || 0)} /observe2 observations (since 1 Aug, all schools) use the impact team's own rubric and are not counted here — see the <a href="#tab=observe2">/observe2 pilot</a> tab.</p>`)
+      + hitlAllCard()
       + card('c-hitl-trend', 'HITL observations over time', '', chart(ser.map((g) => ({ label: bucketLabel(g), values: [g.hitl, g.teachersHitl] })),
         [{ name: 'HITL observations', color: NAVY }, { name: 'Teachers observed', color: GREY }]), granSeg())
       + card('c-hitl-t', `By ${level}`, '', table('hitl', [nameCol(level), COL.teachers, COL.hitl, COL.hitlT, COL.hitlPct, COL.hitlC, COL.hitlP, COL.hitlA, ...ficoCols().filter((c) => c.src === 'hitl')], rows,
@@ -2797,7 +2959,8 @@
   function viewFico(R) {
     const a = R.all, { level, rows } = levelRows(R);
     const ser = seriesNow();
-    const odd = a.odd ? `<p class="note warn">${N(a.odd)} section scores on an unexpected scale were left out.</p>` : '';
+    const odd = (a.odd ? `<p class="note warn">${N(a.odd)} section scores on an unexpected scale were left out.</p>` : '')
+      + (S.to >= 104 ? '<p class="note warn"><b>The coach form changed on 13–16 Nov 2026 (FICO v6).</b> HITL section scores here are the old FICO form only, so from 16 Nov they cover very few coach visits. FICO v6 scores are on the <a href="#tab=hitl">HITL observations</a> tab (section FICO v6), kept apart because the two forms must not be compared. Digital Coach is unchanged.</p>' : '');
     return card('c-fico', `FICO section scores · ${scopeName()} · ${periodText()}`,
       'Score ÷ maximum, pooled over sessions. Digital Coach and coach visits are never pooled. <b>Subject knowledge changed on 8 Sep (FICO v3)</b>: subject items now count only when they apply, so the two versions are shown separately and must not be compared. Lesson-plan fidelity counts only lessons with a plan attached. n = sessions.',
       ficoBlock(a) + odd)
@@ -3291,7 +3454,7 @@
     const warn = !missing.length ? '' : S.refreshing
       ? `<p class="note">Updating now: ${what} will appear in a few minutes. This page will refresh itself.</p>`
       : `<p class="note warn">Some data could not be loaded in the last refresh (${what}); those figures show as blank or zero.</p>`;
-    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics(), observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, targets: viewTargets, league: viewLeague, usage: viewUsage, coachcheck: viewCoachCheck, kudos: () => (window.Kudos ? window.Kudos.view() : card('c-kd', 'Thank-you wall', '', '<p class="note">The wall could not load. Please reload the page.</p>')), report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
+    const views = { overview: viewOverview, lp: viewLp, dc: (R) => viewDc(R) + dcAnalytics(), hitl: (R) => viewHitl(R) + hitlAnalytics() + v6Section(), hitlmh: viewHitlMh, observe2: viewObserve2, egra: viewEgra, spotlight: viewSpotlight, calendar: viewCalendar, glossary: viewGlossary, cards: viewCards, mhtraining: viewMh, dq: viewDq, impact: viewImpact, targets: viewTargets, league: viewLeague, usage: viewUsage, coachcheck: viewCoachCheck, kudos: () => (window.Kudos ? window.Kudos.view() : card('c-kd', 'Thank-you wall', '', '<p class="note">The wall could not load. Please reload the page.</p>')), report: viewReport, fico: viewFico, quiz: viewQuiz, exams: viewExams, training: viewTraining, schools: viewSchools, teachers: viewTeachers, trends: viewTrends };
     const fid = document.activeElement && ['search', 'gsearch'].includes(document.activeElement.id) ? document.activeElement.id : null;
     const focus = fid ? document.activeElement.selectionStart : null;
     charts.length = 0;

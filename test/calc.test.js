@@ -263,3 +263,39 @@ test('LP engagement on an average school day and sprint weeks (Thu-Wed), the Rum
   assert.strictEqual(W[W.length - 1].partial, true);      // today = day 30 is mid-week
   assert.deepStrictEqual(Object.keys(C.sprintWeeks(P, { sector: 'B' })[0].sectors), ['B']);
 });
+
+test('HITL beyond primary FICO v3: all observations, FICO v6, middle & high, principals', () => {
+  const data = sample();
+  const ai = '42-3-2-32---23333', fin = '42233223223223333';
+  data.coaches = [{ id: 'cccc0001', name: 'Coach A', role: 'coach' }, { id: 'pppp0001', name: 'Head B', role: 'principal', emis: '9', school: 'Middle S9' }];
+  data.obs.push([2, 10, 'H', 'C', null, null, null, null, null, null, null, null, '', '', 'cccc0001', 'u']);   // the v6 visit as data.obs sees it
+  data.hm = {
+    schools: [['9', 'B', 'Middle S9']],
+    teachers: [[0, 'M1', 'MH', 'M']],
+    rows: [
+      [2, 10, 'cccc0001', 'c', 'C', '6', 64.7, 64.7, '', null, '', ai, fin, { v6_teacher: [14, 20] }, 'r'],
+      [-1, 11, 'pppp0001', 'p', 'P', 'e', 78.4, null, 'Proficient', 7, 'e', '', '', { s2b: [10, 12], s3a: [8, 8] }, 'u'],
+      [-1, 12, 'cccc0001', 'c', 'C', 'f', 70, null, '', null, 'm', '', '', { high_leverage_practices: [30, 48] }, 'r'],
+    ],
+  };
+  const P = C.prepare(data), o = { from: 0, to: 30 };
+  const A = C.hitlAll(P, o);
+  assert.deepStrictEqual([A.all, A.prim, A.mh, A.primT, A.mhT], [5, 3, 2, 1, 1]);
+  assert.strictEqual(A.form['6'], 1);
+  assert.strictEqual(A.form.f, 2 + 1);                  // two primary v3 + one middle/high v3
+  assert.strictEqual(A.obs.p, 1);
+  const V = C.v6Stats(P, o);
+  assert.strictEqual(V.n, 1);
+  assert.strictEqual(V.changed, 1);
+  assert.strictEqual(V.pct, 64.7);
+  assert.strictEqual(V.ind[0].same, 1);                  // C1: Rumi 4, coach 4
+  assert.deepStrictEqual([V.ind[5].same, V.ind[2].cmp], [1, 0]);   // C6 kept; C3 is coach-only, never compared
+  const M = C.mhObsStats(P, o);
+  assert.strictEqual(M.n, 2);
+  assert.deepStrictEqual(M.forms.e.sec.s2, [10, 12, 1]);
+  assert.deepStrictEqual(M.fv3.hlp, [30, 48, 1]);
+  assert.strictEqual(M.by.observer.length, 2);
+  assert.strictEqual(C.mhObsStats(P, { from: 0, to: 30, sector: 'A' }).n, 0);
+  const R = C.principalStats(P, o);
+  assert.deepStrictEqual(R.map((r) => [r.name, r.prim, r.mh, r.school]), [['Head B', 0, 1, 'Middle S9']]);
+});

@@ -8,7 +8,7 @@ const zlib = require('zlib');
 const db = require('./db');
 const { buildMh, buildMhCatalog } = require('./mh');
 const { buildDq } = require('./dq');
-const { buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
+const { buildHeadcount, buildRoster, buildLp, buildObservations, buildQuizzes, buildQuizSectors, buildExams, buildTraining, buildLessons, buildLpDetail, buildQuizScores, buildExamDetail, buildTeacherGrades, buildCoaches, buildDebriefs, buildObserve2, buildHitlMore, buildPilot, buildFicoInd, rosterSig } = require('./unpack');
 const { buildEgra, buildEgraDraws, egraSummary } = require('./egra');
 const FB = require('./feedback');
 const EV = require('./events');
@@ -64,7 +64,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WINDOW_START = '2026-08-01';               // day 0 of every "day" index in the queries
 const COMMON = fs.readFileSync(path.join(__dirname, 'sql', '_common.sql'), 'utf8').trim();
 const loadSql = (name) => fs.readFileSync(path.join(__dirname, 'sql', `${name}.sql`), 'utf8').replace('{{COMMON}}', COMMON);
-const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training', 'mh_training', 'mh_catalog', 'headcount', 'data_quality', 'dq_coaches'].map((n) => [n, loadSql(n)]));
+const SQL = Object.fromEntries(['roster', 'lp', 'lp_detail', 'lp_lessons', 'observations', 'quizzes', 'quiz_sectors', 'quiz_scores', 'exams', 'exam_detail', 'teacher_grades', 'coaches', 'debriefs', 'observe2', 'hitl_more', 'pilot', 'fico_ind', 'egra', 'egra_draws', 'training', 'mh_training', 'mh_catalog', 'headcount', 'data_quality', 'dq_coaches'].map((n) => [n, loadSql(n)]));
 
 let state = { data: null, gz: null, as_of: null, last_attempt: null, last_error: null, refreshing: false, parts: {}, last_refresh: null };
 const STARTED_AT = new Date().toISOString();
@@ -155,9 +155,10 @@ const QUESTIONS = {
   egra_draws: 'scheduled refresh: ICT Dashboard, learning assessment random sample per programme school (drawn, tested, absent, refused) - counts only',
   fico_ind: 'scheduled refresh: ICT Dashboard, FICO v3 indicator scores per school, DC vs HITL, by week since 8 Sep 2026',
   pilot: 'scheduled refresh: ICT Dashboard, FICO /observe2 pilot field forms - provisional, DC and final levels, evidence check marks, priorities (study design of 7 Oct 2026)',
+  hitl_more: 'scheduled refresh: ICT Dashboard, HITL coach and principal visits not in the primary FICO set since 1 Aug 2026 - middle/high teachers on any form, FICO v6 and FDE grade 6-12 forms - form, levels, section scores, observer',
   observe2: 'scheduled refresh: ICT Dashboard, /observe2 (fico17) coach visits of primary teachers since 1 Aug 2026 - levels, priorities, children\'s thinking',
   debriefs: 'scheduled refresh: ICT Dashboard, HITL debrief reports per primary teacher since 1 Aug 2026 (summary, strengths, growth areas, action plan, focus area; no verbatim classroom quotes)',
-  coaches: 'scheduled refresh: ICT Dashboard, coaches who held HITL observations of primary teachers since 1 Aug 2026, with names (internal use only)',
+  coaches: 'scheduled refresh: ICT Dashboard, coaches and principals who held HITL observations of programme-school teachers since 1 Aug 2026, with names and a principal’s own school (internal use only)',
   teacher_grades: 'scheduled refresh: ICT Dashboard, the grades each primary teacher teaches on the class roster, for DC observations by grade',
   exam_detail: 'scheduled refresh: ICT Dashboard, exam papers per primary teacher by day, hour, grade, subject, seen/unseen, surface and chapter since 1 Aug 2026',
   exams: 'scheduled refresh: ICT Dashboard, exam papers from the /assessment generator per primary teacher per day since 1 Aug 2026',
@@ -228,6 +229,7 @@ async function refresh(reason) {
       ['fico_ind', async () => ({ fi: buildFicoInd(await runPaged('fico_ind'), ro) })],
       ['pilot', async () => ({ pilot: buildPilot(await executeQuery(SQL.pilot, QUESTIONS.pilot), ro) })],
       ['observe2', async () => ({ o2: buildObserve2(await runPaged('observe2'), ro) })],
+      ['hitl_more', async () => ({ hm: buildHitlMore(await runPaged('hitl_more'), ro) })],
       ['debriefs', async () => ({ deb: buildDebriefs(await runPaged('debriefs', 10), ro) })],
       ['lp_detail', async () => {
         const lessons = buildLessons(await executeQuery(SQL.lp_lessons, QUESTIONS.lp_lessons));
@@ -241,7 +243,7 @@ async function refresh(reason) {
       }],
       ['data_quality', async () => ({ dq: buildDq(await runPaged('data_quality'), await executeQuery(SQL.dq_coaches, QUESTIONS.dq_coaches)) })],
     ];
-    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'], mh_training: ['mh'], headcount: ['hc'], data_quality: ['dq'] };
+    const KEYS = { lp: ['lp'], observations: ['obs', 'observe2_excluded'], quizzes: ['quiz'], quiz_sectors: ['quiz_sectors'], exams: ['exams'], lp_detail: ['lpd'], quiz_scores: ['qscore'], exam_detail: ['exd'], teacher_grades: ['tgr'], coaches: ['coaches'], debriefs: ['deb'], observe2: ['o2'], hitl_more: ['hm'], pilot: ['pilot'], fico_ind: ['fi'], egra: ['egra'], egra_draws: ['egraDraws'], training: ['training'], mh_training: ['mh'], headcount: ['hc'], data_quality: ['dq'] };
     for (const [name, run] of parts) {
       const p0 = Date.now();
       try {
